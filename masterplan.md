@@ -376,3 +376,11 @@ Do not describe the entire app as finished while any required feature remains un
 - Added and deployed JWT-protected `send-message-push` Edge Function. It checks message ownership and sends only to other conversation members' registered devices. Actual delivery remains blocked until the Firebase Android app config and server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret are configured.
 - Added `admin-console/index.html`, a responsive locked operations-console UI shell with no fabricated data. It is not a working admin console until server-verified role checks, privileged endpoints, and audit logging are implemented.
 - Android build verification, FCM delivery tests, and device-level integration tests remain outstanding.
+
+
+### 2026-10-16 — Secure invitation acceptance flow
+
+- Added an RLS-protected `conversation_invites` table and matching committed migration.
+- Changed the deployed `create-conversation` function to create a pending invitation and creator membership only; the recipient receives no conversation membership before accepting.
+- Added and deployed `respond-conversation-invite`, which verifies the authenticated recipient and handles accept/decline. Updated the Android chat UI with pending invitation cards and recipient controls.
+- The flow still requires two-account runtime tests and review of duplicate-invitation/rate-limit behavior before production use.
