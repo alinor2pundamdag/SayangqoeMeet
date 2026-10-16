@@ -11,7 +11,7 @@
 
 - Private repository: `alinor2pundamdag/SayangqoeMeet`, default branch `main`.
 - Master plan and project records are present.
-- Initial Android source/configuration now exists: Kotlin/Compose module, manifest, launcher activity, dark neon sign-in/registration UI, and Android CI workflow.
+- Initial Android source/configuration now exists: Kotlin/Compose module, manifest, launcher activity, dark neon sign-in/registration UI with safe system-inset and keyboard handling, and Android CI workflow.
 - Source files were re-fetched from GitHub to verify saved contents.
 - **Build status is unverified**. Do not say it compiles until GitHub Actions or an Android-capable environment reports success.
 - Supabase, FCM, real messaging, WebRTC, and device/emulator UI verification are not implemented/verified yet.
