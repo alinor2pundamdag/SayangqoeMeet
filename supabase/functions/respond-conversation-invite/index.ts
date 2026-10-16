@@ -49,14 +49,6 @@ Deno.serve(async (req: Request) => {
   if (!invite) return reply(404, { error: "Invitation not found" });
   if (invite.status !== "pending") return reply(409, { error: "Invitation has already been answered" });
 
-  if (body.accept) {
-    const { error: memberError } = await adminClient.from("conversation_members").upsert(
-      { conversation_id: invite.conversation_id, user_id: authData.user.id },
-      { onConflict: "conversation_id,user_id", ignoreDuplicates: true },
-    );
-    if (memberError) return reply(500, { error: "Could not accept conversation membership" });
-  }
-
   const nextStatus = body.accept ? "accepted" : "declined";
   const { data: updated, error: updateError } = await adminClient
     .from("conversation_invites")
@@ -66,7 +58,22 @@ Deno.serve(async (req: Request) => {
     .eq("status", "pending")
     .select("id, conversation_id, status")
     .maybeSingle();
-  if (updateError || !updated) return reply(409, { error: "Invitation could not be updated; refresh and try again" });
+  if (updateError || !updated) return reply(409, { error: "Invitation was already answered; refresh and try again" });
+
+  if (body.accept) {
+    const { error: memberError } = await adminClient.from("conversation_members").upsert(
+      { conversation_id: invite.conversation_id, user_id: authData.user.id },
+      { onConflict: "conversation_id,user_id", ignoreDuplicates: true },
+    );
+    if (memberError) {
+      await adminClient.from("conversation_invites")
+        .update({ status: "pending", responded_at: null })
+        .eq("id", invitationId)
+        .eq("recipient_id", authData.user.id)
+        .eq("status", "accepted");
+      return reply(500, { error: "Could not accept conversation membership; invitation reset to pending" });
+    }
+  }
 
   return reply(200, { invitation: updated });
 });
