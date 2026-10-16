@@ -23,7 +23,7 @@
 1. Run a real Android debug build from GitHub Actions or AndroidIDE. Resolve compile errors using actual logs.
 2. End-to-end test auth/profile and conversation invitation with two separate accounts; verify cross-user reads/writes are denied.
 3. Add Realtime subscriptions and message pagination/retry handling.
-4. Register the Firebase Android app for package `com.sayangqoemeet.app`, add the project-specific app config and Google Services plugin, configure the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret in Supabase, then test push notifications on devices.
+4. Register the Firebase Android app for package `com.sayangqoemeet.app`, add the project-specific `app/google-services.json` (the Google Services plugin is conditionally applied when this file exists), configure the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret in Supabase, then test push notifications on devices.
 5. Implement WebRTC signaling/media and test two authorized devices.
 6. Build the separate admin web console with backend role enforcement and an audit log.
 
