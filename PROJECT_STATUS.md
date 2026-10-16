@@ -13,7 +13,7 @@
 - [x] Live migration `20261016114000_initial_private_messaging` is present in Supabase migration history.
 - [x] Live tables `profiles`, `conversations`, `conversation_members`, and `messages` exist; RLS is enabled on all four. Current row counts are zero.
 - [x] Supabase security advisor currently reports no findings. This is not a substitute for authorization tests.
-- [x] Added and applied migration `20261016180000_add_foreign_key_indexes` for `conversations.created_by` and `messages.sender_id`, previously flagged by the performance advisor.
+- [x] Added and applied migration `20261016134617_add_foreign_key_indexes` for `conversations.created_by` and `messages.sender_id`, previously flagged by the performance advisor.
 - [x] Corrected README and project handoff records to reflect current hosted Supabase state and the missing Firebase/FCM setup.
 - [x] Supabase helper function `public.rls_auto_enable()` execute privilege is limited to the database owner role; live privilege query confirmed no `PUBLIC`, `anon`, or `authenticated` execute grant.
 
