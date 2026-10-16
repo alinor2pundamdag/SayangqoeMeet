@@ -14,12 +14,15 @@
 - [x] Conversation screen loads real message history and sends messages through PostgREST under RLS.
 - [x] Deployed Supabase Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller and securely creates a conversation plus membership for both users.
 - [x] Added and committed the matching Edge Function source at `supabase/functions/create-conversation/index.ts`.
-- [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.\n- [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.\n- [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
-- [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; four application tables exist with RLS enabled.
+- [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.
+- [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.
+- [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
+- [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; five application tables exist with RLS enabled.
 - [x] Initial and foreign-key-index migrations are recorded in the live Supabase migration history and matched by repository filenames.
 - [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
 - [x] README, handoff, and changelog are being aligned with current implementation status.
-- [x] Added an explicit admin-console requirement to `masterplan.md`.\n- [x] Added `admin-console/index.html`, a responsive locked operations-console UI shell with no fabricated data.
+- [x] Added an explicit admin-console requirement to `masterplan.md`.
+- [x] Added `admin-console/index.html`, a responsive locked operations-console UI shell with no fabricated data.
 
 ## Incomplete / unverified
 
