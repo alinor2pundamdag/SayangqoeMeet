@@ -283,7 +283,8 @@ Work in dependency order, adapting only when source/build evidence requires it.
 4. **Notifications:** FCM registration and delivery path, notification channels, default notification sound and vibration, privacy-aware tap routing.
 5. **Calls:** WebRTC media, secure signaling, default system ringtone behavior, permissions, cleanup and failure recovery.
 6. **Quality and security:** unit/UI/integration tests, RLS authorization tests, responsive-layout checks, dependency review and secret scanning.
-7. **Release readiness:** reproducible build, setup guide, verified test matrix, known limitations, final status/handoff and release preparation (publishing only with user approval).
+7. **Admin console:** separate web operations console, server-verified administrator roles, user/report management, operational health, audit history, and authorization tests.
+8. **Release readiness:** reproducible build, setup guide, verified test matrix, known limitations, final status/handoff and release preparation (publishing only with user approval).
 
 At every phase, build on real working code and verify the result before advancing. Do not substitute decorative mockups for required functionality.
 
@@ -356,3 +357,13 @@ Do not describe the entire app as finished while any required feature remains un
 - The user confirmed that an admin console is expected. The prior baseline did not explicitly specify an admin console, so this requirement is added rather than retroactively claiming it was already documented.
 - Defined a separate web operations console with server-verified admin authorization, user/report management, operational health, audit history, and least-privilege trusted endpoints.
 - The Android admin navigation currently provides only a locked placeholder; it is not a working or authorized admin console.
+
+
+### 2026-10-16 — Signed-in app screens and secure conversation creation path
+
+- Added the signed-in Compose shell and screens for profile, chat list, conversation history/sending, call controls, and a locked admin entry.
+- Connected profile reads/writes and conversation/message list/send operations to authenticated Supabase REST calls using the active user session.
+- Deployed the `create-conversation` Edge Function with JWT verification. It validates the authenticated caller, resolves the recipient username, and creates the conversation and both membership rows using server-side credentials. The source is committed in `supabase/functions/create-conversation/index.ts`.
+- Added a visible Hang Up / Cancel control, while explicitly retaining WebRTC media/signaling as unfinished.
+- Added the admin console as an explicit requirement. The current mobile entry is only a locked placeholder; the separate web console and backend authorization remain outstanding.
+- These source/deployment changes still require Android build verification, two-account integration tests, and RLS negative tests.
