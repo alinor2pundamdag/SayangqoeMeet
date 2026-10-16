@@ -123,3 +123,9 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Firebase Android app config (`app/google-services.json`) and Google Services Gradle plugin are not present.
 - The server-only `FIREBASE_SERVICE_ACCOUNT_JSON` Supabase Edge Function secret is not configured.
 - No FCM delivery or Android build has been verified. Do not claim notifications are working until both external configuration and device tests pass.
+
+
+## 2026-10-16 — Admin console UI shell
+
+- Added `admin-console/index.html`, a responsive dark/neon operations-console shell for user management, safety reports, service health, and audit history.
+- The shell intentionally displays no fabricated metrics and keeps privileged actions disabled. Authentication, server-side role enforcement, live data, audit logging, and operational endpoints are still required.
