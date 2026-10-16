@@ -15,8 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -187,7 +190,7 @@ private fun ProfileScreen(onBack: () -> Unit) {
     }
 
     Column(
-        Modifier.fillMaxSize().padding(22.dp),
+        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         BackHeader("YOUR PROFILE", onBack)
@@ -318,7 +321,7 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(8.dp), fontSize = 11.sp)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
@@ -414,7 +417,7 @@ private fun AdminConsoleScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BackHeader("ADMIN CONSOLE", onBack)
         Text("Operations overview", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Admin console was not defined in the current master plan. This entry is a safe access placeholder, not an authorized admin dashboard.", color = ShellMuted, fontSize = 13.sp)
+        Text("Admin console is now included in the master plan. This mobile entry is a locked navigation placeholder, not an authorized admin dashboard.", color = ShellMuted, fontSize = 13.sp)
         ActionCard("USER MANAGEMENT", "Account lookup, status, and moderation", "SERVER AUTHORIZATION REQUIRED", {})
         ActionCard("SAFETY & REPORTS", "Review reports and apply audited actions", "SERVER AUTHORIZATION REQUIRED", {})
         ActionCard("SYSTEM HEALTH", "Integration status and operational events", "SERVER AUTHORIZATION REQUIRED", {})
