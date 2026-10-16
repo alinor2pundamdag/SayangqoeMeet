@@ -1,6 +1,7 @@
 package com.sayangqoemeet.app
 
 import android.os.Bundle
+import android.content.Intent
 import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -70,6 +71,7 @@ private val ErrorRed = Color(0xFFFF8297)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SupabaseAuthRepository.handleDeepLink(intent)
         enableEdgeToEdge()
         MessageNotificationChannels.ensureCreated(this)
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
@@ -89,6 +91,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        SupabaseAuthRepository.handleDeepLink(intent)
     }
 }
 
