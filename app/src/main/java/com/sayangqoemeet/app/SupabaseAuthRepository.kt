@@ -35,6 +35,10 @@ object SupabaseAuthRepository {
         return "Signed in successfully."
     }
 
+    fun currentUserId(): String? = client.auth.currentUserOrNull()?.id
+
+    fun currentAccessToken(): String? = client.auth.currentSessionOrNull()?.accessToken
+
     suspend fun signOut() {
         client.auth.signOut()
     }
