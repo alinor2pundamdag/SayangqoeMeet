@@ -7,33 +7,40 @@
 
 ## Verified completed items
 
-- [x] Clean-start requirements baseline, project continuity records, and Android Compose foundation are committed.
-- [x] Neon sign-in/registration UI is wired to the Supabase Kotlin email Auth repository.
-- [x] Active Supabase project verified: `phjwzrrsaemgcedwpyyp`, status `ACTIVE_HEALTHY`, PostgreSQL 17, Tokyo region.
-- [x] Live migration `20261016114000_initial_private_messaging` is present in Supabase migration history.
-- [x] Live tables `profiles`, `conversations`, `conversation_members`, and `messages` exist; RLS is enabled on all four. Current row counts are zero.
-- [x] Supabase security advisor currently reports no findings. This is not a substitute for authorization tests.
-- [x] Added and applied migration `20261016134617_add_foreign_key_indexes` for `conversations.created_by` and `messages.sender_id`, previously flagged by the performance advisor.
-- [x] Corrected README and project handoff records to reflect current hosted Supabase state and the missing Firebase/FCM setup.
-- [x] Supabase helper function `public.rls_auto_enable()` execute privilege is limited to the database owner role; live privilege query confirmed no `PUBLIC`, `anon`, or `authenticated` execute grant.
+- [x] Android Compose foundation and neon sign-in/registration UI are committed.
+- [x] Sign-in success now routes to an app shell; sign-out calls Supabase Auth.
+- [x] Profile screen loads and saves the signed-in user's profile through authenticated PostgREST requests.
+- [x] Chat list loads real conversation memberships from Supabase.
+- [x] Conversation screen loads real message history and sends messages through PostgREST under RLS.
+- [x] Deployed Supabase Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller and securely creates a conversation plus membership for both users.
+- [x] Added and committed the matching Edge Function source at `supabase/functions/create-conversation/index.ts`.
+- [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.
+- [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; four application tables exist with RLS enabled.
+- [x] Initial and foreign-key-index migrations are recorded in the live Supabase migration history and matched by repository filenames.
+- [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
+- [x] README, handoff, and changelog are being aligned with current implementation status.
+- [x] Added an explicit admin-console requirement to `masterplan.md`.
 
-## Remaining blockers / unverified
+## Incomplete / unverified
 
-- **Android build/CI:** No confirmed successful GitHub Actions run or local Android build result has been observed yet. The workflow is configured; check its actual run status after these commits.
-- **Authentication:** Auth repository/UI are integrated in source, but live sign-up, sign-in, session persistence, and sign-out have not been end-to-end tested.
-- **RLS authorization:** RLS is enabled, but automated allowed/denied access tests have not been run. Conversation creation and membership/invitation flow is not complete; do not treat the database as production-ready for private messaging yet.
-- **Messaging:** Profile UX, conversation list/create/invite, message UI/history/send, pagination, and Realtime remain unfinished.
-- **Firebase / FCM:** No Firebase Android app config (`app/google-services.json`), Google Services Gradle plugin, FCM service/token registration, or trusted server-side sender is present. Live push delivery cannot be completed until a Firebase project/app is configured and its app config is provided. Never commit service-account credentials or server secrets.
-- **WebRTC:** Calling/signaling, STUN/TURN deployment, and two-device tests remain unfinished.
-- **Performance advisor:** Recheck after the index migration; existing conversation-membership/message-history indexes may show as unused while the database is empty, which is expected for a new project.
+- **Android build/CI:** No confirmed successful GitHub Actions run or local Android build result has been observed for these latest UI/data changes.
+- **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
+- **Messaging:** REST history/send are implemented, but Realtime subscriptions, pagination UI, retry/deduplication, offline queueing, and comprehensive failure handling are not complete.
+- **Invitations:** The deployed Edge Function creates a one-to-one conversation and membership rows. It still needs end-to-end two-account testing and abuse/rate-limit review before production use.
+- **Firebase/FCM:** No Firebase app config, FCM token registration, or trusted push sender is present.
+- **Calls:** The Hang Up / Cancel UI exists, but WebRTC signaling/media, STUN/TURN, call invitations, and two-device tests are not implemented.
+- **Admin console:** Requirements are now in the master plan. The Android entry is locked placeholder UI; separate web console, server-verified admin roles, audit log, and privileged endpoints remain to be built.
+- **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
+- **Responsive verification:** Build, emulator screenshots, compact/large layout, orientation, and keyboard test matrix are still pending.
 
 ## Next actions
 
-1. Inspect the latest GitHub Actions run and fix any actual compile errors from logs; do not infer a pass from the workflow file alone.
-2. Add automated database authorization checks for both allowed and denied user paths before enabling real messaging.
-3. Implement secure profile and recipient invitation/conversation workflows, then messaging and Realtime.
-4. Configure Firebase project/package identity and FCM delivery path, then test notifications on devices.
-5. Implement WebRTC and verify calls between two authorized devices.
+1. Build the latest Android source in GitHub Actions or AndroidIDE and fix actual compiler errors from logs.
+2. Test registration, sign-in, profile creation, conversation invitation, message send/history, and denied cross-user access with two test accounts.
+3. Add Supabase Realtime and resilient message state handling.
+4. Configure Firebase/FCM and verify push delivery on devices.
+5. Implement WebRTC and test calls between two authorized devices.
+6. Build the separate secure web admin console with server-verified role checks and audit history.
 
 ## Accuracy and security
 
