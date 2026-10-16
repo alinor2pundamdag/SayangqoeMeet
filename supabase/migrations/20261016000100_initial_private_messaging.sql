@@ -79,7 +79,7 @@ create policy "members can view membership"
 on public.conversation_members for select to authenticated
 using (exists (
     select 1 from public.conversation_members own
-    where own.conversation_id = conversation_id and own.user_id = (select auth.uid())
+    where own.conversation_id = conversation_members.conversation_id and own.user_id = (select auth.uid())
 ));
 
 -- A user may only add themselves. Trusted server-side workflows must add other members.
