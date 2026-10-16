@@ -15,7 +15,7 @@
 - Live migration history includes `20261016114000_initial_private_messaging` and `20261016134617_add_foreign_key_indexes`.
 - Deployed Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller, resolves a recipient by username, creates a conversation, and inserts both membership rows using server-side credentials. Source: `supabase/functions/create-conversation/index.ts`.
 - Android repository methods use the current Supabase access token for profile CRUD, conversation queries, message history, and message sending.
-- Admin console is now an explicit master-plan requirement. The Android admin item is not a working admin dashboard; a separate web console and server-verified admin roles are still needed.
+- Admin console is now an explicit master-plan requirement. A static locked web UI shell exists at `admin-console/index.html`; the Android admin item is also a locked placeholder. Neither is a working admin dashboard until server-verified roles, privileged endpoints, and audit history are implemented.
 - FCM client/token registration code, the RLS-protected `device_tokens` table, and JWT-protected `send-message-push` Edge Function exist. Firebase app configuration and `FIREBASE_SERVICE_ACCOUNT_JSON` are still missing, so push delivery is not configured or verified.\n- No successful Android build, end-to-end two-account test, FCM delivery, Realtime test, or WebRTC call test has been confirmed.
 
 ## Highest-priority next steps
