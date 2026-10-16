@@ -58,6 +58,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("com.google.firebase:firebase-messaging:24.1.1")
 
     // Supabase Kotlin SDK: Auth uses Supabase-managed password hashing and sessions.
     implementation(platform("io.github.jan-tennert.supabase:bom:3.2.6"))
