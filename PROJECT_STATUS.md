@@ -27,7 +27,7 @@
 - **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
 - **Messaging:** REST history/send are implemented, but Realtime subscriptions, pagination UI, retry/deduplication, offline queueing, and comprehensive failure handling are not complete.
 - **Invitations:** The deployed Edge Function creates a one-to-one conversation and membership rows. It still needs end-to-end two-account testing and abuse/rate-limit review before production use.
-- **Firebase/FCM:** Client/token code and server sender function are present, but no `app/google-services.json` or Firebase service-account secret has been configured. The sender function cannot deliver push until `FIREBASE_SERVICE_ACCOUNT_JSON` is set in Supabase Edge Function secrets. No push delivery test has passed.
+- **Firebase/FCM:** Client/token code and server sender function are present, but no `app/google-services.json` or Firebase service-account secret has been configured. Google Services plugin application is conditional on the app config file existing, so it does not block the clean-start build. The sender function cannot deliver push until `FIREBASE_SERVICE_ACCOUNT_JSON` is set in Supabase Edge Function secrets. No push delivery test has passed.
 - **Calls:** The Hang Up / Cancel UI exists, but WebRTC signaling/media, STUN/TURN, call invitations, and two-device tests are not implemented.
 - **Admin console:** Requirements are now in the master plan. The Android entry is locked placeholder UI; separate web console, server-verified admin roles, audit log, and privileged endpoints remain to be built.
 - **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
