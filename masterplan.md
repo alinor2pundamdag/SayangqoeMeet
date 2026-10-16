@@ -306,3 +306,12 @@ Do not describe the entire app as finished while any required feature remains un
 - Added a GitHub Actions workflow configured to attempt a debug build.
 - Source and configuration files were re-fetched from GitHub to verify their saved contents.
 - This milestone does not claim a successful build, working Supabase authentication, real messaging, FCM delivery, WebRTC calling, or runtime UI verification. Those remain pending until independently tested.
+
+
+### 2026-10-16 — Supabase Auth source and initial RLS migration committed
+
+- Added Supabase Kotlin Auth dependencies and connected the email sign-in/registration controls to a real Auth client, configured through a publishable key.
+- Added a versioned SQL migration for profile, conversation, membership, and message tables with RLS.
+- Tightened membership/message policies to avoid recursive membership-policy evaluation and arbitrary conversation joining.
+- Hosted Supabase access is blocked in the current connector session: no projects are listed and access to the historical project reference was denied. The migration has not been applied remotely, and live authentication has not been verified.
+- GitHub Actions status queries did not return a run or check result for the latest commits. Build success remains unverified.
