@@ -2,29 +2,29 @@
 
 ## Start here
 
-1. Read `masterplan.md`; it is the requirements source of truth.
-2. Read `PROJECT_STATUS.md` and this handoff.
-3. Read the latest entries in `CHANGELOG_AI.md`.
-4. Inspect the repository files, Git history, and latest GitHub Actions runs before editing.
+1. Read `masterplan.md`, `PROJECT_STATUS.md`, and the latest `CHANGELOG_AI.md` entries.
+2. Inspect the current GitHub source and the latest CI run before changing code.
+3. Preserve the clean-start design and do not import the old Android app wholesale.
 
 ## Current verified state
 
 - Private repository: `alinor2pundamdag/SayangqoeMeet`, default branch `main`.
-- Master plan and project records are present.
-- Initial Android source/configuration now exists: Kotlin/Compose module, manifest, launcher activity, dark neon sign-in/registration UI with safe system-inset and keyboard handling, and Android CI workflow.
-- Source files were re-fetched from GitHub to verify saved contents.
-- **Build status is unverified**. Do not say it compiles until GitHub Actions or an Android-capable environment reports success.
-- Supabase, FCM, real messaging, WebRTC, and device/emulator UI verification are not implemented/verified yet.
-- The auth form performs only local input checks and explicitly reports that Supabase is not connected; it must not be described as real authentication.
+- Android Compose foundation and neon auth UI exist.
+- Supabase Kotlin Auth client/repository and UI calls are committed. The client reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from environment or root `local.properties`.
+- A Postgres schema/RLS migration is committed in `supabase/migrations/`, but **not applied** to the hosted database.
+- Supabase MCP currently shows no accessible projects and access to the historical project ref was denied. Restore access before any remote database action.
+- Build status is unverified; no successful CI/build or device test has been confirmed.
+- Messaging/realtime, invitation flow, FCM, WebRTC and profile UX remain incomplete.
 
-## Next task
+## Next steps
 
-Check GitHub Actions for the first debug build. If it fails, inspect the actual logs, make a focused fix, and rerun verification. After the build passes, implement Supabase Auth/session handling and the initial secure schema/RLS. Follow the dependency order in `masterplan.md`.
+1. Verify the intended Supabase project and publishable key via the authenticated Supabase connection; never use service-role keys in Android.
+2. Apply the migration to the correct project, run security advisors, and verify tables/RLS with read-only checks.
+3. Inspect GitHub Actions status/logs and repair any actual compile failures.
+4. Finish profile creation, safe conversation invitation, and private realtime messaging before adding FCM/WebRTC.
 
-## Working rules
+## Rules
 
-- Preserve approved requirements and existing files.
-- Never commit secrets or make destructive/unrelated changes.
-- Verify saved code and actual test results before reporting progress.
-- Update project status, handoff, and changelog after meaningful verified milestones.
-- Append master-plan completion history; do not rewrite old entries.
+- Do not say authentication, migration, CI, or runtime tests succeeded without evidence.
+- Keep secrets out of Git; update project status/changelog after verified milestones.
+- Follow `masterplan.md` and maintain private-by-default row-level security.
