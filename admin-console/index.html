@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>SayangqoeMeet · Admin Console</title>
+  <style>
+    :root{color-scheme:dark;--bg:#070b18;--panel:#10182b;--panel2:#151f36;--cyan:#55f4ff;--blue:#5d8cff;--violet:#b58aff;--text:#f0f5ff;--muted:#9baac5;--line:#2a3856;--warn:#ffd28a}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#13234a 0,transparent 42%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+    header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px clamp(18px,4vw,48px);border-bottom:1px solid #24314b;background:#070b18d9;position:sticky;top:0;backdrop-filter:blur(14px)}
+    .brand{font-weight:850;font-size:clamp(19px,2.5vw,26px);letter-spacing:-.7px;color:var(--cyan);text-shadow:0 0 22px #55f45522}.brand small{display:block;font-size:10px;letter-spacing:2.2px;color:var(--muted);text-shadow:none}
+    .pill{border:1px solid #7e622f;color:var(--warn);background:#4a361b55;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:800;letter-spacing:1px;white-space:nowrap}
+    main{max-width:1180px;margin:auto;padding:clamp(18px,4vw,42px)}.eyebrow{color:var(--cyan);font-size:11px;letter-spacing:2px;font-weight:800}.title{font-size:clamp(30px,5vw,46px);line-height:1.1;letter-spacing:-1.4px;margin:10px 0}.intro{max-width:700px;color:var(--muted);margin:0 0 28px}
+    .banner{padding:18px;border:1px solid #7e622f;background:#30251466;border-radius:18px;margin-bottom:24px}.banner strong{display:block;color:var(--warn);margin-bottom:4px}.banner p{color:#d6c8aa;margin:0;font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{min-width:0;padding:22px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#121c32,#0b1222);box-shadow:0 12px 40px #0002}.card h2{font-size:17px;margin:0 0 7px}.card p{color:var(--muted);font-size:13px;margin:0 0 18px}.state{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;letter-spacing:1px;font-weight:800}.dot{width:7px;height:7px;border-radius:50%;background:#8a95a9}.button{display:inline-block;border:1px solid #33486e;color:#8b9bbb;background:#131e33;border-radius:12px;padding:10px 13px;font-size:11px;font-weight:800;letter-spacing:.7px;cursor:not-allowed;opacity:.8}
+    .foot{border-top:1px solid var(--line);margin-top:28px;padding-top:18px;color:var(--muted);font-size:12px}.foot code{color:var(--cyan)}
+    @media(max-width:680px){header{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.card{padding:18px}.pill{white-space:normal}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">SayangqoeMeet <small>OPERATIONS CONSOLE</small></div>
+    <span class="pill">LOCKED · BACKEND AUTH REQUIRED</span>
+  </header>
+  <main>
+    <div class="eyebrow">PRIVATE OPERATIONS</div>
+    <h1 class="title">Admin console</h1>
+    <p class="intro">A dedicated workspace for authorized account support, safety review, and service health. This shell intentionally displays no fabricated operational data.</p>
+    <section class="banner" role="status">
+      <strong>Administrative actions are disabled</strong>
+      <p>Server-verified administrator identity, least-privilege endpoints, and an audit log must be implemented and tested before this console can display private user data or perform privileged actions. A browser-side flag is not authorization.</p>
+    </section>
+    <section class="grid" aria-label="Admin console modules">
+      <article class="card">
+        <h2>User management</h2><p>Search accounts, review account state, and handle support requests through audited server actions.</p>
+        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
+      </article>
+      <article class="card">
+        <h2>Safety & reports</h2><p>Review reports, record moderation decisions, and retain a minimal audit trail.</p>
+        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
+      </article>
+      <article class="card">
+        <h2>Service health</h2><p>Show verified integration health for Supabase, messaging, push notifications, and calling.</p>
+        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
+      </article>
+      <article class="card">
+        <h2>Audit history</h2><p>Review who performed a privileged action, when it occurred, and the recorded reason.</p>
+        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
+      </article>
+    </section>
+    <div class="foot">Security rule: never put Supabase service-role keys or Firebase service-account credentials in this frontend. Privileged actions must be authorized and executed on a trusted server. See <code>masterplan.md</code> for acceptance criteria.</div>
+  </main>
+</body>
+</html>
