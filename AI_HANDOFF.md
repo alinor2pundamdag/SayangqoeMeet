@@ -13,7 +13,7 @@
 - Supabase project `phjwzrrsaemgcedwpyyp` is active and healthy.
 - Four application tables exist with RLS enabled: `profiles`, `conversations`, `conversation_members`, `messages`.
 - Live migration history includes `20261016114000_initial_private_messaging` and `20261016134617_add_foreign_key_indexes`.
-- Deployed Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller, resolves a recipient by username, creates a conversation, and inserts both membership rows using server-side credentials. Source: `supabase/functions/create-conversation/index.ts`.
+- Deployed Edge Functions `create-conversation` and `respond-conversation-invite` are active with JWT verification enabled. The creator becomes a member and the recipient is added only after accepting a pending invitation. Sources: `supabase/functions/create-conversation/index.ts` and `supabase/functions/respond-conversation-invite/index.ts`.
 - Android repository methods use the current Supabase access token for profile CRUD, conversation queries, message history, and message sending.
 - Admin console is now an explicit master-plan requirement. A static locked web UI shell exists at `admin-console/index.html`; the Android admin item is also a locked placeholder. Neither is a working admin dashboard until server-verified roles, privileged endpoints, and audit history are implemented.
 - FCM client/token registration code, the RLS-protected `device_tokens` table, and JWT-protected `send-message-push` Edge Function exist. Firebase app configuration and `FIREBASE_SERVICE_ACCOUNT_JSON` are still missing, so push delivery is not configured or verified.
@@ -23,7 +23,7 @@
 
 1. Run a real Android debug build from GitHub Actions or AndroidIDE. Resolve compile errors using actual logs.
 2. End-to-end test auth/profile and conversation invitation with two separate accounts; verify cross-user reads/writes are denied.
-3. Add Realtime subscriptions and message pagination/retry handling.
+3. Test the invitation accept/decline path with two accounts, then add Realtime subscriptions and message pagination/retry handling.
 4. Register the Firebase Android app for package `com.sayangqoemeet.app`, add the project-specific `app/google-services.json` (the Google Services plugin is conditionally applied when this file exists), configure the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret in Supabase, then test push notifications on devices.
 5. Implement WebRTC signaling/media and test two authorized devices.
 6. Build the separate admin web console with backend role enforcement and an audit log.
