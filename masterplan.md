@@ -315,3 +315,12 @@ Do not describe the entire app as finished while any required feature remains un
 - Tightened membership/message policies to avoid recursive membership-policy evaluation and arbitrary conversation joining.
 - Hosted Supabase access is blocked in the current connector session: no projects are listed and access to the historical project reference was denied. The migration has not been applied remotely, and live authentication has not been verified.
 - GitHub Actions status queries did not return a run or check result for the latest commits. Build success remains unverified.
+
+
+## 2026-10-16 — Hosted Supabase verification and integration status correction
+
+- Verified that the active Supabase project is reachable and healthy, with the initial private-messaging migration recorded and the `profiles`, `conversations`, `conversation_members`, and `messages` tables present with RLS enabled.
+- Applied and committed a follow-up migration adding indexes for `conversations.created_by` and `messages.sender_id`, addressing the two foreign-key index recommendations observed in the performance advisor.
+- Verified that the security advisor returned no findings at the time of this check and that API roles do not have execute permission on `public.rls_auto_enable()`.
+- Corrected project documentation that had become stale and explicitly recorded Firebase Cloud Messaging as not configured.
+- These checks do not certify production readiness: Android CI success, end-to-end Auth, automated RLS authorization tests, messaging/Realtime, FCM delivery, and WebRTC remain unverified or incomplete.
