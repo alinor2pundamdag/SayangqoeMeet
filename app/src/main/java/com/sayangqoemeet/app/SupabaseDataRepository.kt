@@ -93,7 +93,7 @@ internal object SupabaseDataRepository {
         val rows = JSONArray(json)
         if (rows.length() == 0) return null
         val row = rows.getJSONObject(0)
-        return ProfileRecord(row.getString("id"), row.optString("username").ifBlank { null }, row.optString("display_name"), row.optString("avatar_url").ifBlank { null })
+        return ProfileRecord(row.getString("id"), row.optString("username").takeIf { it.isNotBlank() }, row.optString("display_name"), row.optString("avatar_url").takeIf { it.isNotBlank() })
     }
 
     suspend fun saveProfile(displayName: String, username: String): ProfileRecord {
@@ -134,7 +134,7 @@ internal object SupabaseDataRepository {
             val conversation = row.optJSONObject("conversations") ?: return@mapNotNull null
             ConversationRecord(
                 id = conversation.optString("id"),
-                title = conversation.optString("title").ifBlank { null },
+                title = conversation.optString("title").takeIf { it.isNotBlank() },
                 isGroup = conversation.optBoolean("is_group"),
                 createdAt = conversation.optString("created_at")
             )
