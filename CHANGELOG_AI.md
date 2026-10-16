@@ -129,3 +129,11 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 
 - Added `admin-console/index.html`, a responsive dark/neon operations-console shell for user management, safety reports, service health, and audit history.
 - The shell intentionally displays no fabricated metrics and keeps privileged actions disabled. Authentication, server-side role enforcement, live data, audit logging, and operational endpoints are still required.
+
+
+## 2026-10-16 — Recipient-controlled private chat invitations
+
+- Applied and committed `20261016140546_add_conversation_invites.sql`, creating an RLS-protected invitation table visible only to the inviter and recipient.
+- Updated and redeployed `create-conversation` so it creates the conversation, adds only the creator as a member, and records a pending invite. The recipient does not gain access to the conversation before accepting.
+- Added and deployed JWT-protected `respond-conversation-invite`; only the addressed recipient can accept or decline a pending invite. Acceptance adds their membership through a trusted server-side operation.
+- Updated the Android chat screen to show pending invitations and accept/decline controls. Two-account end-to-end tests and abuse/rate-limit review remain required.
