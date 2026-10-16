@@ -1,55 +1,52 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>SayangqoeMeet · Admin Console</title>
-  <style>
-    :root{color-scheme:dark;--bg:#070b18;--panel:#10182b;--panel2:#151f36;--cyan:#55f4ff;--blue:#5d8cff;--violet:#b58aff;--text:#f0f5ff;--muted:#9baac5;--line:#2a3856;--warn:#ffd28a}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#13234a 0,transparent 42%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-    header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px clamp(18px,4vw,48px);border-bottom:1px solid #24314b;background:#070b18d9;position:sticky;top:0;backdrop-filter:blur(14px)}
-    .brand{font-weight:850;font-size:clamp(19px,2.5vw,26px);letter-spacing:-.7px;color:var(--cyan);text-shadow:0 0 22px #55f45522}.brand small{display:block;font-size:10px;letter-spacing:2.2px;color:var(--muted);text-shadow:none}
-    .pill{border:1px solid #7e622f;color:var(--warn);background:#4a361b55;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:800;letter-spacing:1px;white-space:nowrap}
-    main{max-width:1180px;margin:auto;padding:clamp(18px,4vw,42px)}.eyebrow{color:var(--cyan);font-size:11px;letter-spacing:2px;font-weight:800}.title{font-size:clamp(30px,5vw,46px);line-height:1.1;letter-spacing:-1.4px;margin:10px 0}.intro{max-width:700px;color:var(--muted);margin:0 0 28px}
-    .banner{padding:18px;border:1px solid #7e622f;background:#30251466;border-radius:18px;margin-bottom:24px}.banner strong{display:block;color:var(--warn);margin-bottom:4px}.banner p{color:#d6c8aa;margin:0;font-size:13px}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{min-width:0;padding:22px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#121c32,#0b1222);box-shadow:0 12px 40px #0002}.card h2{font-size:17px;margin:0 0 7px}.card p{color:var(--muted);font-size:13px;margin:0 0 18px}.state{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;letter-spacing:1px;font-weight:800}.dot{width:7px;height:7px;border-radius:50%;background:#8a95a9}.button{display:inline-block;border:1px solid #33486e;color:#8b9bbb;background:#131e33;border-radius:12px;padding:10px 13px;font-size:11px;font-weight:800;letter-spacing:.7px;cursor:not-allowed;opacity:.8}
-    .foot{border-top:1px solid var(--line);margin-top:28px;padding-top:18px;color:var(--muted);font-size:12px}.foot code{color:var(--cyan)}
-    @media(max-width:680px){header{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.card{padding:18px}.pill{white-space:normal}}
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+<title>SayangqoeMeet · Admin Console</title>
+<style>
+:root{color-scheme:dark;--bg:#070b18;--panel:#10182b;--cyan:#55f4ff;--blue:#5d8cff;--text:#f0f5ff;--muted:#9baac5;--line:#2a3856;--amber:#ffd28a;--green:#75efba}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#17274c 0,transparent 42%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px clamp(16px,4vw,40px);border-bottom:1px solid #24314b;background:#070b18ed;position:sticky;top:0}.brand{font-size:22px;font-weight:900;color:var(--cyan)}.brand small{display:block;font-size:9px;letter-spacing:2px;color:var(--muted)}.badge{border:1px solid #7e622f;color:var(--amber);border-radius:99px;padding:7px 10px;font-size:10px;font-weight:800}
+main{max-width:1240px;margin:auto;padding:clamp(16px,3vw,34px)}.eyebrow{color:var(--cyan);letter-spacing:2px;font-size:10px;font-weight:900}.title{font-size:clamp(29px,4vw,42px);margin:8px 0;letter-spacing:-1px}.intro{color:var(--muted);max-width:760px}.notice{border:1px solid #7e622f;background:#30251466;border-radius:14px;padding:14px;margin:20px 0}.notice strong{color:var(--amber)}.notice p{margin:4px 0 0;color:#d6c8aa;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}.stat,.panel{border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#121c32,#0b1222);padding:17px;min-width:0}.stat label{display:block;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px}.stat strong{display:block;font-size:27px;margin:8px 0 2px}.stat small{color:var(--muted);font-size:11px}.layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:15px}.tabs{display:flex;flex-direction:column;gap:7px}.tab{background:#10182b;border:1px solid var(--line);color:var(--muted);padding:12px;border-radius:10px;text-align:left;font-weight:800;cursor:pointer}.tab[aria-selected=true]{border-color:#3e8393;color:var(--cyan);background:#12303a}.tab span{float:right}.panel h2{font-size:18px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin:0 0 16px}.toolbar{display:flex;gap:9px;margin:12px 0;flex-wrap:wrap}.toolbar input,.toolbar select{background:#080f20;border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--text);min-width:0}.toolbar input{flex:1}.entry{display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid #26324b}.avatar{width:42px;height:42px;border-radius:12px;background:#182b4a;border:1px solid #3b4c70;display:grid;place-items:center;color:var(--cyan);font-weight:900;flex-shrink:0}.details{flex:1;min-width:0}.details b{display:block;overflow-wrap:anywhere}.details small{color:var(--muted)}.tag{display:inline-block;border:1px solid #365276;border-radius:99px;padding:3px 7px;font-size:9px;color:#b8cbf1;font-weight:800;margin-top:5px}.empty{padding:27px 12px;text-align:center;border:1px dashed #34415e;border-radius:12px;color:var(--muted)}.empty b{display:block;color:var(--text);margin-bottom:5px}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.mini{border:1px solid var(--line);border-radius:12px;background:#0b1324;padding:14px}.mini h3{margin:0;font-size:14px}.mini p{color:var(--muted);font-size:12px}.button{border:1px solid #38547e;background:#14223c;color:#c4d5f8;border-radius:9px;padding:9px 11px;font-weight:800;font-size:10px;opacity:.65;cursor:not-allowed}.hidden{display:none!important}.foot{border-top:1px solid var(--line);margin-top:25px;padding-top:15px;color:var(--muted);font-size:11px}
+@media(max-width:740px){header{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-  <header>
-    <div class="brand">SayangqoeMeet <small>OPERATIONS CONSOLE</small></div>
-    <span class="pill">LOCKED · BACKEND AUTH REQUIRED</span>
-  </header>
-  <main>
-    <div class="eyebrow">PRIVATE OPERATIONS</div>
-    <h1 class="title">Admin console</h1>
-    <p class="intro">A dedicated workspace for authorized account support, safety review, and service health. This shell intentionally displays no fabricated operational data.</p>
-    <section class="banner" role="status">
-      <strong>Administrative actions are disabled</strong>
-      <p>Server-verified administrator identity, least-privilege endpoints, and an audit log must be implemented and tested before this console can display private user data or perform privileged actions. A browser-side flag is not authorization.</p>
-    </section>
-    <section class="grid" aria-label="Admin console modules">
-      <article class="card">
-        <h2>User management</h2><p>Search accounts, review account state, and handle support requests through audited server actions.</p>
-        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
-      </article>
-      <article class="card">
-        <h2>Safety & reports</h2><p>Review reports, record moderation decisions, and retain a minimal audit trail.</p>
-        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
-      </article>
-      <article class="card">
-        <h2>Service health</h2><p>Show verified integration health for Supabase, messaging, push notifications, and calling.</p>
-        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
-      </article>
-      <article class="card">
-        <h2>Audit history</h2><p>Review who performed a privileged action, when it occurred, and the recorded reason.</p>
-        <span class="state"><i class="dot"></i> NOT CONNECTED</span><br><br><button class="button" disabled>SERVER AUTH REQUIRED</button>
-      </article>
-    </section>
-    <div class="foot">Security rule: never put Supabase service-role keys or Firebase service-account credentials in this frontend. Privileged actions must be authorized and executed on a trusted server. See <code>masterplan.md</code> for acceptance criteria.</div>
-  </main>
-</body>
-</html>
+<header><div class="brand">SayangqoeMeet<small>ADMIN OPERATIONS</small></div><span class="badge">ADMIN AUTHENTICATION REQUIRED</span></header>
+<main>
+<div class="eyebrow">SAFETY · TRUST · OPERATIONS</div><h1 class="title">Admin console</h1>
+<p class="intro">A grouped overview for reviewing presence, active conversations, call sessions, and user safety reports.</p>
+<section class="notice"><strong>Live integration is not connected yet</strong><p>This page is a UI foundation. Live data will appear only after secure administrator authorization and backend integration are completed. Call review and moderation access must follow the application's privacy policy and applicable law.</p></section>
+<section class="stats">
+<div class="stat"><label>ONLINE USERS</label><strong>—</strong><small>Presence feed pending</small></div>
+<div class="stat"><label>ACTIVE CHATS</label><strong>—</strong><small>Grouped by conversation</small></div>
+<div class="stat"><label>VIDEO CALLS</label><strong>—</strong><small>Grouped by call session</small></div>
+<div class="stat"><label>VOICE CALLS</label><strong>—</strong><small>Grouped by call session</small></div>
+</section>
+<div class="layout">
+<nav class="tabs" aria-label="Admin sections">
+<button class="tab" aria-selected="true" data-tab="online">Online users <span>01</span></button>
+<button class="tab" aria-selected="false" data-tab="chats">Chat sessions <span>02</span></button>
+<button class="tab" aria-selected="false" data-tab="video">Video calls <span>03</span></button>
+<button class="tab" aria-selected="false" data-tab="voice">Voice calls <span>04</span></button>
+<button class="tab" aria-selected="false" data-tab="reports">Safety reports <span>05</span></button>
+<button class="tab" aria-selected="false" data-tab="audit">Audit history <span>06</span></button>
+</nav>
+<div>
+<section class="panel tab-panel" id="online"><h2>Online users</h2><p class="sub">One row per account. Presence freshness and activity appear when the service is connected.</p><div class="toolbar"><input placeholder="Search username or account ID" disabled><select disabled><option>All presence states</option></select></div><div class="empty"><b>No live presence data</b>Connect the authenticated presence service to populate this list.</div></section>
+<section class="panel tab-panel hidden" id="chats"><h2>Chat sessions</h2><p class="sub">Each conversation is listed once, with participants grouped together.</p><div class="toolbar"><input placeholder="Search conversation or participant" disabled><select disabled><option>All active chats</option></select></div><div class="empty"><b>No live chat-session feed</b>Connect conversation metadata and authorized review workflows to populate this list.</div></section>
+<section class="panel tab-panel hidden" id="video"><h2>Video call sessions</h2><p class="sub">Each active video call appears once, with its participants grouped in one session.</p><div class="empty"><b>No live video-call feed</b>Call-session presence and signaling integration are not connected.</div><div class="cards" style="margin-top:12px"><article class="mini"><h3>Call review</h3><p>Provide a documented, authorized workflow for reported calls. Participant notice and access logging are required.</p><button class="button" disabled>BACKEND REQUIRED</button></article><article class="mini"><h3>Moderator media</h3><p>Moderator camera and microphone default to OFF. Any enabled media session must be explicit and disclosed.</p><span class="tag">CAMERA OFF · MIC OFF</span></article></div></section>
+<section class="panel tab-panel hidden" id="voice"><h2>Voice call sessions</h2><p class="sub">Each active voice call appears once. Moderator microphone defaults to OFF.</p><div class="empty"><b>No live voice-call feed</b>Call signaling and session status are not connected.</div><div class="mini" style="margin-top:12px"><h3>Moderator microphone</h3><p>Default OFF. An enabled moderator audio session must be deliberate and visible to participants.</p><span class="tag">MICROPHONE OFF</span></div></section>
+<section class="panel tab-panel hidden" id="reports"><h2>Safety reports</h2><p class="sub">A review queue for user reports, suspected scams, exploitation, prohibited sales, and other abuse.</p><div class="empty"><b>Report queue not connected</b>Report submission, moderation actions, and audit storage must be implemented on the trusted backend.</div></section>
+<section class="panel tab-panel hidden" id="audit"><h2>Audit history</h2><p class="sub">Record administrator access, review reasons, actions, timestamps, and outcomes while minimizing sensitive data.</p><div class="empty"><b>Audit service not connected</b>Privileged access should not be enabled until audit logging is implemented and tested.</div></section>
+</div></div>
+<div class="foot">UI status: static shell only. Server-verified administrator roles, live presence/call feeds, safety reports, and audit storage remain to be implemented. Do not place passwords or privileged keys in this frontend.</div>
+</main>
+<script>
+document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
+ document.querySelectorAll('[data-tab]').forEach(item=>item.setAttribute('aria-selected',String(item===button)));
+ document.querySelectorAll('.tab-panel').forEach(panel=>panel.classList.toggle('hidden',panel.id!==button.dataset.tab));
+}));
+</script>
+</body></html>
