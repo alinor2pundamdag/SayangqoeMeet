@@ -8,10 +8,10 @@ A privacy-conscious Android communication app guided by [masterplan.md](masterpl
 - Successful sign-in routes to an app shell with Home, Profile, Chats, Conversation, Call, and a locked Admin Console entry.
 - Profile loading/saving uses the authenticated Supabase session and PostgREST.
 - Conversation list and message history/sending use authenticated PostgREST requests protected by RLS.
-- Private conversation creation/invitation uses the deployed `create-conversation` Supabase Edge Function. The function verifies the caller's JWT and uses server-side credentials only to create both membership rows.
-- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The live schema contains `profiles`, `conversations`, `conversation_members`, `messages`, and `device_tokens`, with RLS enabled on all five.
-- Migrations are committed under `supabase/migrations/`, including `20261016134617_add_foreign_key_indexes.sql` and `20261016140058_add_device_tokens.sql`.
-- Edge Function sources are committed at `supabase/functions/create-conversation/index.ts` and `supabase/functions/send-message-push/index.ts`; both are deployed to the active project with JWT verification enabled.
+- Private chat invitations use the deployed `create-conversation` and `respond-conversation-invite` Supabase Edge Functions. The creator becomes a member and the recipient remains outside the conversation until accepting the invitation; both functions verify the caller's JWT and use server-side credentials for privileged changes.
+- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The live schema contains `profiles`, `conversations`, `conversation_members`, `messages`, `device_tokens`, and `conversation_invites`, all with RLS enabled.
+- Migrations are committed under `supabase/migrations/`, including `20261016134617_add_foreign_key_indexes.sql`, `20261016140058_add_device_tokens.sql`, and `20261016140546_add_conversation_invites.sql`.
+- Edge Function sources are committed at `supabase/functions/create-conversation/index.ts`, `supabase/functions/respond-conversation-invite/index.ts`, and `supabase/functions/send-message-push/index.ts`; all are deployed to the active project with JWT verification enabled.
 - A Hang Up / Cancel control is present in the call screen, but it does not end a real call because WebRTC is not implemented yet.
 
 ## Supabase client configuration
