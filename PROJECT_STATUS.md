@@ -19,7 +19,7 @@
 - [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.
 - [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
 - [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; six application tables exist with RLS enabled.
-- [x] Initial and foreign-key-index migrations are recorded in the live Supabase migration history and matched by repository filenames.
+- [x] All three live migrations—initial messaging schema, foreign-key indexes, device tokens, and conversation invitations—are recorded in Supabase and matched by repository filenames.
 - [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
 - [x] README, handoff, and changelog are being aligned with current implementation status.
 - [x] Added an explicit admin-console requirement to `masterplan.md`.
