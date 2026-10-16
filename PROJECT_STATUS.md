@@ -7,23 +7,25 @@
 
 ## Verified completed items
 
-- [x] The private GitHub repository has been created.
-- [x] The connected ChatGPT Codex Connector can see this repository.
-- [x] Repository metadata reports read/write (push) access for the connected GitHub identity.
-- [x] The user confirmed the connector installation is configured for the `SayangqoeMeet` repository, with read access to checks, commit statuses, and metadata, and read/write access to actions, code, issues, pull requests, and workflows.
-- [x] Initial project-tracking documents have been added to this repository.
+- [x] Created the private GitHub repository.
+- [x] Verified the connected ChatGPT Codex Connector can access the repository.
+- [x] Verified repository metadata reports push permission for the connected GitHub identity.
+- [x] Added `masterplan.md` as the baseline specification for the new implementation.
+- [x] Added `PROJECT_STATUS.md`, `AI_HANDOFF.md`, and `CHANGELOG_AI.md`.
+- [x] Re-fetched and verified that the master plan contains the responsive UI, sci-fi neon branding, login-field styling, notification sound/vibration, and incoming-call ringtone requirements.
 
 ## Current verified state
 
-- The repository was empty when inspected before these tracking documents were added.
-- The original Android application source code has **not yet been imported into this repository**.
-- The original `masterplan.md` has **not yet been retrieved or copied into this repository**.
-- Application features, package name, build status, Supabase configuration, FCM, and WebRTC implementation have not yet been verified from source in this repository.
+- The repository contains the master plan and project-tracking documents.
+- No Android application source code has been implemented in this new repository yet.
+- The original Android source is not required to be copied; this is a clean implementation from the approved requirements.
+- No Android build has been run, and no app features are yet verified as implemented.
+- Supabase, Firebase Cloud Messaging, and WebRTC are specified requirements, not yet verified working integrations.
 
 ## Next priority
 
-Recover the original project files from the user's existing AndroidIDE project, inspect the original `masterplan.md` and Git status, then import the intended source safely without losing uncommitted or untracked work.
+Implement the real Android foundation from the master plan: Gradle project configuration, application identity, a buildable Kotlin entry point, design tokens, adaptive layouts, navigation, and branded launch/authentication UI. Then build and test it in an Android-capable environment before marking implementation complete.
 
-## Accuracy rules
+## Accuracy and safety rules
 
-Only mark an application feature as complete after checking the implementation and, where applicable, its tests or runtime behavior. Distinguish verified facts from historical reports and unverified assumptions. Never commit API keys, tokens, passwords, signing credentials, or other secrets.
+Only mark a feature complete after checking implementation and, where applicable, tests or runtime behavior. Distinguish verified facts from assumptions. Never commit API keys, tokens, passwords, signing credentials, or other secrets. Respect the master plan's change-control rules and append-only completion history.
