@@ -11,9 +11,9 @@
 - Private repository: `alinor2pundamdag/SayangqoeMeet`, default branch `main`.
 - Android Compose foundation, neon auth UI, signed-in app shell, profile screen, chat list, conversation history/send screen, call-control screen, and locked admin entry exist in source.
 - Supabase project `phjwzrrsaemgcedwpyyp` is active and healthy.
-- Four application tables exist with RLS enabled: `profiles`, `conversations`, `conversation_members`, `messages`.
-- Live migration history includes `20261016114000_initial_private_messaging` and `20261016134617_add_foreign_key_indexes`.
-- Deployed Edge Functions `create-conversation` and `respond-conversation-invite` are active with JWT verification enabled. The creator becomes a member and the recipient is added only after accepting a pending invitation. Sources: `supabase/functions/create-conversation/index.ts` and `supabase/functions/respond-conversation-invite/index.ts`.
+- Six application tables exist with RLS enabled: `profiles`, `conversations`, `conversation_members`, `messages`, `device_tokens`, and `conversation_invites`.
+- Live migration history includes `20261016114000_initial_private_messaging`, `20261016134617_add_foreign_key_indexes`, `20261016140058_add_device_tokens`, and `20261016140546_add_conversation_invites`.
+- Deployed Edge Functions `create-conversation`, `respond-conversation-invite`, and `send-message-push` are active with JWT verification enabled. The creator becomes a member and the recipient is added only after accepting a pending invitation. Sources: `supabase/functions/create-conversation/index.ts` and `supabase/functions/respond-conversation-invite/index.ts`.
 - Android repository methods use the current Supabase access token for profile CRUD, conversation queries, message history, and message sending.
 - Admin console is now an explicit master-plan requirement. A static locked web UI shell exists at `admin-console/index.html`; the Android admin item is also a locked placeholder. Neither is a working admin dashboard until server-verified roles, privileged endpoints, and audit history are implemented.
 - FCM client/token registration code, the RLS-protected `device_tokens` table, and JWT-protected `send-message-push` Edge Function exist. Firebase app configuration and `FIREBASE_SERVICE_ACCOUNT_JSON` are still missing, so push delivery is not configured or verified.
