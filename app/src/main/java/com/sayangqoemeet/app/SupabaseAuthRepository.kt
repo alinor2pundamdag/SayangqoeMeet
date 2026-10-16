@@ -1,8 +1,10 @@
 package com.sayangqoemeet.app
 
+import android.content.Intent
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
 
 /**
@@ -10,21 +12,30 @@ import io.github.jan.supabase.auth.providers.builtin.Email
  * service-role or secret key in the Android application.
  */
 object SupabaseAuthRepository {
+    const val AUTH_REDIRECT_URL = "com.sayangqoemeet.app://login-callback"
+
     private val client by lazy {
         createSupabaseClient(
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         ) {
-            install(Auth)
+            install(Auth) {
+                scheme = "com.sayangqoemeet.app"
+                host = "login-callback"
+            }
         }
     }
 
+    fun handleDeepLink(intent: Intent) {
+        client.handleDeeplinks(intent)
+    }
+
     suspend fun signUp(email: String, password: String): String {
-        client.auth.signUpWith(Email) {
+        client.auth.signUpWith(Email, redirectUrl = AUTH_REDIRECT_URL) {
             this.email = email
             this.password = password
         }
-        return "Registration request sent. Check your email if confirmation is enabled."
+        return "Registration request sent. Check your email, then tap Confirm email address to return to SayangqoeMeet."
     }
 
     suspend fun signIn(email: String, password: String): String {
