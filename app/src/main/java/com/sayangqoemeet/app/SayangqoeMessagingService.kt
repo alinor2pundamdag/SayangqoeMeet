@@ -30,6 +30,27 @@ internal object FcmTokenRegistrar {
     }
 }
 
+internal object MessageNotificationChannels {
+    const val CHANNEL_ID = "sayangqoemeet_messages"
+
+    fun ensureCreated(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Messages",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "New SayangqoeMeet message alerts"
+                enableVibration(true)
+                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), null)
+            }
+            manager.createNotificationChannel(channel)
+        }
+    }
+}
+
 class SayangqoeMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -40,7 +61,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        createMessageChannel()
+        MessageNotificationChannels.ensureCreated(this)
         val openApp = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -50,7 +71,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
             openApp,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(this, MESSAGE_CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, MessageNotificationChannels.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle("SayangqoeMeet")
             .setContentText("You have a new message.")
@@ -63,24 +84,4 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         }
     }
 
-    private fun createMessageChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(MESSAGE_CHANNEL_ID) == null) {
-            val channel = NotificationChannel(
-                MESSAGE_CHANNEL_ID,
-                "Messages",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "New SayangqoeMeet message alerts"
-                enableVibration(true)
-                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), null)
-            }
-            manager.createNotificationChannel(channel)
-        }
-    }
-
-    private companion object {
-        const val MESSAGE_CHANNEL_ID = "sayangqoemeet_messages"
-    }
 }
