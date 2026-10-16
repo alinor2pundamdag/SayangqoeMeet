@@ -227,7 +227,27 @@ For each table or backend endpoint:
 
 ---
 
-## 11. Repository, secrets, and release workflow
+## 11. Admin console — required operations capability
+
+The product requires a separate, access-controlled admin console for authorized operations and safety work. This console is distinct from the public Android user experience; an Android navigation item or hidden button is not an admin security boundary.
+
+### Required capabilities
+- Server-verified administrator authentication and role checks; never trust a client-side boolean or user-editable profile field as proof of admin status.
+- User/account lookup and account-state overview with least-privilege access to personal data.
+- User reports and moderation queue, with reasoned actions and an auditable action history.
+- Operational health view for Supabase, messaging, notification delivery, and call infrastructure without exposing secrets.
+- Clear permission-denied, loading, empty, and failure states; pagination and safeguards for destructive actions.
+- Admin actions must run through trusted server-side endpoints/Edge Functions with explicit authorization checks. Never ship the service-role key to Android or a browser.
+- Audit log records who performed an action, what was changed, when, and the reason, while minimizing sensitive content retention.
+- Admin role assignment must be restricted to a trusted owner/operator workflow, not self-service registration.
+
+### Verification and rollout
+- Define admin-role storage/claims and least-privilege policies before exposing real admin data.
+- Test both authorized and unauthorized access to every privileged endpoint.
+- Keep admin console deployment separate from the Android app; do not show demo data as real operational data.
+- The current Android admin entry is only a locked navigation placeholder, not a production admin console. A separate web console and its secure backend remain to be implemented.
+
+## 12. Repository, secrets, and release workflow
 
 - Keep source code and useful setup documentation in GitHub.
 - Use branches and focused commits for coherent changes when practical.
@@ -240,7 +260,7 @@ For each table or backend endpoint:
 
 ---
 
-## 12. Required project records
+## 13. Required project records
 
 Maintain these documents as implementation progresses:
 
@@ -253,7 +273,7 @@ Update the status and handoff after significant milestones. Append changelog and
 
 ---
 
-## 13. Sequential implementation roadmap
+## 14. Sequential implementation roadmap
 
 Work in dependency order, adapting only when source/build evidence requires it.
 
@@ -269,7 +289,7 @@ At every phase, build on real working code and verify the result before advancin
 
 ---
 
-## 14. Definition of done
+## 15. Definition of done
 
 The project is not complete until all applicable criteria are met:
 
@@ -289,7 +309,7 @@ Do not describe the entire app as finished while any required feature remains un
 
 ---
 
-## 15. Append-only master-plan completion history
+## 16. Append-only master-plan completion history
 
 ### 2026-10-16 — Initial baseline established
 
@@ -329,3 +349,10 @@ Do not describe the entire app as finished while any required feature remains un
 ## 2026-10-16 — Migration version alignment correction
 
 - Confirmed the hosted migration history version for `add_foreign_key_indexes` is `20261016134617` and aligned the committed SQL filename to `20261016134617_add_foreign_key_indexes.sql`. The earlier mismatched filename was removed; the live schema and migration history were not changed by this filename correction.
+
+
+### 2026-10-16 — Admin console requirement clarified
+
+- The user confirmed that an admin console is expected. The prior baseline did not explicitly specify an admin console, so this requirement is added rather than retroactively claiming it was already documented.
+- Defined a separate web operations console with server-verified admin authorization, user/report management, operational health, audit history, and least-privilege trusted endpoints.
+- The Android admin navigation currently provides only a locked placeholder; it is not a working or authorized admin console.
