@@ -3,6 +3,7 @@ package com.sayangqoemeet.app
 import android.content.Intent
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.Email
@@ -36,6 +37,11 @@ object SupabaseAuthRepository {
             this.password = password
         }
         return "Registration request sent. Check your email, then tap Confirm email address to return to SayangqoeMeet."
+    }
+
+    suspend fun resendSignupVerification(email: String): String {
+        client.auth.resendEmail(OtpType.Email.SIGNUP, email.trim(), redirectUrl = AUTH_REDIRECT_URL)
+        return "Verification email requested. Check your inbox and spam folder. If it still does not arrive, wait before trying again."
     }
 
     suspend fun signIn(email: String, password: String): String {
