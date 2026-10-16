@@ -51,7 +51,7 @@ The master plan now explicitly requires a separate web-based admin console with 
 - End-to-end authentication/session restoration and device tests.
 - Supabase Realtime subscriptions, pagination, message retry/deduplication, and robust offline behavior.
 - Automated RLS authorization tests for allowed and denied user paths.
-- Firebase project setup, FCM token registration, trusted push delivery, and device notification tests.
+- Firebase Android project config, Google Services plugin configuration, service-account secret setup, trusted push delivery, and device notification tests.
 - WebRTC signaling/media, STUN/TURN configuration, and two-device voice/video tests.
 - Separate web admin console, server-verified admin role assignment, audit log, and privileged endpoints.
 - Production release hardening and responsive UI test matrix.
