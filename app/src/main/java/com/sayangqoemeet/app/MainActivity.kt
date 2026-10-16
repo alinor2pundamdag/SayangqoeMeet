@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Midnight
                 ) {
-                    SayangqoeMeetAuthScreen()
+                    SayangqoeMeetRoot()
                 }
             }
         }
@@ -85,7 +85,28 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SayangqoeMeetAuthScreen() {
+private fun SayangqoeMeetRoot() {
+    var signedIn by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    if (signedIn) {
+        SignedInShell(
+            onSignOut = {
+                scope.launch {
+                    try {
+                        SupabaseAuthRepository.signOut()
+                    } finally {
+                        signedIn = false
+                    }
+                }
+            }
+        )
+    } else {
+        SayangqoeMeetAuthScreen(onAuthenticated = { signedIn = true })
+    }
+}
+
+@Composable
+private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     var isRegister by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
@@ -248,6 +269,7 @@ private fun SayangqoeMeetAuthScreen() {
                                             SupabaseAuthRepository.signIn(normalizedEmail, password)
                                         }
                                         feedbackIsError = false
+                                        if (!isRegister) onAuthenticated()
                                     } catch (error: Exception) {
                                         feedbackIsError = true
                                         feedback = error.message?.take(180) ?: "Authentication failed. Please try again."
