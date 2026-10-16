@@ -46,6 +46,18 @@ Deno.serve(async (req: Request) => {
   if (!recipient) return reply(404, { error: "No profile found for that username" });
   if (recipient.id === callerId) return reply(400, { error: "You cannot invite yourself" });
 
+  const { data: existingInvite, error: existingInviteError } = await adminClient
+    .from("conversation_invites")
+    .select("id, status")
+    .eq("inviter_id", callerId)
+    .eq("recipient_id", recipient.id)
+    .in("status", ["pending", "accepted"])
+    .limit(1)
+    .maybeSingle();
+  if (existingInviteError) return reply(500, { error: "Could not check existing invitations" });
+  if (existingInvite?.status === "pending") return reply(409, { error: "You already have a pending invitation for this person" });
+  if (existingInvite?.status === "accepted") return reply(409, { error: "You already have an accepted conversation with this person" });
+
   const { data: conversation, error: conversationError } = await adminClient
     .from("conversations")
     .insert({ is_group: false, title: null, created_by: callerId })
