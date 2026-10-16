@@ -86,6 +86,17 @@ internal object SupabaseDataRepository {
     private suspend fun runRequest(block: () -> String): String =
         withContext(Dispatchers.IO) { block() }
 
+    suspend fun saveDeviceToken(token: String) {
+        val payload = JSONObject()
+            .put("user_id", userId())
+            .put("token", token)
+            .put("platform", "android")
+            .put("updated_at", java.time.Instant.now().toString())
+        runRequest {
+            request("POST", "device_tokens?on_conflict=token", payload, "resolution=merge-duplicates,return=minimal")
+        }
+    }
+
     suspend fun loadProfile(): ProfileRecord? {
         val id = userId()
         val query = "profiles?id=eq.${enc(id)}&select=id,username,display_name,avatar_url&limit=1"
