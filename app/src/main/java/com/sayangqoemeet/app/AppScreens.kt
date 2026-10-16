@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +28,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 private val ShellBg = Color(0xFF070B18)
 private val ShellPanel = Color(0xFF10182B)
@@ -161,9 +165,26 @@ private fun ActionCard(title: String, subtitle: String, action: String, onClick:
 
 @Composable
 private fun ProfileScreen(onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var displayName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Profile form ready. Saving is not connected until profile repository integration is completed.") }
+    var status by remember { mutableStateOf("Loading your profile…") }
+    var loading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val profile = SupabaseDataRepository.loadProfile()
+            if (profile != null) {
+                displayName = profile.displayName
+                username = profile.username.orEmpty()
+                status = "Profile loaded."
+            } else {
+                status = "No profile yet. Create one below."
+            }
+        } catch (error: Exception) {
+            status = error.message ?: "Could not load profile."
+        }
+    }
 
     Column(
         Modifier.fillMaxSize().padding(22.dp),
@@ -171,36 +192,132 @@ private fun ProfileScreen(onBack: () -> Unit) {
     ) {
         BackHeader("YOUR PROFILE", onBack)
         Text("Make it yours.", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("This profile belongs to your signed-in SayangqoeMeet account.", color = ShellMuted, fontSize = 13.sp)
+        Text("Your profile is linked to your signed-in account.", color = ShellMuted, fontSize = 13.sp)
         Field("DISPLAY NAME", displayName, { displayName = it }, "How should people see you?")
-        Field("USERNAME", username, { username = it }, "3–24 characters")
+        Field("USERNAME", username, { username = it }, "3–24 letters, numbers, _, ., -")
         Text(status, color = ShellMuted, fontSize = 12.sp)
         Button(
-            onClick = { status = "Not saved: the profile write is intentionally disabled until authenticated database calls are wired and tested." },
+            onClick = {
+                val cleanName = displayName.trim()
+                val cleanUsername = username.trim()
+                if (cleanName.isBlank()) {
+                    status = "Display name is required."
+                } else if (!Regex("^[A-Za-z0-9_.-]{3,24}$").matches(cleanUsername)) {
+                    status = "Username must be 3–24 characters: letters, numbers, _, . or -."
+                } else {
+                    loading = true
+                    scope.launch {
+                        try {
+                            SupabaseDataRepository.saveProfile(cleanName, cleanUsername)
+                            status = "Profile saved."
+                        } catch (error: Exception) {
+                            status = error.message ?: "Could not save profile."
+                        } finally {
+                            loading = false
+                        }
+                    }
+                }
+            },
+            enabled = !loading,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
-        ) { Text("SAVE PROFILE", fontWeight = FontWeight.Bold) }
+        ) { Text(if (loading) "SAVING…" else "SAVE PROFILE", fontWeight = FontWeight.Bold) }
     }
 }
 
 @Composable
 private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var conversations by remember { mutableStateOf<List<ConversationRecord>>(emptyList()) }
+    var recipientUsername by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Loading conversations…") }
+    var loading by remember { mutableStateOf(false) }
+
+    suspend fun refresh() {
+        try {
+            conversations = SupabaseDataRepository.loadConversations()
+            status = if (conversations.isEmpty()) "No conversations yet. Start a private conversation by username." else ""
+        } catch (error: Exception) {
+            status = error.message ?: "Could not load conversations."
+        }
+    }
+    LaunchedEffect(Unit) { refresh() }
+
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BackHeader("MESSAGES", onBack)
         Text("Your conversations", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Private chats appear here after secure conversation queries are connected.", color = ShellMuted, fontSize = 13.sp)
-        EmptyState("NO CONVERSATIONS LOADED", "This screen will show real conversations from Supabase. No demo chats are being shown as real.")
+        Text("Start a private conversation using the recipient's exact username.", color = ShellMuted, fontSize = 13.sp)
+        Field("RECIPIENT USERNAME", recipientUsername, { recipientUsername = it }, "Enter exact username")
         Button(
-            onClick = { onOpenConversation("") },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ShellPanel)
-        ) { Text("OPEN CHAT VIEW (INTEGRATION PENDING)", color = ShellCyan, fontSize = 10.sp) }
+            onClick = {
+                if (recipientUsername.trim().length < 3) {
+                    status = "Enter a valid username (at least 3 characters)."
+                } else {
+                    loading = true
+                    scope.launch {
+                        try {
+                            val conversation = SupabaseDataRepository.createConversation(recipientUsername)
+                            recipientUsername = ""
+                            status = "Conversation created."
+                            refresh()
+                            onOpenConversation(conversation.id)
+                        } catch (error: Exception) {
+                            status = error.message ?: "Could not create conversation."
+                        } finally {
+                            loading = false
+                        }
+                    }
+                }
+            },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
+        ) { Text(if (loading) "CREATING…" else "START PRIVATE CHAT", fontWeight = FontWeight.Bold) }
+        if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
+        if (conversations.isEmpty()) {
+            EmptyState("NO CONVERSATIONS", "The list is loaded from Supabase. No demo chats are displayed.")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(conversations, key = { it.id }) { conversation ->
+                    Column(
+                        Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(16.dp))
+                            .background(ShellPanel, RoundedCornerShape(16.dp))
+                            .clickable { onOpenConversation(conversation.id) }
+                            .padding(16.dp)
+                    ) {
+                        Text(conversation.title?.takeIf { it.isNotBlank() } ?: if (conversation.isGroup) "Group conversation" else "Private conversation",
+                            color = ShellText, fontWeight = FontWeight.SemiBold)
+                        Text("Tap to open messages", color = ShellMuted, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var draft by remember { mutableStateOf("") }
+    var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
+    var status by remember { mutableStateOf("Loading message history…") }
+    var loading by remember { mutableStateOf(false) }
+    var currentUserId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(conversationId) {
+        currentUserId = SupabaseAuthRepository.currentUserId()
+        if (conversationId.isNullOrBlank()) {
+            status = "Select a real conversation first."
+        } else {
+            try {
+                messages = SupabaseDataRepository.loadMessages(conversationId)
+                status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
+            } catch (error: Exception) {
+                status = error.message ?: "Could not load messages."
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(8.dp), fontSize = 11.sp)
@@ -210,9 +327,25 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
             }
             TextButton(onClick = onCall) { Text("CALL", color = ShellCyan) }
         }
-        Spacer(Modifier.height(12.dp))
-        EmptyState("MESSAGE HISTORY NOT LOADED", "Message history and sending will use the authenticated conversation membership. This view does not fabricate messages.")
-        Spacer(Modifier.height(12.dp))
+        if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(messages, key = { it.id }) { message ->
+                val mine = message.senderId == currentUserId
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                    Column(
+                        Modifier.widthIn(max = 260.dp)
+                            .background(if (mine) Color(0xFF173B70) else ShellPanel, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Text(message.body, color = ShellText, fontSize = 14.sp)
+                        Text(if (mine) "YOU" else "MEMBER", color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = draft,
@@ -220,16 +353,33 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Write a message…", color = ShellMuted) },
                 shape = RoundedCornerShape(16.dp),
-                colors = fieldColorsForShell()
+                colors = fieldColorsForShell(),
+                enabled = !loading && !conversationId.isNullOrBlank()
             )
             Spacer(Modifier.width(8.dp))
             Button(
-                onClick = { draft = "" },
-                enabled = draft.isNotBlank(),
+                onClick = {
+                    val content = draft.trim()
+                    if (content.isNotEmpty() && !conversationId.isNullOrBlank()) {
+                        loading = true
+                        scope.launch {
+                            try {
+                                val sent = SupabaseDataRepository.sendMessage(conversationId, content)
+                                messages = messages + sent
+                                draft = ""
+                                status = ""
+                            } catch (error: Exception) {
+                                status = error.message ?: "Message could not be sent."
+                            } finally {
+                                loading = false
+                            }
+                        }
+                    }
+                },
+                enabled = !loading && draft.isNotBlank() && !conversationId.isNullOrBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
-            ) { Text("SEND") }
+            ) { Text(if (loading) "…" else "SEND") }
         }
-        Text("Sending is disabled until the authenticated message repository is connected.", color = ShellMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
     }
 }
 
