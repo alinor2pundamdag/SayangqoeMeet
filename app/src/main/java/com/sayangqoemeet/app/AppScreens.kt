@@ -232,6 +232,7 @@ private fun ProfileScreen(onBack: () -> Unit) {
 private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var conversations by remember { mutableStateOf<List<ConversationRecord>>(emptyList()) }
+    var invitations by remember { mutableStateOf<List<InvitationRecord>>(emptyList()) }
     var recipientUsername by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Loading conversations…") }
     var loading by remember { mutableStateOf(false) }
@@ -239,9 +240,10 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
     suspend fun refresh() {
         try {
             conversations = SupabaseDataRepository.loadConversations()
-            status = if (conversations.isEmpty()) "No conversations yet. Start a private conversation by username." else ""
+            invitations = SupabaseDataRepository.loadPendingInvitations()
+            status = if (conversations.isEmpty() && invitations.isEmpty()) "No conversations or pending invitations." else ""
         } catch (error: Exception) {
-            status = error.message ?: "Could not load conversations."
+            status = error.message ?: "Could not load conversations and invitations."
         }
     }
     LaunchedEffect(Unit) { refresh() }
@@ -249,7 +251,7 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BackHeader("MESSAGES", onBack)
         Text("Your conversations", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Start a private conversation using the recipient's exact username.", color = ShellMuted, fontSize = 13.sp)
+        Text("Invite someone by username. They must accept before they become a member of the private chat.", color = ShellMuted, fontSize = 13.sp)
         Field("RECIPIENT USERNAME", recipientUsername, { recipientUsername = it }, "Enter exact username")
         Button(
             onClick = {
@@ -259,13 +261,12 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
                     loading = true
                     scope.launch {
                         try {
-                            val conversation = SupabaseDataRepository.createConversation(recipientUsername)
+                            SupabaseDataRepository.createConversation(recipientUsername)
                             recipientUsername = ""
-                            status = "Conversation created."
+                            status = "Invitation sent. Waiting for the recipient to accept."
                             refresh()
-                            onOpenConversation(conversation.id)
                         } catch (error: Exception) {
-                            status = error.message ?: "Could not create conversation."
+                            status = error.message ?: "Could not send invitation."
                         } finally {
                             loading = false
                         }
@@ -275,10 +276,59 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
             enabled = !loading,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
-        ) { Text(if (loading) "CREATING…" else "START PRIVATE CHAT", fontWeight = FontWeight.Bold) }
+        ) { Text(if (loading) "SENDING…" else "SEND CHAT INVITATION", fontWeight = FontWeight.Bold) }
+
+        if (invitations.isNotEmpty()) {
+            Text("PENDING INVITATIONS", color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+            invitations.forEach { invite ->
+                Column(
+                    Modifier.fillMaxWidth().border(1.dp, Color(0xFF6C5B8D), RoundedCornerShape(16.dp))
+                        .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Invitation from member ${invite.inviterId.take(8)}…", color = ShellText, fontWeight = FontWeight.SemiBold)
+                    Text("Accept to join this private conversation, or decline to leave it inaccessible.", color = ShellMuted, fontSize = 11.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = {
+                                loading = true
+                                scope.launch {
+                                    try {
+                                        SupabaseDataRepository.respondToInvitation(invite.id, true)
+                                        status = "Invitation accepted."
+                                        refresh()
+                                    } catch (error: Exception) {
+                                        status = error.message ?: "Could not accept invitation."
+                                    } finally { loading = false }
+                                }
+                            },
+                            enabled = !loading,
+                            colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
+                        ) { Text("ACCEPT") }
+                        Button(
+                            onClick = {
+                                loading = true
+                                scope.launch {
+                                    try {
+                                        SupabaseDataRepository.respondToInvitation(invite.id, false)
+                                        status = "Invitation declined."
+                                        refresh()
+                                    } catch (error: Exception) {
+                                        status = error.message ?: "Could not decline invitation."
+                                    } finally { loading = false }
+                                }
+                            },
+                            enabled = !loading,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A2539))
+                        ) { Text("DECLINE", color = ShellText) }
+                    }
+                }
+            }
+        }
+
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
         if (conversations.isEmpty()) {
-            EmptyState("NO CONVERSATIONS", "The list is loaded from Supabase. No demo chats are displayed.")
+            EmptyState("NO ACCEPTED CONVERSATIONS", "Accepted private chats will appear here. Pending invitations do not grant message access.")
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(conversations, key = { it.id }) { conversation ->
