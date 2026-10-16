@@ -89,3 +89,8 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - No end-to-end Auth test or automated RLS allowed/denied test.
 - Firebase app configuration and FCM delivery are absent; live push notifications are not configured.
 - Profile/conversation/messaging UI, Realtime, and WebRTC remain incomplete.
+
+
+## 2026-10-16 — Migration version alignment correction
+
+- The hosted Supabase migration history assigned version `20261016134617` to `add_foreign_key_indexes`. The repository migration filename was corrected to `20261016134617_add_foreign_key_indexes.sql` and the mismatched filename was removed. This keeps the committed migration version aligned with the version verified in the live project.
