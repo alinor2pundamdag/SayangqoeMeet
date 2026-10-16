@@ -74,3 +74,18 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Restricted membership inserts to the creator of the conversation and required message updates to remain within a conversation where the sender is a member.
 - Re-fetched the migration after the fix. These are source-level checks only; hosted database advisors and execution tests remain blocked by Supabase project access.
 - GitHub Actions status/run lookup returned no check results, so no build outcome is claimed.
+
+## 2026-10-16 — Hosted Supabase verification and documentation correction
+
+### Completed and verified
+- Verified the active Supabase project and the four live public tables with RLS enabled.
+- Applied the `add_foreign_key_indexes` migration to add indexes for `conversations.created_by` and `messages.sender_id`; committed the matching migration file as `20261016180000_add_foreign_key_indexes.sql`.
+- Rechecked the live security advisor; it returned no findings at this check.
+- Confirmed the automatic-RLS helper's execute privilege is not granted to `PUBLIC`, `anon`, or `authenticated`.
+- Updated README, PROJECT_STATUS, and AI_HANDOFF to reflect the current hosted project and accurately document the remaining build, Auth, messaging, Firebase/FCM, and WebRTC work.
+
+### Still not verified / incomplete
+- No confirmed green Android CI run/build or on-device tests.
+- No end-to-end Auth test or automated RLS allowed/denied test.
+- Firebase app configuration and FCM delivery are absent; live push notifications are not configured.
+- Profile/conversation/messaging UI, Realtime, and WebRTC remain incomplete.
