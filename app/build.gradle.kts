@@ -44,10 +44,10 @@ android {
         val localFile = rootProject.file("local.properties")
         if (localFile.exists()) localFile.inputStream().use { load(it) }
     }
-    val supabaseUrl = (System.getenv("SUPABASE_URL") ?: localProperties.getProperty("SUPABASE_URL") ?: "https://ktzvfnjcfjaiqhwrohel.supabase.co")
+    val supabaseUrl = (System.getenv("SUPABASE_URL") ?: localProperties.getProperty("SUPABASE_URL") ?: "https://phjwzrrsaemgcedwpyyp.supabase.co")
     val supabaseKey = (System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY") ?: "")
-        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
-        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabaseKey\"")
+    buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+    buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabaseKey\"")
 }
 
 dependencies {
