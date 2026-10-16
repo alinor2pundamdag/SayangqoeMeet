@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -11,7 +13,7 @@ if (file("google-services.json").exists()) {
 
 android {
     namespace = "com.sayangqoemeet.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.sayangqoemeet.app"
@@ -19,6 +21,27 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        // BuildConfig fields belong to defaultConfig. Prefer CI/environment values,
+        // then local.properties for developer builds, and safe public app defaults.
+        val localProperties = Properties().apply {
+            val localFile = rootProject.file("local.properties")
+            if (localFile.exists()) {
+                localFile.inputStream().use { load(it) }
+            }
+        }
+        val supabaseUrl = (
+            System.getenv("SUPABASE_URL")
+                ?: localProperties.getProperty("SUPABASE_URL")
+                ?: "https://phjwzrrsaemgcedwpyyp.supabase.co"
+        )
+        val supabaseKey = (
+            System.getenv("SUPABASE_PUBLISHABLE_KEY")
+                ?: localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY")
+                ?: "sb_publishable_-teTl1LKLeN1UX_xrv6PeQ_VkCs5Hco"
+        )
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabaseKey\"")
     }
 
     buildTypes {
@@ -44,15 +67,6 @@ android {
         compose = true
         buildConfig = true
     }
-
-    val localProperties = java.util.Properties().apply {
-        val localFile = rootProject.file("local.properties")
-        if (localFile.exists()) localFile.inputStream().use { load(it) }
-    }
-    val supabaseUrl = (System.getenv("SUPABASE_URL") ?: localProperties.getProperty("SUPABASE_URL") ?: "https://phjwzrrsaemgcedwpyyp.supabase.co")
-    val supabaseKey = (System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY") ?: "sb_publishable_-teTl1LKLeN1UX_xrv6PeQ_VkCs5Hco")
-    buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
-    buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"$supabaseKey\"")
 }
 
 dependencies {
