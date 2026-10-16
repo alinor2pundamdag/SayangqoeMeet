@@ -258,6 +258,7 @@ private fun SayangqoeMeetAuthScreen() {
                             }
                         }
                     },
+                    enabled = !isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp)
