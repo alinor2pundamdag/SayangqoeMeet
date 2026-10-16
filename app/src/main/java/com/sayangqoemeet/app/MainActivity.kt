@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4102)
+        }
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         setContent {
@@ -90,6 +96,11 @@ private fun SayangqoeMeetRoot() {
     var signedIn by remember { mutableStateOf(false) }
     var checkingSession by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
+    val appContext = LocalContext.current
+
+    LaunchedEffect(signedIn) {
+        if (signedIn) FcmTokenRegistrar.registerCurrentToken(appContext, scope)
+    }
 
     LaunchedEffect(Unit) {
         signedIn = try {
