@@ -94,3 +94,18 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 ## 2026-10-16 — Migration version alignment correction
 
 - The hosted Supabase migration history assigned version `20261016134617` to `add_foreign_key_indexes`. The repository migration filename was corrected to `20261016134617_add_foreign_key_indexes.sql` and the mismatched filename was removed. This keeps the committed migration version aligned with the version verified in the live project.
+
+
+## 2026-10-16 — Signed-in screens and secure conversation creation
+
+### Completed in source / deployed
+- Added the signed-in app shell and Compose screens for profile, conversation list, message history/send, call controls, and a locked admin-console entry.
+- Connected profile operations and message history/send to authenticated Supabase REST requests using the active session access token.
+- Added `supabase/functions/create-conversation/index.ts` and deployed the `create-conversation` Edge Function to the active project with JWT verification enabled. It resolves the recipient by username and creates both membership rows using server-side credentials.
+- Added an explicit Hang Up / Cancel control. This is a UI control only; WebRTC is not implemented.
+- Added the separate secure admin console to the master plan because it was not explicitly included in the previous baseline.
+
+### Still unverified / incomplete
+- Android build/CI and device runtime tests for these changes.
+- Two-account end-to-end tests and automated RLS allowed/denied tests.
+- Supabase Realtime, robust pagination/retry/offline behavior, Firebase FCM, WebRTC, and the separate web admin console.
