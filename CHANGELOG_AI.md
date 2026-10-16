@@ -40,7 +40,7 @@ Implement the real Android foundation from the plan and validate it in an Androi
 ### Completed and verified in repository
 - Added root Gradle Kotlin DSL settings, Android/Kotlin/Compose plugin configuration, Gradle properties, and ignore rules.
 - Added the `app` Android application module, manifest, and launcher activity.
-- Added the first Jetpack Compose neon sign-in/registration UI with a per-letter spectral wordmark, scrollable form, password visibility toggle, and local input validation.
+- Added the first Jetpack Compose neon sign-in/registration UI with a per-letter spectral wordmark, scrollable form, safe system-inset/keyboard handling, password visibility toggle, and local input validation.
 - Added an Android GitHub Actions workflow configured to attempt a debug build.
 - Re-fetched source/configuration files and project records from GitHub to confirm saved contents.
 
