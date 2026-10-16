@@ -35,6 +35,11 @@ object SupabaseAuthRepository {
         return "Signed in successfully."
     }
 
+    suspend fun restoreSession(): Boolean {
+        client.auth.awaitInitialization()
+        return client.auth.currentSessionOrNull() != null
+    }
+
     fun currentUserId(): String? = client.auth.currentUserOrNull()?.id
 
     fun currentAccessToken(): String? = client.auth.currentSessionOrNull()?.accessToken
