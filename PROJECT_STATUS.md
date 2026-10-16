@@ -13,7 +13,8 @@
 - [x] Chat list loads real conversation memberships from Supabase.
 - [x] Conversation screen loads real message history and sends messages through PostgREST under RLS.
 - [x] Deployed Supabase Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller and creates a conversation and pending invitation; the recipient is added as a member only after accepting.
-- [x] Added and committed the matching Edge Function source at `supabase/functions/create-conversation/index.ts`.\n- [x] Added and deployed `respond-conversation-invite`, which permits only the addressed recipient to accept or decline a pending invitation.
+- [x] Added and committed the matching Edge Function source at `supabase/functions/create-conversation/index.ts`.
+- [x] Added and deployed `respond-conversation-invite`, which permits only the addressed recipient to accept or decline a pending invitation.
 - [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.
 - [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.
 - [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
