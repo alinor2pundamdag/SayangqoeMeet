@@ -396,11 +396,15 @@ private fun CallScreen(onBack: () -> Unit) {
         ) { Text("CALL", color = ShellCyan, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) }
         Spacer(Modifier.height(24.dp))
         Text("Voice & video", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("No call is active.", color = ShellMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("WebRTC signaling and media are not connected yet. This screen will not pretend to place a call.", color = ShellMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+        Text("Call state: idle", color = ShellMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+        Text("The call control layout is ready, but WebRTC signaling/media are not connected yet. No call is being placed.", color = ShellMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
         Spacer(Modifier.height(28.dp))
-        Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = ShellPanel)) {
-            Text("END / BACK", color = ShellCyan)
+        Button(
+            onClick = onBack,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83250)),
+            modifier = Modifier.fillMaxWidth().height(54.dp)
+        ) {
+            Text("HANG UP / CANCEL", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         }
     }
 }
