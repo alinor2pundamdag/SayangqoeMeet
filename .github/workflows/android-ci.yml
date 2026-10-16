@@ -39,10 +39,13 @@ jobs:
       - name: Assemble debug APK
         run: gradle --no-daemon assembleDebug --stacktrace
 
+      - name: Name APK after project
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/SayangqoeMeet.apk
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: SayangqoeMeet-Android-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/SayangqoeMeet.apk
           if-no-files-found: error
           retention-days: 14
