@@ -51,3 +51,18 @@ Implement the real Android foundation from the plan and validate it in an Androi
 
 ### Next step
 Inspect the GitHub Actions run, resolve any build errors based on logs, and verify a successful debug build before integrating Supabase.
+
+
+## 2026-10-16 — Supabase Auth and initial database foundation
+
+### Committed
+- Added Supabase Kotlin Auth and Android HTTP dependencies.
+- Added a repository wrapper for email registration/sign-in and wired the existing auth screen to it.
+- Added a database migration for profiles, conversations, conversation memberships, messages, indexes, grants, and RLS policies.
+- Added build-time configuration for the Supabase URL and publishable key; no secret key is committed.
+- Updated README and handoff notes to document required configuration and limits.
+
+### Not verified / blocked
+- The connected Supabase account lists no accessible projects; access to the historical project reference was denied. No remote migration was applied and no key was retrieved.
+- GitHub Actions/build success and runtime authentication are not yet confirmed.
+- Real messaging, trusted invitation workflow, realtime, FCM, and WebRTC remain unfinished.
