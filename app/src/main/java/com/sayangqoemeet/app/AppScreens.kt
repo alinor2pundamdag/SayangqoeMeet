@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -43,6 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,7 +82,26 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                 Text("SayangqoeMeet", color = ShellCyan, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 Text("PRIVATE CONNECTIONS", color = ShellMuted, fontSize = 9.sp, letterSpacing = 1.8.sp)
             }
-            TextButton(onClick = onSignOut) { Text("SIGN OUT", color = ShellMuted, fontSize = 11.sp) }
+            var showOverflow by remember { mutableStateOf(false) }
+            Box {
+                TextButton(onClick = { showOverflow = true }) {
+                    Text("⋮", color = ShellCyan, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                }
+                DropdownMenu(
+                    expanded = showOverflow,
+                    onDismissRequest = { showOverflow = false },
+                    modifier = Modifier.background(ShellPanel)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Admin access", color = ShellText) },
+                        onClick = { showOverflow = false; destination = AppDestination.ADMIN }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Sign out", color = ShellMuted) },
+                        onClick = { showOverflow = false; onSignOut() }
+                    )
+                }
+            }
         }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -464,14 +486,85 @@ private fun CallScreen(onBack: () -> Unit) {
 
 @Composable
 private fun AdminConsoleScreen(onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BackHeader("ADMIN CONSOLE", onBack)
-        Text("Operations overview", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Admin console is now included in the master plan. This mobile entry is a locked navigation placeholder, not an authorized admin dashboard.", color = ShellMuted, fontSize = 13.sp)
-        ActionCard("USER MANAGEMENT", "Account lookup, status, and moderation", "SERVER AUTHORIZATION REQUIRED", {})
-        ActionCard("SAFETY & REPORTS", "Review reports and apply audited actions", "SERVER AUTHORIZATION REQUIRED", {})
-        ActionCard("SYSTEM HEALTH", "Integration status and operational events", "SERVER AUTHORIZATION REQUIRED", {})
-        EmptyState("ADMIN ACCESS LOCKED", "Do not expose privileged operations until a server-verified admin role and least-privilege backend endpoints are implemented.")
+    var adminPassword by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp)
+    ) {
+        BackHeader("SECURE ADMIN ACCESS", onBack)
+        Box(
+            Modifier.fillMaxWidth().border(
+                1.dp,
+                Brush.linearGradient(listOf(Color(0x9955F4FF), Color(0x554F6FFF), Color(0x44B58AFF))),
+                RoundedCornerShape(24.dp)
+            ).background(
+                Brush.verticalGradient(listOf(Color(0xFF14243B), Color(0xFF0C1323))),
+                RoundedCornerShape(24.dp)
+            ).padding(22.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                Box(
+                    Modifier.size(54.dp).border(1.dp, Color(0x6655F4FF), RoundedCornerShape(17.dp))
+                        .background(Color(0x222EDFE4), RoundedCornerShape(17.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("SQ", color = ShellCyan, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Text("Command access", color = ShellText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "Administrator-only workspace for trust, safety, and session operations.",
+                    color = ShellMuted, fontSize = 13.sp, lineHeight = 19.sp
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(7.dp).background(Color(0xFFFFCE79), CircleShape))
+                    Text("SECURE VERIFICATION NOT CONNECTED", color = Color(0xFFFFCE79), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+                Spacer(Modifier.height(2.dp))
+                Text("ADMIN PASSWORD", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                OutlinedTextField(
+                    value = adminPassword,
+                    onValueChange = { adminPassword = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Enter admin password", color = ShellMuted) },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        TextButton(onClick = { showPassword = !showPassword }) {
+                            Text(if (showPassword) "HIDE" else "SHOW", color = ShellCyan, fontSize = 9.sp)
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = fieldColorsForShell()
+                )
+                Button(
+                    onClick = { },
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ShellCyan,
+                        disabledContainerColor = Color(0xFF25354A),
+                        disabledContentColor = ShellMuted
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("VERIFY ADMIN IDENTITY", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                }
+                Text(
+                    "Verification will be performed by the secure backend. This screen does not compare or store the password locally.",
+                    color = ShellMuted, fontSize = 10.sp, lineHeight = 15.sp
+                )
+            }
+        }
+        Text("CONSOLE MODULES", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
+        ActionCard("SESSION OPERATIONS", "Presence, grouped chat sessions, video calls, and voice calls", "BACKEND CONNECTION PENDING", {})
+        ActionCard("TRUST & SAFETY", "Case review, evidence references, and documented moderation", "BACKEND CONNECTION PENDING", {})
+        ActionCard("AUDIT & SECURITY", "Admin access history, role checks, and system status", "BACKEND CONNECTION PENDING", {})
+        EmptyState(
+            "ADMIN WORKSPACE LOCKED",
+            "Live user data and privileged actions remain unavailable until server-verified admin authorization and audit logging are implemented."
+        )
     }
 }
 
