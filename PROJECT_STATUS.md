@@ -7,28 +7,34 @@
 
 ## Verified completed items
 
-- [x] Clean-start requirements baseline and project continuity records are committed.
-- [x] Kotlin/Compose Android foundation, neon authentication UI, safe insets/keyboard handling, and Android CI workflow are committed.
-- [x] Supabase Kotlin Auth dependency and email sign-in/sign-up repository are committed.
-- [x] Authentication UI calls the Supabase Auth repository and reports configuration/API errors instead of faking success.
-- [x] Supabase database migration for profiles, conversations, membership, messages, and RLS policies is committed.
-- [x] Source files were re-fetched from GitHub to verify saved contents.
+- [x] Clean-start requirements baseline, project continuity records, and Android Compose foundation are committed.
+- [x] Neon sign-in/registration UI is wired to the Supabase Kotlin email Auth repository.
+- [x] Active Supabase project verified: `phjwzrrsaemgcedwpyyp`, status `ACTIVE_HEALTHY`, PostgreSQL 17, Tokyo region.
+- [x] Live migration `20261016114000_initial_private_messaging` is present in Supabase migration history.
+- [x] Live tables `profiles`, `conversations`, `conversation_members`, and `messages` exist; RLS is enabled on all four. Current row counts are zero.
+- [x] Supabase security advisor currently reports no findings. This is not a substitute for authorization tests.
+- [x] Added and applied migration `20261016180000_add_foreign_key_indexes` for `conversations.created_by` and `messages.sender_id`, previously flagged by the performance advisor.
+- [x] Corrected README and project handoff records to reflect current hosted Supabase state and the missing Firebase/FCM setup.
+- [x] Supabase helper function `public.rls_auto_enable()` execute privilege is limited to the database owner role; live privilege query confirmed no `PUBLIC`, `anon`, or `authenticated` execute grant.
 
-## Blockers / unverified
+## Remaining blockers / unverified
 
-- The connected Supabase account returned no accessible projects; querying the previously used project reference returned a permission error. Therefore the hosted project/key could not be verified and the migration was **not** applied remotely.
-- No publishable key was obtained. Authentication requests cannot run until `SUPABASE_PUBLISHABLE_KEY` is supplied through local.properties or the build environment.
-- No Android build/CI success has been confirmed, and no emulator/device tests have run.
-- The database schema is only committed as SQL; real messaging, realtime, FCM, WebRTC, and profile UX remain incomplete.
-- Membership policy intentionally blocks arbitrary joining. A trusted invitation workflow must be designed before direct messaging can work safely.
+- **Android build/CI:** No confirmed successful GitHub Actions run or local Android build result has been observed yet. The workflow is configured; check its actual run status after these commits.
+- **Authentication:** Auth repository/UI are integrated in source, but live sign-up, sign-in, session persistence, and sign-out have not been end-to-end tested.
+- **RLS authorization:** RLS is enabled, but automated allowed/denied access tests have not been run. Conversation creation and membership/invitation flow is not complete; do not treat the database as production-ready for private messaging yet.
+- **Messaging:** Profile UX, conversation list/create/invite, message UI/history/send, pagination, and Realtime remain unfinished.
+- **Firebase / FCM:** No Firebase Android app config (`app/google-services.json`), Google Services Gradle plugin, FCM service/token registration, or trusted server-side sender is present. Live push delivery cannot be completed until a Firebase project/app is configured and its app config is provided. Never commit service-account credentials or server secrets.
+- **WebRTC:** Calling/signaling, STUN/TURN deployment, and two-device tests remain unfinished.
+- **Performance advisor:** Recheck after the index migration; existing conversation-membership/message-history indexes may show as unused while the database is empty, which is expected for a new project.
 
 ## Next actions
 
-1. Restore Supabase project access in the connected account, verify the correct project URL and publishable key, then apply and validate the migration.
-2. Check the latest GitHub Actions build and fix failures from logs.
-3. Complete secure profile and conversation-invitation workflows, then message/Reatime UI.
-4. Implement FCM and WebRTC per `masterplan.md`; validate on two devices.
+1. Inspect the latest GitHub Actions run and fix any actual compile errors from logs; do not infer a pass from the workflow file alone.
+2. Add automated database authorization checks for both allowed and denied user paths before enabling real messaging.
+3. Implement secure profile and recipient invitation/conversation workflows, then messaging and Realtime.
+4. Configure Firebase project/package identity and FCM delivery path, then test notifications on devices.
+5. Implement WebRTC and verify calls between two authorized devices.
 
 ## Accuracy and security
 
-Never claim remote database changes or build success without evidence. Never commit secrets, passwords, signing credentials, or service-role keys.
+Never claim a successful build, live Auth test, push delivery, or call unless evidence confirms it. Never commit passwords, signing credentials, service-role keys, Firebase service-account files, or other privileged secrets.
