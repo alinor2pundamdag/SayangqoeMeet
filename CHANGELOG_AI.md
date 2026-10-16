@@ -34,3 +34,20 @@ This file records meaningful project milestones. Entries must reflect verified a
 
 ### Next step
 Implement the real Android foundation from the plan and validate it in an Android-capable build environment.
+
+## 2026-10-16 — Initial Android foundation added
+
+### Completed and verified in repository
+- Added root Gradle Kotlin DSL settings, Android/Kotlin/Compose plugin configuration, Gradle properties, and ignore rules.
+- Added the `app` Android application module, manifest, and launcher activity.
+- Added the first Jetpack Compose neon sign-in/registration UI with a per-letter spectral wordmark, scrollable form, password visibility toggle, and local input validation.
+- Added an Android GitHub Actions workflow configured to attempt a debug build.
+- Re-fetched source/configuration files and project records from GitHub to confirm saved contents.
+
+### Not yet verified
+- Android build/CI success; no build result has been observed yet.
+- Runtime behavior on emulator/device and responsive layout checks.
+- Supabase authentication/database/RLS, real messaging, FCM delivery, and WebRTC calling.
+
+### Next step
+Inspect the GitHub Actions run, resolve any build errors based on logs, and verify a successful debug build before integrating Supabase.
