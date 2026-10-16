@@ -2,29 +2,29 @@
 
 ## Start here
 
-1. Read `masterplan.md` first; it is the baseline requirements source of truth.
-2. Read `PROJECT_STATUS.md` for the latest verified state.
-3. Read this file and the latest entries in `CHANGELOG_AI.md`.
-4. Inspect the repository tree, Git history, and build/test configuration before editing.
+1. Read `masterplan.md`; it is the requirements source of truth.
+2. Read `PROJECT_STATUS.md` and this handoff.
+3. Read the latest entries in `CHANGELOG_AI.md`.
+4. Inspect the repository files, Git history, and latest GitHub Actions runs before editing.
 
-## Current state
+## Current verified state
 
-- The private GitHub repository and connected access have been verified.
-- The new `masterplan.md` is committed and has been re-fetched to verify its content.
-- The master plan defines a clean implementation from scratch, including responsive/adaptive UI, sci-fi cyan/blue glowing brand headers, per-letter neon in-app wordmark, login-field styling, device-default notification sound, vibration subject to system settings, and device-default incoming-call ringtone.
-- Project-tracking documents are present.
-- No Android source code or build has been completed or verified yet.
+- Private repository: `alinor2pundamdag/SayangqoeMeet`, default branch `main`.
+- Master plan and project records are present.
+- Initial Android source/configuration now exists: Kotlin/Compose module, manifest, launcher activity, dark neon sign-in/registration UI, and Android CI workflow.
+- Source files were re-fetched from GitHub to verify saved contents.
+- **Build status is unverified**. Do not say it compiles until GitHub Actions or an Android-capable environment reports success.
+- Supabase, FCM, real messaging, WebRTC, and device/emulator UI verification are not implemented/verified yet.
+- The auth form performs only local input checks and explicitly reports that Supabase is not connected; it must not be described as real authentication.
 
 ## Next task
 
-Implement the actual Android foundation described in masterplan.md, beginning with a valid Gradle/Kotlin project and buildable app entry point, then adaptive branded UI. Avoid creating decorative-only screens or fake functionality. Verify the project builds in an Android-capable environment and report the exact checks performed.
+Check GitHub Actions for the first debug build. If it fails, inspect the actual logs, make a focused fix, and rerun verification. After the build passes, implement Supabase Auth/session handling and the initial secure schema/RLS. Follow the dependency order in `masterplan.md`.
 
 ## Working rules
 
-- Treat `masterplan.md` as the requirements source of truth.
-- Do not casually change approved requirements. Change them when the user explicitly asks; document changes in the master plan's append-only history.
-- Do not delete, overwrite, rename, or discard existing project files or local changes without explicit approval.
-- Never commit secrets, API keys, tokens, passwords, signing credentials, or private configuration.
-- Keep changes focused; verify changes and report what was actually tested.
-- Update `PROJECT_STATUS.md`, this handoff, and `CHANGELOG_AI.md` after meaningful verified milestones.
-- Preserve old history entries; append new entries instead of rewriting previous completion records.
+- Preserve approved requirements and existing files.
+- Never commit secrets or make destructive/unrelated changes.
+- Verify saved code and actual test results before reporting progress.
+- Update project status, handoff, and changelog after meaningful verified milestones.
+- Append master-plan completion history; do not rewrite old entries.
