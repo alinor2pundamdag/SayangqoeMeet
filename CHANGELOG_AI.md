@@ -66,3 +66,11 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - The connected Supabase account lists no accessible projects; access to the historical project reference was denied. No remote migration was applied and no key was retrieved.
 - GitHub Actions/build success and runtime authentication are not yet confirmed.
 - Real messaging, trusted invitation workflow, realtime, FCM, and WebRTC remain unfinished.
+
+
+## 2026-10-16 — RLS policy review
+
+- Reviewed the committed migration and corrected the conversation membership read policy to avoid recursive RLS evaluation.
+- Restricted membership inserts to the creator of the conversation and required message updates to remain within a conversation where the sender is a member.
+- Re-fetched the migration after the fix. These are source-level checks only; hosted database advisors and execution tests remain blocked by Supabase project access.
+- GitHub Actions status/run lookup returned no check results, so no build outcome is claimed.
