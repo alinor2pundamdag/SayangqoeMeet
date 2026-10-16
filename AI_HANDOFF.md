@@ -16,14 +16,14 @@
 - Deployed Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller, resolves a recipient by username, creates a conversation, and inserts both membership rows using server-side credentials. Source: `supabase/functions/create-conversation/index.ts`.
 - Android repository methods use the current Supabase access token for profile CRUD, conversation queries, message history, and message sending.
 - Admin console is now an explicit master-plan requirement. The Android admin item is not a working admin dashboard; a separate web console and server-verified admin roles are still needed.
-- No successful Android build, end-to-end two-account test, FCM delivery, Realtime test, or WebRTC call test has been confirmed.
+- FCM client/token registration code, the RLS-protected `device_tokens` table, and JWT-protected `send-message-push` Edge Function exist. Firebase app configuration and `FIREBASE_SERVICE_ACCOUNT_JSON` are still missing, so push delivery is not configured or verified.\n- No successful Android build, end-to-end two-account test, FCM delivery, Realtime test, or WebRTC call test has been confirmed.
 
 ## Highest-priority next steps
 
 1. Run a real Android debug build from GitHub Actions or AndroidIDE. Resolve compile errors using actual logs.
 2. End-to-end test auth/profile and conversation invitation with two separate accounts; verify cross-user reads/writes are denied.
 3. Add Realtime subscriptions and message pagination/retry handling.
-4. Configure Firebase FCM, then test notifications on devices.
+4. Register the Firebase Android app for package `com.sayangqoemeet.app`, add the project-specific app config and Google Services plugin, configure the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret in Supabase, then test push notifications on devices.
 5. Implement WebRTC signaling/media and test two authorized devices.
 6. Build the separate admin web console with backend role enforcement and an audit log.
 
