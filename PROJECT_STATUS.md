@@ -7,27 +7,28 @@
 
 ## Verified completed items
 
-- [x] Created the private GitHub repository and verified connected access/push permission.
-- [x] Added and verified `masterplan.md` as the clean-start requirements baseline.
-- [x] Added project continuity records: `PROJECT_STATUS.md`, `AI_HANDOFF.md`, and `CHANGELOG_AI.md`.
-- [x] Added Gradle Kotlin DSL root/module configuration, Android manifest, ProGuard rules, and ignore rules.
-- [x] Added a Kotlin Jetpack Compose launcher activity with the initial sci-fi neon sign-in/registration UI, responsive scrolling, safe system insets/keyboard padding, password visibility control, and local input validation.
-- [x] Added an Android CI workflow configured to attempt a debug APK build.
+- [x] Clean-start requirements baseline and project continuity records are committed.
+- [x] Kotlin/Compose Android foundation, neon authentication UI, safe insets/keyboard handling, and Android CI workflow are committed.
+- [x] Supabase Kotlin Auth dependency and email sign-in/sign-up repository are committed.
+- [x] Authentication UI calls the Supabase Auth repository and reports configuration/API errors instead of faking success.
+- [x] Supabase database migration for profiles, conversations, membership, messages, and RLS policies is committed.
+- [x] Source files were re-fetched from GitHub to verify saved contents.
 
-## Current verified state
+## Blockers / unverified
 
-- Source/configuration files have been saved to GitHub and re-fetched to confirm their contents.
-- The authentication screen is a UI foundation only. It explicitly does not claim successful login or registration; Supabase Auth is not integrated.
-- No Android build has been run or confirmed successful yet. CI build outcome must be checked after GitHub Actions runs.
-- Supabase Auth/database/RLS, real messaging, FCM delivery, WebRTC calling, and runtime layout verification remain unimplemented/unverified.
-- No Android SDK or emulator/device test has been run in this session.
+- The connected Supabase account returned no accessible projects; querying the previously used project reference returned a permission error. Therefore the hosted project/key could not be verified and the migration was **not** applied remotely.
+- No publishable key was obtained. Authentication requests cannot run until `SUPABASE_PUBLISHABLE_KEY` is supplied through local.properties or the build environment.
+- No Android build/CI success has been confirmed, and no emulator/device tests have run.
+- The database schema is only committed as SQL; real messaging, realtime, FCM, WebRTC, and profile UX remain incomplete.
+- Membership policy intentionally blocks arbitrary joining. A trusted invitation workflow must be designed before direct messaging can work safely.
 
-## Next priority
+## Next actions
 
-1. Verify the GitHub Actions debug build and fix any real compile/configuration failures.
-2. Once a build is confirmed, implement Supabase Auth and a secure profile/data foundation with migrations and RLS policies.
-3. Continue to real private messaging, notifications, and WebRTC calling in the master-plan order.
+1. Restore Supabase project access in the connected account, verify the correct project URL and publishable key, then apply and validate the migration.
+2. Check the latest GitHub Actions build and fix failures from logs.
+3. Complete secure profile and conversation-invitation workflows, then message/Reatime UI.
+4. Implement FCM and WebRTC per `masterplan.md`; validate on two devices.
 
-## Accuracy and safety rules
+## Accuracy and security
 
-Only mark features complete after checking implementation and, where applicable, tests or runtime behavior. Distinguish verified facts from assumptions. Never commit API keys, tokens, passwords, signing credentials, or other secrets. Respect the master plan's change-control rules and append-only completion history.
+Never claim remote database changes or build success without evidence. Never commit secrets, passwords, signing credentials, or service-role keys.
