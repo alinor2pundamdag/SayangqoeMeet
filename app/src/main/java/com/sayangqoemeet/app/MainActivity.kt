@@ -1,6 +1,7 @@
 package com.sayangqoemeet.app
 
 import android.os.Bundle
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -35,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,12 +86,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SayangqoeMeetAuthScreen() {
+    val coroutineScope = rememberCoroutineScope()
     var isRegister by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
     var feedbackIsError by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -229,9 +233,28 @@ private fun SayangqoeMeetAuthScreen() {
                                 feedbackIsError = true
                                 feedback = "Use a password with at least 8 characters."
                             }
+                            BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank() -> {
+                                feedbackIsError = true
+                                feedback = "Supabase key is missing. Configure SUPABASE_PUBLISHABLE_KEY in local.properties or the build environment."
+                            }
                             else -> {
-                                feedbackIsError = false
-                                feedback = "UI is ready. Supabase authentication is not connected yet."
+                                isLoading = true
+                                feedback = null
+                                coroutineScope.launch {
+                                    try {
+                                        feedback = if (isRegister) {
+                                            SupabaseAuthRepository.signUp(normalizedEmail, password)
+                                        } else {
+                                            SupabaseAuthRepository.signIn(normalizedEmail, password)
+                                        }
+                                        feedbackIsError = false
+                                    } catch (error: Exception) {
+                                        feedbackIsError = true
+                                        feedback = error.message?.take(180) ?: "Authentication failed. Please try again."
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
                             }
                         }
                     },
@@ -246,7 +269,7 @@ private fun SayangqoeMeetAuthScreen() {
                     )
                 ) {
                     Text(
-                        text = if (isRegister) "CREATE ACCOUNT" else "SIGN IN",
+                        text = if (isLoading) "PLEASE WAIT…" else if (isRegister) "CREATE ACCOUNT" else "SIGN IN",
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.1.sp
                     )
