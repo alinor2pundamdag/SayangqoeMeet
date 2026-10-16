@@ -367,3 +367,12 @@ Do not describe the entire app as finished while any required feature remains un
 - Added a visible Hang Up / Cancel control, while explicitly retaining WebRTC media/signaling as unfinished.
 - Added the admin console as an explicit requirement. The current mobile entry is only a locked placeholder; the separate web console and backend authorization remain outstanding.
 - These source/deployment changes still require Android build verification, two-account integration tests, and RLS negative tests.
+
+
+### 2026-10-16 — FCM client foundation and admin console shell
+
+- Applied and committed the RLS-protected `device_tokens` schema; live Supabase confirms the table exists with RLS enabled.
+- Added Firebase Messaging client code, conditional Google Services Gradle plugin setup, a default notification channel, Android notification permission request, and best-effort device token registration.
+- Added and deployed JWT-protected `send-message-push` Edge Function. It checks message ownership and sends only to other conversation members' registered devices. Actual delivery remains blocked until the Firebase Android app config and server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret are configured.
+- Added `admin-console/index.html`, a responsive locked operations-console UI shell with no fabricated data. It is not a working admin console until server-verified role checks, privileged endpoints, and audit logging are implemented.
+- Android build verification, FCM delivery tests, and device-level integration tests remain outstanding.
