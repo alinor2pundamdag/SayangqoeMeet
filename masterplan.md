@@ -384,3 +384,11 @@ Do not describe the entire app as finished while any required feature remains un
 - Changed the deployed `create-conversation` function to create a pending invitation and creator membership only; the recipient receives no conversation membership before accepting.
 - Added and deployed `respond-conversation-invite`, which verifies the authenticated recipient and handles accept/decline. Updated the Android chat UI with pending invitation cards and recipient controls.
 - The flow still requires two-account runtime tests and review of duplicate-invitation/rate-limit behavior before production use.
+
+
+### 2026-10-16 — Invitation flow hardening follow-up
+
+- Added duplicate pending/accepted invite checks to `create-conversation`.
+- Updated `respond-conversation-invite` so the pending invitation is conditionally claimed before membership is added, reducing accept/decline race conditions; a failed membership write attempts to return the invite to pending.
+- Redeployed both Edge Functions with JWT verification still enabled.
+- This is source/deployment verification only; two-account runtime tests and rate-limit/abuse testing remain outstanding.
