@@ -36,7 +36,7 @@ If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The Gi
 
 ## Database migrations
 
-Migrations are stored in `supabase/migrations/`. The initial migration creates the private messaging schema and RLS policies; `20261016180000_add_foreign_key_indexes.sql` adds two foreign-key indexes recommended by the live performance advisor. The index migration was applied to the active Supabase project and must remain in sync with the repository migration history.
+Migrations are stored in `supabase/migrations/`. The initial migration creates the private messaging schema and RLS policies; `20261016134617_add_foreign_key_indexes.sql` adds two foreign-key indexes recommended by the live performance advisor. The index migration was applied to the active Supabase project and must remain in sync with the repository migration history.
 
 ## Firebase / push notifications
 
