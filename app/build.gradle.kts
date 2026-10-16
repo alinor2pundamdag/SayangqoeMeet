@@ -37,7 +37,17 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
+
+    val localProperties = java.util.Properties().apply {
+        val localFile = rootProject.file("local.properties")
+        if (localFile.exists()) localFile.inputStream().use { load(it) }
+    }
+    val supabaseUrl = (System.getenv("SUPABASE_URL") ?: localProperties.getProperty("SUPABASE_URL") ?: "https://ktzvfnjcfjaiqhwrohel.supabase.co")
+    val supabaseKey = (System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: localProperties.getProperty("SUPABASE_PUBLISHABLE_KEY") ?: "")
+    buildConfigField("String", "SUPABASE_URL", "\\"$supabaseUrl\\"")
+    buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\\"$supabaseKey\\"")
 }
 
 dependencies {
@@ -48,6 +58,11 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+
+    // Supabase Kotlin SDK: Auth uses Supabase-managed password hashing and sessions.
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.2.6"))
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+    implementation("io.ktor:ktor-client-android:3.2.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
