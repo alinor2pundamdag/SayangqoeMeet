@@ -39,7 +39,9 @@ If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The Gi
 
 ## Firebase / push notifications
 
-Firebase Cloud Messaging (FCM) is not configured yet. There is no `app/google-services.json`, Firebase Gradle plugin, FCM service/token registration, or trusted push sender. Register the Android app matching package `com.sayangqoemeet.app` in Firebase and configure a trusted server-side sender before claiming push delivery works. Never commit Firebase service-account credentials or FCM server secrets.
+FCM client code is now present: Firebase Messaging dependency, notification service/channel, Android notification permission request, and device-token registration after sign-in when Firebase is initialized. The live `public.device_tokens` table has RLS enabled; its migration is `supabase/migrations/20261016140058_add_device_tokens.sql`.
+
+A JWT-protected `send-message-push` Edge Function is deployed and its source is committed at `supabase/functions/send-message-push/index.ts`. It verifies that the caller owns the message and targets only other conversation members' registered device tokens. It cannot deliver pushes yet because there is no `app/google-services.json` and the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret is not configured. The Google Services Gradle plugin is declared but applied only when the matching app config file exists, so the clean-start build does not require that file. Push delivery has not been tested. Never commit Firebase service-account credentials or FCM server secrets.
 
 ## Admin console
 
