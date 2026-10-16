@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,8 +88,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun SayangqoeMeetRoot() {
     var signedIn by remember { mutableStateOf(false) }
+    var checkingSession by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
-    if (signedIn) {
+
+    LaunchedEffect(Unit) {
+        signedIn = try {
+            SupabaseAuthRepository.restoreSession()
+        } catch (_: Exception) {
+            false
+        }
+        checkingSession = false
+    }
+
+    if (checkingSession) {
+        Box(Modifier.fillMaxSize().background(Midnight), contentAlignment = Alignment.Center) {
+            Text("RESTORING SECURE SESSION…", color = NeonCyan, fontWeight = FontWeight.Bold)
+        }
+    } else if (signedIn) {
         SignedInShell(
             onSignOut = {
                 scope.launch {
