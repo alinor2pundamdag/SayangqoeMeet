@@ -132,7 +132,7 @@ internal object SupabaseDataRepository {
         val recipient = root.optJSONObject("recipient")
         return ConversationRecord(
             id = conversation.getString("id"),
-            title = recipient?.optString("display_name")?.ifBlank { recipient.optString("username") },
+            title = recipient?.let { it.optString("display_name").ifBlank { it.optString("username") } },
             isGroup = false,
             createdAt = conversation.optString("created_at"),
             memberUsername = recipient?.optString("username")
