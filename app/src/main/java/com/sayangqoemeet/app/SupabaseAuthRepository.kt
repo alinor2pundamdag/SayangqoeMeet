@@ -40,7 +40,7 @@ object SupabaseAuthRepository {
     }
 
     suspend fun resendSignupVerification(email: String): String {
-        client.auth.resendEmail(OtpType.Email.SIGNUP, email.trim(), redirectUrl = AUTH_REDIRECT_URL)
+        client.auth.resendEmail(OtpType.Email.SIGNUP, email = email.trim())
         return "Verification email requested. Check your inbox and spam folder. If it still does not arrive, wait before trying again."
     }
 
