@@ -14,7 +14,7 @@
 - [x] Conversation screen loads real message history and sends messages through PostgREST under RLS.
 - [x] Deployed Supabase Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller and securely creates a conversation plus membership for both users.
 - [x] Added and committed the matching Edge Function source at `supabase/functions/create-conversation/index.ts`.
-- [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.
+- [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.\n- [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.\n- [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
 - [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; four application tables exist with RLS enabled.
 - [x] Initial and foreign-key-index migrations are recorded in the live Supabase migration history and matched by repository filenames.
 - [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
@@ -27,7 +27,7 @@
 - **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
 - **Messaging:** REST history/send are implemented, but Realtime subscriptions, pagination UI, retry/deduplication, offline queueing, and comprehensive failure handling are not complete.
 - **Invitations:** The deployed Edge Function creates a one-to-one conversation and membership rows. It still needs end-to-end two-account testing and abuse/rate-limit review before production use.
-- **Firebase/FCM:** No Firebase app config, FCM token registration, or trusted push sender is present.
+- **Firebase/FCM:** Client/token code and server sender function are present, but no `app/google-services.json` or Firebase service-account secret has been configured. The sender function cannot deliver push until `FIREBASE_SERVICE_ACCOUNT_JSON` is set in Supabase Edge Function secrets. No push delivery test has passed.
 - **Calls:** The Hang Up / Cancel UI exists, but WebRTC signaling/media, STUN/TURN, call invitations, and two-device tests are not implemented.
 - **Admin console:** Requirements are now in the master plan. The Android entry is locked placeholder UI; separate web console, server-verified admin roles, audit log, and privileged endpoints remain to be built.
 - **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
