@@ -1,6 +1,9 @@
 package com.sayangqoemeet.app
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -168,7 +171,18 @@ internal object SupabaseDataRepository {
             .put("body", body.trim())
         val response = runRequest { request("POST", "messages", payload, "return=representation") }
         val row = JSONArray(response).getJSONObject(0)
-        return MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.getString("body"), row.getString("created_at"))
+        val saved = MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.getString("body"), row.getString("created_at"))
+        // Push delivery is best-effort: message persistence must not fail if Firebase is not configured.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching {
+                request(
+                    "POST",
+                    "functions/v1/send-message-push",
+                    JSONObject().put("conversation_id", saved.conversationId).put("message_id", saved.id)
+                )
+            }
+        }
+        return saved
     }
 
     private fun enc(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
