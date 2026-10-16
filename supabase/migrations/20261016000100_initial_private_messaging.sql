@@ -86,7 +86,13 @@ using (exists (
 drop policy if exists "users join conversations as themselves" on public.conversation_members;
 create policy "users join conversations as themselves"
 on public.conversation_members for insert to authenticated
-with check ((select auth.uid()) = user_id);
+with check (
+    (select auth.uid()) = user_id
+    and exists (
+        select 1 from public.conversations c
+        where c.id = conversation_id and c.created_by = (select auth.uid())
+    )
+);
 
 drop policy if exists "members can read messages" on public.messages;
 create policy "members can read messages"
@@ -123,24 +129,7 @@ grant select, insert on public.conversations to authenticated;
 grant select, insert on public.conversation_members to authenticated;
 grant select, insert, update, delete on public.messages to authenticated;
 
--- Automatically create a minimal profile when an Auth user is registered.
-create or replace function public.handle_new_auth_user()
-returns trigger
-language plpgsql
-security invoker
-set search_path = ''
-as $$
-begin
-    insert into public.profiles (id, display_name)
-    values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', ''))
-    on conflict (id) do nothing;
-    return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created_profile on auth.users;
-create trigger on_auth_user_created_profile
-after insert on auth.users
-for each row execute procedure public.handle_new_auth_user();
+-- Profile creation is intentionally performed by the authenticated client after
+-- signup; avoid an auth.users trigger with elevated privileges in this baseline.
 
 commit;
