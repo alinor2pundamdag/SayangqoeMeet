@@ -324,3 +324,8 @@ Do not describe the entire app as finished while any required feature remains un
 - Verified that the security advisor returned no findings at the time of this check and that API roles do not have execute permission on `public.rls_auto_enable()`.
 - Corrected project documentation that had become stale and explicitly recorded Firebase Cloud Messaging as not configured.
 - These checks do not certify production readiness: Android CI success, end-to-end Auth, automated RLS authorization tests, messaging/Realtime, FCM delivery, and WebRTC remain unverified or incomplete.
+
+
+## 2026-10-16 — Migration version alignment correction
+
+- Confirmed the hosted migration history version for `add_foreign_key_indexes` is `20261016134617` and aligned the committed SQL filename to `20261016134617_add_foreign_key_indexes.sql`. The earlier mismatched filename was removed; the live schema and migration history were not changed by this filename correction.
