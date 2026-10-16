@@ -13,7 +13,7 @@ if (file("google-services.json").exists()) {
 
 android {
     namespace = "com.sayangqoemeet.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.sayangqoemeet.app"
