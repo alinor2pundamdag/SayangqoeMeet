@@ -1,33 +1,47 @@
 # SayangqoeMeet
 
-A new Android communication app built from scratch, guided by [masterplan.md](masterplan.md).
+A clean-start Android communication app guided by [masterplan.md](masterplan.md).
 
 ## Current implementation
 
-- Kotlin Android application module using Jetpack Compose.
-- Initial dark sci-fi/neon sign-in and registration UI with a spectral neon wordmark.
-- Scrollable form layout, email/password fields, password visibility toggle, and basic local input validation.
-- Honest integration status: the form does **not** authenticate users yet. Supabase is not connected in this foundation milestone.
+- Kotlin Android app using Jetpack Compose with the dark neon sign-in/registration screen.
+- Supabase Kotlin Auth client is wired to the sign-in and registration controls.
+- A secure initial Postgres schema/RLS migration is committed under `supabase/migrations/`; it has **not** been applied to the hosted database.
+- Build and runtime status remain unverified until GitHub Actions/device tests confirm them.
 
-## Build requirements
+## Supabase configuration
 
-- JDK 17
-- Android SDK with platform 35 and compatible build tools
-- Gradle 8.11.1
+The Android build reads the URL and publishable key from environment variables or root `local.properties`. Never use a service-role/secret key in the Android app.
 
-From the repository root, run:
+Root `local.properties` (do not commit this file):
+
+```properties
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
+```
+
+Alternatively set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in the build environment. The app intentionally refuses to submit authentication requests when the publishable key is empty.
+
+## Build
+
+Requirements: JDK 17, Android SDK platform 35/build-tools 35.0.0, Gradle 8.11.1.
 
 ```sh
 gradle assembleDebug
 ```
 
-The debug APK, if the build succeeds, is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The GitHub Actions workflow attempts this build on pushes and pull requests; do not assume success without checking the run.
 
-The GitHub Actions workflow at `.github/workflows/android-ci.yml` is configured to attempt a debug build on pushes and pull requests. A successful build has not yet been verified.
+## Database migration
 
-## External services not configured yet
+Review `supabase/migrations/20261016000100_initial_private_messaging.sql` and apply it only to the intended Supabase project after confirming project access. It creates profiles, conversations, conversation memberships, messages, and row-level security policies. Membership insertion is deliberately restricted; trusted recipient-invitation logic is still required before real one-to-one messaging can be used.
 
-Supabase Auth/database/RLS, Firebase Cloud Messaging, and WebRTC signaling/media are not integrated. Never add privileged keys or secrets to this repository. See the master plan for requirements.
+## Not yet implemented/verified
+
+- Hosted Supabase database migration application and live Auth request verification.
+- Profile creation/update UI, conversation creation/invitation workflow, and message/realtime UI.
+- Firebase Cloud Messaging delivery, WebRTC voice/video calling, and two-device tests.
+- Android build success and runtime layout verification.
 
 ## Project records
 
