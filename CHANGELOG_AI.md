@@ -109,3 +109,17 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Android build/CI and device runtime tests for these changes.
 - Two-account end-to-end tests and automated RLS allowed/denied tests.
 - Supabase Realtime, robust pagination/retry/offline behavior, Firebase FCM, WebRTC, and the separate web admin console.
+
+
+## 2026-10-16 — FCM client and trusted push sender foundation
+
+### Completed in source / deployed
+- Added Firebase Messaging dependency, a Firebase messaging service, default-sound/vibration notification channel behavior, Android notification permission request, and token registration after sign-in when Firebase is initialized.
+- Applied the `add_device_tokens` migration and committed the matching `20261016140058_add_device_tokens.sql` migration. The live table has RLS and user-owned token policies.
+- Added and deployed JWT-protected `send-message-push` Edge Function. It verifies the caller owns the message and sends only to other members' registered device tokens.
+- Message persistence is not failed when push delivery is unavailable; push is best-effort.
+
+### External setup / verification still required
+- Firebase Android app config (`app/google-services.json`) and Google Services Gradle plugin are not present.
+- The server-only `FIREBASE_SERVICE_ACCOUNT_JSON` Supabase Edge Function secret is not configured.
+- No FCM delivery or Android build has been verified. Do not claim notifications are working until both external configuration and device tests pass.
