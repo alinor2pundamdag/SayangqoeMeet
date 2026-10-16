@@ -297,3 +297,12 @@ Do not describe the entire app as finished while any required feature remains un
 - Recorded the user's requirements for responsive screen fitting, sci-fi cyan/blue glowing headers and brand wordmark, custom per-letter neon colors for in-app branding, styled login fields, device-default notification sound, vibration where system settings allow, and device-default ringtone for incoming calls.
 - Documented the Android platform limitation that the application cannot reliably force multi-colored individual letters in the operating system's external launcher/install label; the intended custom treatment belongs in app-controlled branding and icon artwork.
 - This entry records the specification only. It does not claim that any Android source code or feature has been implemented or tested.
+
+
+### 2026-10-16 — Initial Android foundation added
+
+- Added the initial Gradle/Kotlin/Jetpack Compose Android application foundation and launcher activity.
+- Added a first sci-fi neon sign-in/registration UI with a spectral wordmark, scrollable form, password visibility toggle, and local input validation.
+- Added a GitHub Actions workflow configured to attempt a debug build.
+- Source and configuration files were re-fetched from GitHub to verify their saved contents.
+- This milestone does not claim a successful build, working Supabase authentication, real messaging, FCM delivery, WebRTC calling, or runtime UI verification. Those remain pending until independently tested.
