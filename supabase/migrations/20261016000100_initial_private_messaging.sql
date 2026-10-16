@@ -64,10 +64,13 @@ with check ((select auth.uid()) = id);
 drop policy if exists "members can view conversations" on public.conversations;
 create policy "members can view conversations"
 on public.conversations for select to authenticated
-using (exists (
-    select 1 from public.conversation_members cm
-    where cm.conversation_id = id and cm.user_id = (select auth.uid())
-));
+using (
+    created_by = (select auth.uid())
+    or exists (
+        select 1 from public.conversation_members cm
+        where cm.conversation_id = id and cm.user_id = (select auth.uid())
+    )
+);
 
 drop policy if exists "signed-in users create conversations" on public.conversations;
 create policy "signed-in users create conversations"
@@ -77,10 +80,7 @@ with check ((select auth.uid()) = created_by);
 drop policy if exists "members can view membership" on public.conversation_members;
 create policy "members can view membership"
 on public.conversation_members for select to authenticated
-using (exists (
-    select 1 from public.conversation_members own
-    where own.conversation_id = conversation_members.conversation_id and own.user_id = (select auth.uid())
-));
+using (user_id = (select auth.uid()));
 
 -- A user may only add themselves. Trusted server-side workflows must add other members.
 drop policy if exists "users join conversations as themselves" on public.conversation_members;
@@ -117,7 +117,14 @@ drop policy if exists "senders can edit own messages" on public.messages;
 create policy "senders can edit own messages"
 on public.messages for update to authenticated
 using ((select auth.uid()) = sender_id)
-with check ((select auth.uid()) = sender_id);
+with check (
+    (select auth.uid()) = sender_id
+    and exists (
+        select 1 from public.conversation_members cm
+        where cm.conversation_id = messages.conversation_id
+          and cm.user_id = (select auth.uid())
+    )
+);
 
 drop policy if exists "senders can delete own messages" on public.messages;
 create policy "senders can delete own messages"
