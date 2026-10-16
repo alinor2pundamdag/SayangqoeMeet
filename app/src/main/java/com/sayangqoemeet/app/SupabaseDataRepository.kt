@@ -35,6 +35,13 @@ internal data class MessageRecord(
     val createdAt: String
 )
 
+internal data class InvitationRecord(
+    val id: String,
+    val conversationId: String,
+    val inviterId: String,
+    val createdAt: String
+)
+
 /**
  * Small authenticated PostgREST/Edge Function adapter.
  * The access token comes from the active Supabase Auth session; only the
@@ -124,19 +131,40 @@ internal object SupabaseDataRepository {
         return ProfileRecord(row.getString("id"), row.optString("username").ifBlank { null }, row.optString("display_name"), row.optString("avatar_url").ifBlank { null })
     }
 
-    suspend fun createConversation(recipientUsername: String): ConversationRecord {
+    suspend fun createConversation(recipientUsername: String): InvitationRecord {
         val payload = JSONObject().put("recipient_username", recipientUsername.trim())
         val response = runRequest { request("POST", "functions/v1/create-conversation", payload) }
         val root = JSONObject(response)
         val conversation = root.getJSONObject("conversation")
-        val recipient = root.optJSONObject("recipient")
-        return ConversationRecord(
-            id = conversation.getString("id"),
-            title = recipient?.let { it.optString("display_name").ifBlank { it.optString("username") } },
-            isGroup = false,
-            createdAt = conversation.optString("created_at"),
-            memberUsername = recipient?.optString("username")
+        val invitation = root.getJSONObject("invitation")
+        return InvitationRecord(
+            id = invitation.getString("id"),
+            conversationId = conversation.getString("id"),
+            inviterId = userId(),
+            createdAt = invitation.optString("created_at")
         )
+    }
+
+    suspend fun loadPendingInvitations(): List<InvitationRecord> {
+        val id = userId()
+        val query = "conversation_invites?recipient_id=eq.${enc(id)}&status=eq.pending&select=id,conversation_id,inviter_id,created_at&order=created_at.desc"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            InvitationRecord(
+                id = row.getString("id"),
+                conversationId = row.getString("conversation_id"),
+                inviterId = row.getString("inviter_id"),
+                createdAt = row.getString("created_at")
+            )
+        }
+    }
+
+    suspend fun respondToInvitation(invitationId: String, accept: Boolean) {
+        val payload = JSONObject()
+            .put("invitation_id", invitationId)
+            .put("accept", accept)
+        runRequest { request("POST", "functions/v1/respond-conversation-invite", payload) }
     }
 
     suspend fun loadConversations(): List<ConversationRecord> {
