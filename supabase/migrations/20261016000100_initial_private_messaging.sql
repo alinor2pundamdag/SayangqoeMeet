@@ -2,6 +2,10 @@
 -- Apply to the intended Supabase project only after confirming the project reference.
 begin;
 
+-- Supabase's automatic-RLS helper is SECURITY DEFINER and must not be callable
+-- by API roles. Revoking direct execution does not disable its event trigger.
+revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
     username text unique,
