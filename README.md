@@ -9,9 +9,9 @@ A privacy-conscious Android communication app guided by [masterplan.md](masterpl
 - Profile loading/saving uses the authenticated Supabase session and PostgREST.
 - Conversation list and message history/sending use authenticated PostgREST requests protected by RLS.
 - Private conversation creation/invitation uses the deployed `create-conversation` Supabase Edge Function. The function verifies the caller's JWT and uses server-side credentials only to create both membership rows.
-- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The live schema contains `profiles`, `conversations`, `conversation_members`, and `messages`, with RLS enabled on all four.
-- Migrations are committed under `supabase/migrations/`, including `20261016134617_add_foreign_key_indexes.sql`.
-- The Edge Function source is committed at `supabase/functions/create-conversation/index.ts` and deployed to the active project.
+- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The live schema contains `profiles`, `conversations`, `conversation_members`, `messages`, and `device_tokens`, with RLS enabled on all five.
+- Migrations are committed under `supabase/migrations/`, including `20261016134617_add_foreign_key_indexes.sql` and `20261016140058_add_device_tokens.sql`.
+- Edge Function sources are committed at `supabase/functions/create-conversation/index.ts` and `supabase/functions/send-message-push/index.ts`; both are deployed to the active project with JWT verification enabled.
 - A Hang Up / Cancel control is present in the call screen, but it does not end a real call because WebRTC is not implemented yet.
 
 ## Supabase client configuration
@@ -43,7 +43,7 @@ Firebase Cloud Messaging (FCM) is not configured yet. There is no `app/google-se
 
 ## Admin console
 
-The master plan now explicitly requires a separate web-based admin console with server-verified roles, user/report management, operational health, and audit history. The current Android entry is only a locked navigation placeholder, not a functional admin dashboard. Privileged operations must run through trusted backend endpoints; never expose service-role credentials to Android or a browser.
+The master plan now explicitly requires a separate web-based admin console with server-verified roles, user/report management, operational health, and audit history. The current Android entry is only a locked navigation placeholder, and `admin-console/index.html` is a static locked UI shell—not a functional admin dashboard. Privileged operations must run through trusted backend endpoints; never expose service-role credentials to Android or a browser.
 
 ## Not yet implemented / verified
 
