@@ -13,7 +13,7 @@
 - Supabase Kotlin Auth repository is wired to the UI. Runtime sign-up/sign-in/session behavior is not end-to-end verified.
 - Active Supabase project: `phjwzrrsaemgcedwpyyp`, URL `https://phjwzrrsaemgcedwpyyp.supabase.co`, status `ACTIVE_HEALTHY`.
 - Live schema contains `profiles`, `conversations`, `conversation_members`, and `messages`; RLS is enabled on all four and they currently contain zero rows.
-- Live migrations: `20261016114000_initial_private_messaging` and `20261016180000_add_foreign_key_indexes`. The latter adds the two indexes recommended by the performance advisor.
+- Live migrations: `20261016114000_initial_private_messaging` and `20261016134617_add_foreign_key_indexes`. The latter adds the two indexes recommended by the performance advisor.
 - Supabase security advisor currently has no findings; still run real RLS allowed/denied tests before treating private messaging as secure.
 - Firebase/FCM is not configured: no `app/google-services.json`, Firebase Gradle plugin, messaging service/token workflow, or trusted server-side sender.
 - CI/build success and device tests remain unverified.
