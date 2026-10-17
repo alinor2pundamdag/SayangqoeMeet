@@ -326,7 +326,10 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                                                 "Too many attempts. Please wait a little before trying again."
                                             else -> raw.take(180).ifBlank { "Authentication failed. Please try again." }
                                         }
-                                        if (isRegister && !showResendVerification) showResendVerification = true
+                                        showResendVerification =
+                                            lower.contains("email not confirmed") ||
+                                            lower.contains("email_not_confirmed") ||
+                                            (isRegister && (lower.contains("already registered") || lower.contains("user already exists")))
                                     } finally {
                                         isLoading = false
                                     }
@@ -352,7 +355,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                     )
                 }
 
-                if (isRegister && showResendVerification) {
+                if (showResendVerification) {
                     TextButton(
                         onClick = {
                             val normalizedEmail = email.trim()
