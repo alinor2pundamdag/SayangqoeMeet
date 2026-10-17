@@ -151,7 +151,10 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                 )
                 AppDestination.CALL -> CallScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
-                AppDestination.USERS -> RegisteredUsersScreen(onBack = { destination = AppDestination.HOME })
+                AppDestination.USERS -> RegisteredUsersScreen(
+                    onBack = { destination = AppDestination.HOME },
+                    onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT }
+                )
             }
         }
 
@@ -317,7 +320,7 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
 }
 
 @Composable
-private fun RegisteredUsersScreen(onBack: () -> Unit) {
+private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var users by remember { mutableStateOf<List<RegisteredUserRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading registered users…") }
@@ -371,9 +374,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit) {
                                 try {
                                     val conversationId = SupabaseDataRepository.openPrivateConversation(user.username!!)
                                     status = ""
-                                    // A new or existing private conversation must open directly, without invitations.
-                                    onBack()
-                                    // Return to the chat list; it will load the conversation on next open.
+                                    onOpenConversation(conversationId)
                                 } catch (error: Exception) {
                                     status = error.message ?: "Could not open private chat."
                                 } finally {
