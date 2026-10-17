@@ -370,7 +370,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                     Column(Modifier.weight(1f)) {
                         Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = ShellText, fontWeight = FontWeight.SemiBold)
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
-                        Text("Registered: ${user.createdAt.replace("T", " ").substringBefore(".").removeSuffix("Z")}", color = ShellMuted, fontSize = 10.sp)
+                        Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
                         Text("Presence unavailable", color = ShellMuted, fontSize = 10.sp)
                     }
                     TextButton(
@@ -380,7 +380,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                             status = "Opening private chat…"
                             scope.launch {
                                 try {
-                                    val conversationId = SupabaseDataRepository.openPrivateConversation(user.username!!)
+                                    val conversationId = SupabaseDataRepository.openPrivateConversation(user.id)
                                     status = ""
                                     onOpenConversation(conversationId)
                                 } catch (error: Exception) {

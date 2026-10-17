@@ -153,13 +153,11 @@ internal object SupabaseDataRepository {
         return ProfileRecord(row.getString("id"), row.optString("username").ifBlank { null }, row.optString("display_name"), row.optString("avatar_url").ifBlank { null })
     }
 
-    suspend fun openPrivateConversation(recipientUsername: String): String {
-        require(recipientUsername.trim().matches(Regex("^[A-Za-z0-9_.-]{3,24}$"))) {
-            "This user does not have a valid username for private messaging yet."
-        }
-        val payload = JSONObject().put("recipient_username", recipientUsername.trim())
+    suspend fun openPrivateConversation(targetUserId: String): String {
+        require(targetUserId.isNotBlank()) { "Select a valid user to message." }
+        val payload = JSONObject().put("target_user_id", targetUserId)
         val response = runRequest { request("POST", "functions/v1/open-private-conversation", payload) }
-        return JSONObject(response).getJSONObject("conversation").getString("id")
+        return JSONObject(response).getString("conversation_id")
     }
 
     suspend fun createConversation(recipientUsername: String): InvitationRecord {
