@@ -151,6 +151,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
     var feedback by remember { mutableStateOf<String?>(null) }
     var feedbackIsError by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var showResendVerification by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -230,6 +231,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                     onValueChange = {
                         email = it
                         feedback = null
+                        showResendVerification = false
                     },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("you@example.com", color = TextMuted) },
@@ -299,16 +301,32 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                                 feedback = null
                                 coroutineScope.launch {
                                     try {
-                                        feedback = if (isRegister) {
-                                            SupabaseAuthRepository.signUp(normalizedEmail, password)
+                                        if (isRegister) {
+                                            feedback = SupabaseAuthRepository.signUp(normalizedEmail, password)
+                                            showResendVerification = true
+                                            feedback = "If this is a new account, check your inbox and spam folder for the confirmation email. If you already registered, switch to Sign in."
                                         } else {
-                                            SupabaseAuthRepository.signIn(normalizedEmail, password)
+                                            feedback = SupabaseAuthRepository.signIn(normalizedEmail, password)
+                                            showResendVerification = false
+                                            onAuthenticated()
                                         }
                                         feedbackIsError = false
-                                        if (!isRegister) onAuthenticated()
                                     } catch (error: Exception) {
                                         feedbackIsError = true
-                                        feedback = error.message?.take(180) ?: "Authentication failed. Please try again."
+                                        val raw = error.message.orEmpty()
+                                        val lower = raw.lowercase()
+                                        feedback = when {
+                                            lower.contains("invalid login credentials") || lower.contains("invalid_credentials") ->
+                                                "Email or password is incorrect. Check both fields, or create an account if you have not registered."
+                                            lower.contains("already registered") || lower.contains("user already exists") ->
+                                                "This account may already be registered. Switch to Sign in, or request a password reset."
+                                            lower.contains("email not confirmed") || lower.contains("email_not_confirmed") ->
+                                                "Email not verified yet. Check your inbox or request a new verification email below."
+                                            lower.contains("rate limit") || lower.contains("too many requests") ->
+                                                "Too many attempts. Please wait a little before trying again."
+                                            else -> raw.take(180).ifBlank { "Authentication failed. Please try again." }
+                                        }
+                                        if (isRegister && !showResendVerification) showResendVerification = true
                                     } finally {
                                         isLoading = false
                                     }
@@ -334,6 +352,41 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                     )
                 }
 
+                if (isRegister && showResendVerification) {
+                    TextButton(
+                        onClick = {
+                            val normalizedEmail = email.trim()
+                            if (!normalizedEmail.contains("@") || normalizedEmail.endsWith("@")) {
+                                feedbackIsError = true
+                                feedback = "Enter the same valid email address you used to register."
+                            } else {
+                                isLoading = true
+                                coroutineScope.launch {
+                                    try {
+                                        feedback = SupabaseAuthRepository.resendSignupVerification(normalizedEmail)
+                                        feedbackIsError = false
+                                    } catch (error: Exception) {
+                                        feedbackIsError = true
+                                        val detail = error.message.orEmpty().lowercase()
+                                        feedback = when {
+                                            detail.contains("rate limit") || detail.contains("too many") ->
+                                                "Please wait before requesting another email. Supabase limits email sends."
+                                            detail.contains("not found") || detail.contains("signup") ->
+                                                "No pending signup was found for this address. Check the email or try Sign in."
+                                            else -> "Could not request a new verification email. Check the email address and try again later."
+                                        }
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isLoading && email.contains("@")
+                    ) {
+                        Text("Resend verification email", color = NeonCyan, fontSize = 12.sp)
+                    }
+                }
+
                 Spacer(Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -349,6 +402,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                         onClick = {
                             isRegister = !isRegister
                             feedback = null
+                            showResendVerification = false
                         }
                     ) {
                         Text(
