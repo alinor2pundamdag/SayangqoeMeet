@@ -22,7 +22,8 @@ internal data class ProfileRecord(
 internal data class RegisteredUserRecord(
     val id: String,
     val username: String?,
-    val displayName: String
+    val displayName: String,
+    val createdAt: String
 )
 
 internal data class ConversationRecord(
@@ -125,14 +126,15 @@ internal object SupabaseDataRepository {
 
     suspend fun loadRegisteredUsers(): List<RegisteredUserRecord> {
         val id = userId()
-        val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name&order=display_name.asc&limit=200"
+        val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at&order=created_at.desc&limit=500"
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             RegisteredUserRecord(
                 id = row.getString("id"),
                 username = row.optString("username").takeIf { it.isNotBlank() },
-                displayName = row.optString("display_name")
+                displayName = row.optString("display_name"),
+                createdAt = row.optString("created_at")
             )
         }
     }
@@ -149,6 +151,15 @@ internal object SupabaseDataRepository {
         }
         val row = JSONArray(response).getJSONObject(0)
         return ProfileRecord(row.getString("id"), row.optString("username").ifBlank { null }, row.optString("display_name"), row.optString("avatar_url").ifBlank { null })
+    }
+
+    suspend fun openPrivateConversation(recipientUsername: String): String {
+        require(recipientUsername.trim().matches(Regex("^[A-Za-z0-9_.-]{3,24}$"))) {
+            "This user does not have a valid username for private messaging yet."
+        }
+        val payload = JSONObject().put("recipient_username", recipientUsername.trim())
+        val response = runRequest { request("POST", "functions/v1/open-private-conversation", payload) }
+        return JSONObject(response).getJSONObject("conversation").getString("id")
     }
 
     suspend fun createConversation(recipientUsername: String): InvitationRecord {
