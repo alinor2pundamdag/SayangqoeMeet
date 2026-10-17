@@ -3,6 +3,8 @@ package com.sayangqoemeet.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,12 +61,13 @@ private val ShellText = Color(0xFFF0F5FF)
 private val ShellMuted = Color(0xFF9BAAC5)
 private val ShellLine = Color(0xFF2A3856)
 
-internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN }
+internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
 internal fun SignedInShell(onSignOut: () -> Unit) {
     var destination by remember { mutableStateOf(AppDestination.HOME) }
     var selectedConversation by remember { mutableStateOf<String?>(null) }
+    var showAbout by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -84,24 +87,48 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
             }
             var showOverflow by remember { mutableStateOf(false) }
             Box {
-                TextButton(onClick = { showOverflow = true }) {
-                    Text("⋮", color = ShellCyan, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                }
+                Text(
+                    "⋮",
+                    modifier = Modifier
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = { showOverflow = true },
+                                onLongPress = { destination = AppDestination.ADMIN }
+                            )
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    color = ShellCyan,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 DropdownMenu(
                     expanded = showOverflow,
                     onDismissRequest = { showOverflow = false },
                     modifier = Modifier.background(ShellPanel)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Admin access", color = ShellText) },
-                        onClick = { showOverflow = false; destination = AppDestination.ADMIN }
+                        text = { Text("About", color = ShellText) },
+                        onClick = { showOverflow = false; showAbout = true }
                     )
                     DropdownMenuItem(
-                        text = { Text("Sign out", color = ShellMuted) },
+                        text = { Text("Logout", color = ShellMuted) },
                         onClick = { showOverflow = false; onSignOut() }
                     )
                 }
             }
+        }
+
+        if (showAbout) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showAbout = false },
+                title = { Text("About SayangqoeMeet") },
+                text = {
+                    Text("SayangqoeMeet is a private communication app. Current areas include account authentication, profiles, private chats, and voice/video call UI. Email delivery, online presence, and real audio/video calling must be configured and verified before they can be described as fully operational.")
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAbout = false }) { Text("CLOSE") }
+                }
+            )
         }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -110,7 +137,7 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                     onProfile = { destination = AppDestination.PROFILE },
                     onChats = { destination = AppDestination.CHATS },
                     onCall = { destination = AppDestination.CALL },
-                    onAdmin = { destination = AppDestination.ADMIN }
+                    onUsers = { destination = AppDestination.USERS }
                 )
                 AppDestination.PROFILE -> ProfileScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.CHATS -> ChatListScreen(
@@ -124,6 +151,7 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                 )
                 AppDestination.CALL -> CallScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
+                AppDestination.USERS -> RegisteredUsersScreen(onBack = { destination = AppDestination.HOME })
             }
         }
 
@@ -153,7 +181,7 @@ private fun NavAction(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen(onProfile: () -> Unit, onChats: () -> Unit, onCall: () -> Unit, onAdmin: () -> Unit) {
+private fun HomeScreen(onProfile: () -> Unit, onChats: () -> Unit, onCall: () -> Unit, onUsers: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -162,13 +190,10 @@ private fun HomeScreen(onProfile: () -> Unit, onChats: () -> Unit, onCall: () ->
         Text("Stay close.\nStay connected.", color = ShellText, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 38.sp)
         Text("Your private communication space.", color = ShellMuted, fontSize = 14.sp)
         Spacer(Modifier.height(4.dp))
-        ActionCard("MESSAGES", "Open your conversations and message history", "OPEN CHATS", onChats)
+        ActionCard("REGISTERED USERS", "Browse SayangqoeMeet profiles and discover people", "BROWSE USERS", onUsers)
         ActionCard("YOUR PROFILE", "Set up the name people recognize", "EDIT PROFILE", onProfile)
         ActionCard("VOICE / VIDEO", "Call controls and connection status", "OPEN CALLS", onCall)
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = onAdmin, modifier = Modifier.align(Alignment.End)) {
-            Text("ADMIN CONSOLE  ›", color = ShellMuted, fontSize = 10.sp, letterSpacing = 1.sp)
-        }
     }
 }
 
@@ -252,105 +277,26 @@ private fun ProfileScreen(onBack: () -> Unit) {
 
 @Composable
 private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit) {
-    val scope = rememberCoroutineScope()
     var conversations by remember { mutableStateOf<List<ConversationRecord>>(emptyList()) }
-    var invitations by remember { mutableStateOf<List<InvitationRecord>>(emptyList()) }
-    var recipientUsername by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Loading conversations…") }
-    var loading by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
         try {
             conversations = SupabaseDataRepository.loadConversations()
-            invitations = SupabaseDataRepository.loadPendingInvitations()
-            status = if (conversations.isEmpty() && invitations.isEmpty()) "No conversations or pending invitations." else ""
+            status = if (conversations.isEmpty()) "Your accepted chats will appear here." else ""
         } catch (error: Exception) {
-            status = error.message ?: "Could not load conversations and invitations."
+            status = error.message ?: "Could not load conversations."
         }
     }
     LaunchedEffect(Unit) { refresh() }
 
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BackHeader("MESSAGES", onBack)
-        Text("Your conversations", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Invite someone by username. They must accept before they become a member of the private chat.", color = ShellMuted, fontSize = 13.sp)
-        Field("RECIPIENT USERNAME", recipientUsername, { recipientUsername = it }, "Enter exact username")
-        Button(
-            onClick = {
-                if (recipientUsername.trim().length < 3) {
-                    status = "Enter a valid username (at least 3 characters)."
-                } else {
-                    loading = true
-                    scope.launch {
-                        try {
-                            SupabaseDataRepository.createConversation(recipientUsername)
-                            recipientUsername = ""
-                            status = "Invitation sent. Waiting for the recipient to accept."
-                            refresh()
-                        } catch (error: Exception) {
-                            status = error.message ?: "Could not send invitation."
-                        } finally {
-                            loading = false
-                        }
-                    }
-                }
-            },
-            enabled = !loading,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
-        ) { Text(if (loading) "SENDING…" else "SEND CHAT INVITATION", fontWeight = FontWeight.Bold) }
-
-        if (invitations.isNotEmpty()) {
-            Text("PENDING INVITATIONS", color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-            invitations.forEach { invite ->
-                Column(
-                    Modifier.fillMaxWidth().border(1.dp, Color(0xFF6C5B8D), RoundedCornerShape(16.dp))
-                        .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Invitation from member ${invite.inviterId.take(8)}…", color = ShellText, fontWeight = FontWeight.SemiBold)
-                    Text("Accept to join this private conversation, or decline to leave it inaccessible.", color = ShellMuted, fontSize = 11.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(
-                            onClick = {
-                                loading = true
-                                scope.launch {
-                                    try {
-                                        SupabaseDataRepository.respondToInvitation(invite.id, true)
-                                        status = "Invitation accepted."
-                                        refresh()
-                                    } catch (error: Exception) {
-                                        status = error.message ?: "Could not accept invitation."
-                                    } finally { loading = false }
-                                }
-                            },
-                            enabled = !loading,
-                            colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
-                        ) { Text("ACCEPT") }
-                        Button(
-                            onClick = {
-                                loading = true
-                                scope.launch {
-                                    try {
-                                        SupabaseDataRepository.respondToInvitation(invite.id, false)
-                                        status = "Invitation declined."
-                                        refresh()
-                                    } catch (error: Exception) {
-                                        status = error.message ?: "Could not decline invitation."
-                                    } finally { loading = false }
-                                }
-                            },
-                            enabled = !loading,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A2539))
-                        ) { Text("DECLINE", color = ShellText) }
-                    }
-                }
-            }
-        }
-
+        BackHeader("CHATS", onBack)
+        Text("Your chats", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Only conversations you belong to are shown here.", color = ShellMuted, fontSize = 13.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
         if (conversations.isEmpty()) {
-            EmptyState("NO ACCEPTED CONVERSATIONS", "Accepted private chats will appear here. Pending invitations do not grant message access.")
+            EmptyState("NO CHATS YET", "When you have an accepted conversation, it will appear here.")
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(conversations, key = { it.id }) { conversation ->
@@ -363,6 +309,43 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
                         Text(conversation.title?.takeIf { it.isNotBlank() } ?: if (conversation.isGroup) "Group conversation" else "Private conversation",
                             color = ShellText, fontWeight = FontWeight.SemiBold)
                         Text("Tap to open messages", color = ShellMuted, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RegisteredUsersScreen(onBack: () -> Unit) {
+    var users by remember { mutableStateOf<List<RegisteredUserRecord>>(emptyList()) }
+    var status by remember { mutableStateOf("Loading registered users…") }
+    LaunchedEffect(Unit) {
+        try {
+            users = SupabaseDataRepository.loadRegisteredUsers()
+            status = if (users.isEmpty()) "No other public profiles are available yet." else ""
+        } catch (error: Exception) {
+            status = error.message ?: "Could not load registered users."
+        }
+    }
+    Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        BackHeader("REGISTERED USERS", onBack)
+        Text("Discover people", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Registered profiles visible to signed-in users.", color = ShellMuted, fontSize = 13.sp)
+        Text("Online status is not yet connected to a live presence service; this list will not guess who is online.", color = Color(0xFFFFCE79), fontSize = 11.sp)
+        if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(users, key = { it.id }) { user ->
+                Row(
+                    Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(16.dp))
+                        .background(ShellPanel, RoundedCornerShape(16.dp)).padding(15.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(10.dp).background(ShellMuted, CircleShape))
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = ShellText, fontWeight = FontWeight.SemiBold)
+                        Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
                     }
                 }
             }
