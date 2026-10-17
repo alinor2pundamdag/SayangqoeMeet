@@ -19,6 +19,12 @@ internal data class ProfileRecord(
     val avatarUrl: String?
 )
 
+internal data class RegisteredUserRecord(
+    val id: String,
+    val username: String?,
+    val displayName: String
+)
+
 internal data class ConversationRecord(
     val id: String,
     val title: String?,
@@ -115,6 +121,20 @@ internal object SupabaseDataRepository {
         if (rows.length() == 0) return null
         val row = rows.getJSONObject(0)
         return ProfileRecord(row.getString("id"), row.optString("username").takeIf { it.isNotBlank() }, row.optString("display_name"), row.optString("avatar_url").takeIf { it.isNotBlank() })
+    }
+
+    suspend fun loadRegisteredUsers(): List<RegisteredUserRecord> {
+        val id = userId()
+        val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name&order=display_name.asc&limit=200"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            RegisteredUserRecord(
+                id = row.getString("id"),
+                username = row.optString("username").takeIf { it.isNotBlank() },
+                displayName = row.optString("display_name")
+            )
+        }
     }
 
     suspend fun saveProfile(displayName: String, username: String): ProfileRecord {
