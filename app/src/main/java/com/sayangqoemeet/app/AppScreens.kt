@@ -4,9 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.awaitEachGesture
-import androidx.compose.ui.input.pointer.awaitFirstDown
-import androidx.compose.ui.input.pointer.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,7 +96,14 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false)
                                 val releasedBeforeFiveSeconds = withTimeoutOrNull(5_000L) {
-                                    waitForUpOrCancellation()
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            if (event.changes.none { it.pressed }) return@awaitPointerEventScope true
+                                        }
+                                        @Suppress("UNREACHABLE_CODE")
+                                        false
+                                    }
                                 }
                                 if (releasedBeforeFiveSeconds == null) {
                                     destination = AppDestination.ADMIN
