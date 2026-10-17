@@ -4,7 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.awaitEachGesture
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.waitForUpOrCancellation
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,10 +94,17 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                     "⋮",
                     modifier = Modifier
                         .pointerInput(Unit) {
-                            detectTapGestures(
-                                onTap = { showOverflow = true },
-                                onLongPress = { destination = AppDestination.ADMIN }
-                            )
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                val releasedBeforeFiveSeconds = withTimeoutOrNull(5_000L) {
+                                    waitForUpOrCancellation()
+                                }
+                                if (releasedBeforeFiveSeconds == null) {
+                                    destination = AppDestination.ADMIN
+                                } else {
+                                    showOverflow = true
+                                }
+                            }
                         }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     color = ShellCyan,
