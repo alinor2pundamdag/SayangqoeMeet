@@ -38,6 +38,11 @@ object SupabaseAuthRepository {
         return "Registration request sent. Check your email, then tap Confirm email address to return to SayangqoeMeet."
     }
 
+    suspend fun resendSignupVerification(email: String): String {
+        client.auth.resendEmail(io.github.jan.supabase.auth.OtpType.Email.SIGNUP, email = email.trim())
+        return "Verification email request accepted. Check Inbox and Spam. If it does not arrive, the project email sender may be rate-limited or not delivering."
+    }
+
     suspend fun signIn(email: String, password: String): String {
         client.auth.signInWith(Email) {
             this.email = email
