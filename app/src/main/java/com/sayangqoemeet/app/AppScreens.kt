@@ -52,6 +52,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private val ShellBg = Color(0xFF070B18)
 private val ShellPanel = Color(0xFF10182B)
@@ -60,6 +63,11 @@ private val ShellBlue = Color(0xFF5D8CFF)
 private val ShellText = Color(0xFFF0F5FF)
 private val ShellMuted = Color(0xFF9BAAC5)
 private val ShellLine = Color(0xFF2A3856)
+
+private val RegistrationDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a")
+private fun formatRegistrationDate(value: String): String = runCatching {
+    RegistrationDateFormatter.withZone(ZoneId.systemDefault()).format(Instant.parse(value))
+}.getOrElse { value.replace("T", " ").substringBefore(".").removeSuffix("Z") }
 
 internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, USERS }
 
