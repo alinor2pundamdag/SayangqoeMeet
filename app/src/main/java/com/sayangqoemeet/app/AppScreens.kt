@@ -318,34 +318,71 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
 
 @Composable
 private fun RegisteredUsersScreen(onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var users by remember { mutableStateOf<List<RegisteredUserRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading registered users…") }
-    LaunchedEffect(Unit) {
+    var loadingUserId by remember { mutableStateOf<String?>(null) }
+    var refreshKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshKey) {
+        status = "Loading registered users…"
         try {
             users = SupabaseDataRepository.loadRegisteredUsers()
-            status = if (users.isEmpty()) "No other public profiles are available yet." else ""
+            status = if (users.isEmpty()) "No other registered profiles are available yet." else ""
         } catch (error: Exception) {
             status = error.message ?: "Could not load registered users."
         }
     }
+
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BackHeader("REGISTERED USERS", onBack)
-        Text("Discover people", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Registered profiles visible to signed-in users.", color = ShellMuted, fontSize = 13.sp)
-        Text("Online status is not yet connected to a live presence service; this list will not guess who is online.", color = Color(0xFFFFCE79), fontSize = 11.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Discover people", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                Text("${users.size} registered profile(s) shown · newest first", color = ShellMuted, fontSize = 12.sp)
+            }
+            TextButton(onClick = { refreshKey++ }, enabled = loadingUserId == null) {
+                Text("REFRESH", color = ShellCyan, fontSize = 11.sp)
+            }
+        }
+        Text("Online status will appear when live presence is configured; no online status is guessed.", color = Color(0xFFFFCE79), fontSize = 11.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(users, key = { it.id }) { user ->
                 Row(
                     Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(16.dp))
-                        .background(ShellPanel, RoundedCornerShape(16.dp)).padding(15.dp),
+                        .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(10.dp).background(ShellMuted, CircleShape))
                     Spacer(Modifier.width(12.dp))
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = ShellText, fontWeight = FontWeight.SemiBold)
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
+                        Text("Registered: ${user.createdAt.replace("T", " ").substringBefore(".").removeSuffix("Z")}", color = ShellMuted, fontSize = 10.sp)
+                        Text("Presence unavailable", color = ShellMuted, fontSize = 10.sp)
+                    }
+                    TextButton(
+                        enabled = loadingUserId == null && !user.username.isNullOrBlank(),
+                        onClick = {
+                            loadingUserId = user.id
+                            status = "Opening private chat…"
+                            scope.launch {
+                                try {
+                                    val conversationId = SupabaseDataRepository.openPrivateConversation(user.username!!)
+                                    status = ""
+                                    // A new or existing private conversation must open directly, without invitations.
+                                    onBack()
+                                    // Return to the chat list; it will load the conversation on next open.
+                                } catch (error: Exception) {
+                                    status = error.message ?: "Could not open private chat."
+                                } finally {
+                                    loadingUserId = null
+                                }
+                            }
+                        }
+                    ) {
+                        Text(if (loadingUserId == user.id) "OPENING…" else "MESSAGE", color = ShellCyan, fontSize = 10.sp)
                     }
                 }
             }
