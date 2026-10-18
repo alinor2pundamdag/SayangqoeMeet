@@ -110,6 +110,7 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
 
     var destination by remember { mutableStateOf(AppDestination.HOME) }
     var selectedConversation by remember { mutableStateOf<String?>(null) }
+    var selectedCallRecipient by remember { mutableStateOf<String?>(null) }
     var showAbout by remember { mutableStateOf(false) }
 
     Column(
@@ -190,13 +191,14 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                 AppDestination.CHAT -> ConversationScreen(
                     conversationId = selectedConversation,
                     onBack = { destination = AppDestination.CHATS },
-                    onCall = { destination = AppDestination.CALL }
+                    onCall = { selectedCallRecipient = it; destination = AppDestination.CALL }
                 )
-                AppDestination.CALL -> CallCenterScreen(onBack = { destination = AppDestination.HOME })
+                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.USERS -> RegisteredUsersScreen(
                     onBack = { destination = AppDestination.HOME },
-                    onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT }
+                    onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT },
+                    onCall = { id -> selectedCallRecipient = id; destination = AppDestination.CALL }
                 )
             }
         }
@@ -496,7 +498,7 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
 }
 
 @Composable
-private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit) {
+private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit, onCall: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var users by remember { mutableStateOf<List<RegisteredUserRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading registered users…") }
@@ -555,6 +557,10 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
                     }
                     TextButton(
+                        enabled = user.isOnline,
+                        onClick = { onCall(user.id) }
+                    ) { Text("CALL", color = ShellCyan, fontSize = 10.sp) }
+                    TextButton(
                         enabled = loadingUserId == null && !user.username.isNullOrBlank(),
                         onClick = {
                             loadingUserId = user.id
@@ -581,20 +587,23 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
 }
 
 @Composable
-private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: () -> Unit) {
+private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: (String?) -> Unit) {
     val scope = rememberCoroutineScope()
     var draft by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading message history…") }
     var loading by remember { mutableStateOf(false) }
     var currentUserId by remember { mutableStateOf<String?>(null) }
+    var otherUserId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(conversationId) {
         currentUserId = SupabaseAuthRepository.currentUserId()
+        otherUserId = null
         if (conversationId.isNullOrBlank()) {
             status = "Select a real conversation first."
         } else {
             try {
+                otherUserId = SupabaseDataRepository.loadConversations().firstOrNull { it.id == conversationId }?.otherUserId
                 messages = SupabaseDataRepository.loadMessages(conversationId)
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
             } catch (error: Exception) {
@@ -610,7 +619,7 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                 Text("PRIVATE CHAT", color = ShellText, fontWeight = FontWeight.Bold)
                 Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Conversation: ${conversationId.take(8)}…", color = ShellMuted, fontSize = 10.sp)
             }
-            TextButton(onClick = onCall) { Text("CALL", color = ShellCyan) }
+            TextButton(onClick = { onCall(otherUserId) }, enabled = !otherUserId.isNullOrBlank()) { Text("CALL", color = ShellCyan) }
         }
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
         LazyColumn(
