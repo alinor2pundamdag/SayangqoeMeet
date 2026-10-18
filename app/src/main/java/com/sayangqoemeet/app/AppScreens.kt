@@ -39,6 +39,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
@@ -81,12 +88,23 @@ internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, US
 
 @Composable
 internal fun SignedInShell(onSignOut: () -> Unit) {
-    // Best-effort heartbeat while this authenticated shell is active.
-    // A 90-second online window tolerates transient network delays.
-    LaunchedEffect(Unit) {
-        while (true) {
-            runCatching { SupabaseDataRepository.heartbeatPresence() }
-            kotlinx.coroutines.delay(30_000)
+    // Heartbeats run only while this screen's Activity is STARTED. When the
+    // app goes to the background, stop refreshing and expire this user's row.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            try {
+                while (currentCoroutineContext().isActive) {
+                    runCatching { SupabaseDataRepository.heartbeatPresence() }
+                    kotlinx.coroutines.delay(30_000)
+                }
+            } finally {
+                // repeatOnLifecycle cancels this block at ON_STOP. Ensure the
+                // presence row is marked offline even when cancellation occurs.
+                withContext(NonCancellable) {
+                    runCatching { SupabaseDataRepository.clearPresence() }
+                }
+            }
         }
     }
 
@@ -489,7 +507,11 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
         while (true) {
             kotlinx.coroutines.delay(15_000)
             if (loadingUserId == null) {
-                runCatching { users = SupabaseDataRepository.loadRegisteredUsers() }
+                val refreshed = runCatching {
+                    SupabaseDataRepository.loadRegisteredUsers()
+                }.getOrNull()
+                // Avoid invalidating the whole list when presence/data did not change.
+                if (refreshed != null && refreshed != users) users = refreshed
             }
         }
     }

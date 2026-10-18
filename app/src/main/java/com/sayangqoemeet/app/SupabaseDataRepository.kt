@@ -156,6 +156,20 @@ internal object SupabaseDataRepository {
         }
     }
 
+    /**
+     * Marks this account offline without requiring DELETE permission.
+     * The user_presence RLS policy allows a user to update only their own row.
+     */
+    suspend fun clearPresence() {
+        val id = userId()
+        val payload = JSONObject()
+            .put("last_seen_at", "1970-01-01T00:00:00Z")
+        runRequest {
+            request("PATCH", "user_presence?user_id=eq.${enc(id)}", payload,
+                "return=minimal")
+        }
+    }
+
     private suspend fun loadOnlineUserIds(): Set<String> {
         val cutoff = java.time.Instant.now().minusSeconds(90).toString()
         val query = "user_presence?select=user_id&last_seen_at=gte.${enc(cutoff)}"

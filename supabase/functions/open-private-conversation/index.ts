@@ -99,7 +99,18 @@ Deno.serve(async (req: Request) => {
       p_user_2: targetId,
     });
     if (rpcError) {
-      console.error("get_or_create_direct_conversation RPC failed:", rpcError.message);
+      // Keep invalid/missing-account failures client-actionable; unexpected
+      // database or infrastructure failures remain server errors.
+      console.error("get_or_create_direct_conversation RPC failed:", JSON.stringify({
+        code: rpcError.code,
+        message: rpcError.message,
+      }));
+      if (rpcError.code === "22004" || rpcError.code === "22023") {
+        return reply(400, { error: "Invalid users for a private conversation" });
+      }
+      if (rpcError.code === "23503" || rpcError.code === "PGRST116") {
+        return reply(404, { error: "Registered user or profile not found" });
+      }
       return reply(500, { error: "Could not open private conversation" });
     }
 
