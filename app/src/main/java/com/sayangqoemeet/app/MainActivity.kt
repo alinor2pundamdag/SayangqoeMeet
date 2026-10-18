@@ -113,6 +113,7 @@ private fun SayangqoeMeetRoot() {
     }
 
     LaunchedEffect(Unit) {
+        showCalls = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_calls", false) == true
         signedIn = try {
             SupabaseAuthRepository.restoreSession()
         } catch (_: Exception) {
