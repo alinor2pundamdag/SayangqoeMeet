@@ -29,6 +29,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
 
 /**
  * Owns native WebRTC resources for one active call. Signaling is persisted through
@@ -193,7 +194,7 @@ internal class WebRtcCallManager(
                     peer?.setLocalDescription(object : SdpObserver {
                         override fun onCreateSuccess(desc: SessionDescription) = Unit
                         override fun onSetSuccess() {
-                            if (continuation.isActive) continuation.resume(description) {}
+                            if (continuation.isActive) continuation.resume(description)
                         }
                         override fun onCreateFailure(error: String) {
                             if (continuation.isActive) continuation.resumeWith(Result.failure(IllegalStateException(error)))
@@ -220,7 +221,7 @@ internal class WebRtcCallManager(
             peer?.setRemoteDescription(object : SdpObserver {
                 override fun onCreateSuccess(description: SessionDescription) = Unit
                 override fun onSetSuccess() {
-                    if (continuation.isActive) continuation.resume(Unit) {}
+                    if (continuation.isActive) continuation.resume(Unit)
                 }
                 override fun onCreateFailure(error: String) {
                     if (continuation.isActive) continuation.resumeWith(Result.failure(IllegalStateException(error)))
