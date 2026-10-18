@@ -64,13 +64,33 @@ Deno.serve(async (req: Request) => {
 
     if (callerId === targetId) return reply(400, { error: "You cannot message yourself" });
 
-    const { data: target, error: targetError } = await adminClient
+    // Verify the UUID against Supabase Auth first. The service-role Auth Admin
+    // API is authoritative even if profile-column grants are tightened.
+    const { data: authTarget, error: authTargetError } =
+      await adminClient.auth.admin.getUserById(targetId);
+    if (authTargetError) {
+      console.error("Target Auth lookup failed:", authTargetError.message);
+      return reply(500, { error: "Could not verify target account" });
+    }
+    if (!authTarget.user) return reply(404, { error: "Registered user not found" });
+
+    // A direct chat is only available to users with a public directory profile.
+    // Keep this query minimal; never fetch private profile fields here.
+    const { data: targetProfile, error: profileError } = await adminClient
       .from("profiles")
       .select("id")
       .eq("id", targetId)
       .maybeSingle();
-    if (targetError) return reply(500, { error: "Could not verify target user" });
-    if (!target) return reply(404, { error: "Registered user not found" });
+    if (profileError) {
+      console.error("Target profile lookup failed:", JSON.stringify({
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+      }));
+      return reply(500, { error: "Could not verify target profile" });
+    }
+    if (!targetProfile) return reply(404, { error: "Registered user profile not found" });
 
     // A transaction-scoped advisory lock in this RPC serializes concurrent
     // requests for the same unordered user pair; writes roll back together.

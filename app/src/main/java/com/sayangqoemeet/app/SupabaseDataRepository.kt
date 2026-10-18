@@ -28,7 +28,8 @@ internal data class RegisteredUserRecord(
     val id: String,
     val username: String?,
     val displayName: String,
-    val createdAt: String
+    val createdAt: String,
+    val isOnline: Boolean = false
 )
 
 internal data class ConversationRecord(
@@ -144,17 +145,38 @@ internal object SupabaseDataRepository {
         return profileFromRow(rows.getJSONObject(0))
     }
 
+    suspend fun heartbeatPresence() {
+        val id = userId()
+        val payload = JSONObject()
+            .put("user_id", id)
+            .put("last_seen_at", java.time.Instant.now().toString())
+        runRequest {
+            request("POST", "user_presence?on_conflict=user_id", payload,
+                "resolution=merge-duplicates,return=minimal")
+        }
+    }
+
+    private suspend fun loadOnlineUserIds(): Set<String> {
+        val cutoff = java.time.Instant.now().minusSeconds(90).toString()
+        val query = "user_presence?select=user_id&last_seen_at=gte.${enc(cutoff)}"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { rows.getJSONObject(it).getString("user_id") }.toSet()
+    }
+
     suspend fun loadRegisteredUsers(): List<RegisteredUserRecord> {
         val id = userId()
         val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at&order=created_at.desc&limit=500"
         val rows = JSONArray(runRequest { request("GET", query) })
+        val onlineIds = runCatching { loadOnlineUserIds() }.getOrDefault(emptySet())
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
+            val userId = row.getString("id")
             RegisteredUserRecord(
-                id = row.getString("id"),
+                id = userId,
                 username = row.optString("username").takeIf { it.isNotBlank() },
                 displayName = row.optString("display_name"),
-                createdAt = row.optString("created_at")
+                createdAt = row.optString("created_at"),
+                isOnline = userId in onlineIds
             )
         }
     }

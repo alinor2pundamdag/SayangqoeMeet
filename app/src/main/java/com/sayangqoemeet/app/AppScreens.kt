@@ -81,6 +81,15 @@ internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, US
 
 @Composable
 internal fun SignedInShell(onSignOut: () -> Unit) {
+    // Best-effort heartbeat while this authenticated shell is active.
+    // A 90-second online window tolerates transient network delays.
+    LaunchedEffect(Unit) {
+        while (true) {
+            runCatching { SupabaseDataRepository.heartbeatPresence() }
+            kotlinx.coroutines.delay(30_000)
+        }
+    }
+
     var destination by remember { mutableStateOf(AppDestination.HOME) }
     var selectedConversation by remember { mutableStateOf<String?>(null) }
     var showAbout by remember { mutableStateOf(false) }
@@ -476,6 +485,15 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
         }
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(15_000)
+            if (loadingUserId == null) {
+                runCatching { users = SupabaseDataRepository.loadRegisteredUsers() }
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BackHeader("REGISTERED USERS", onBack)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -487,7 +505,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                 Text("REFRESH", color = ShellCyan, fontSize = 11.sp)
             }
         }
-        Text("Online status will appear when live presence is configured; no online status is guessed.", color = Color(0xFFFFCE79), fontSize = 11.sp)
+        Text("Green = active within the last 90 seconds. Presence updates while the app is open.", color = ShellMuted, fontSize = 11.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(users, key = { it.id }) { user ->
@@ -496,13 +514,13 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(10.dp).background(ShellMuted, CircleShape))
+                    Box(Modifier.size(10.dp).background(if (user.isOnline) Color(0xFF43E08A) else ShellMuted, CircleShape))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = ShellText, fontWeight = FontWeight.SemiBold)
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
                         Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
-                        Text("Presence unavailable", color = ShellMuted, fontSize = 10.sp)
+                        Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
                     }
                     TextButton(
                         enabled = loadingUserId == null && !user.username.isNullOrBlank(),
