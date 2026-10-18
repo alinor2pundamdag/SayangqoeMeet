@@ -27,13 +27,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -68,6 +72,10 @@ private val RegistrationDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy
 private fun formatRegistrationDate(value: String): String = runCatching {
     RegistrationDateFormatter.withZone(ZoneId.systemDefault()).format(Instant.parse(value))
 }.getOrElse { value.replace("T", " ").substringBefore(".").removeSuffix("Z") }
+
+private val ReligionOptions = listOf(
+    "Prefer not to say", "Christianity", "Islam", "Buddhism", "Hinduism", "Judaism", "Other", "None"
+)
 
 internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, USERS }
 
@@ -222,13 +230,22 @@ private fun ActionCard(title: String, subtitle: String, action: String, onClick:
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var displayName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
+    var avatarUrl by remember { mutableStateOf("") }
+    var bio by remember { mutableStateOf("") }
+    var birthday by remember { mutableStateOf("") }
+    var religion by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Loading your profile…") }
     var loading by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showReligionMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         try {
@@ -236,6 +253,12 @@ private fun ProfileScreen(onBack: () -> Unit) {
             if (profile != null) {
                 displayName = profile.displayName
                 username = profile.username.orEmpty()
+                avatarUrl = profile.avatarUrl.orEmpty()
+                bio = profile.bio.orEmpty()
+                birthday = profile.birthday.orEmpty()
+                religion = profile.religion.orEmpty()
+                address = profile.address.orEmpty()
+                phoneNumber = profile.phoneNumber.orEmpty()
                 status = "Profile loaded."
             } else {
                 status = "No profile yet. Create one below."
@@ -245,6 +268,25 @@ private fun ProfileScreen(onBack: () -> Unit) {
         }
     }
 
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val millis = datePickerState.selectedDateMillis
+                    if (millis != null) {
+                        birthday = Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("CANCEL") }
+            }
+        ) { DatePicker(state = datePickerState) }
+    }
+
     Column(
         Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -252,8 +294,74 @@ private fun ProfileScreen(onBack: () -> Unit) {
         BackHeader("YOUR PROFILE", onBack)
         Text("Make it yours.", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Your profile is linked to your signed-in account.", color = ShellMuted, fontSize = 13.sp)
+
+        Box(
+            Modifier.size(84.dp).align(Alignment.CenterHorizontally)
+                .border(1.dp, ShellCyan, CircleShape)
+                .background(ShellPanel, CircleShape)
+                .clickable { status = "Avatar upload is not implemented yet — paste an image URL in the field below for now." },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (avatarUrl.isBlank()) "ADD\nPHOTO" else "CHANGE\nPHOTO",
+                color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+
         Field("DISPLAY NAME", displayName, { displayName = it }, "How should people see you?")
         Field("USERNAME", username, { username = it }, "3–24 letters, numbers, _, ., -")
+        Field("AVATAR URL", avatarUrl, { avatarUrl = it }, "Paste an image URL (upload not implemented yet)")
+        Field("BIO", bio, { bio = it }, "A short line about you")
+        Field("ADDRESS", address, { address = it }, "City / area")
+        Field("PHONE NUMBER", phoneNumber, { phoneNumber = it }, "e.g. 09xx xxx xxxx")
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("BIRTHDAY", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Box(
+                Modifier.fillMaxWidth()
+                    .border(1.dp, ShellLine, RoundedCornerShape(14.dp))
+                    .background(ShellPanel, RoundedCornerShape(14.dp))
+                    .clickable { showDatePicker = true }
+                    .padding(16.dp)
+            ) {
+                Text(
+                    birthday.ifBlank { "Tap to select your birthday" },
+                    color = if (birthday.isBlank()) ShellMuted else ShellText, fontSize = 14.sp
+                )
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("RELIGION", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Box {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .border(1.dp, ShellLine, RoundedCornerShape(14.dp))
+                        .background(ShellPanel, RoundedCornerShape(14.dp))
+                        .clickable { showReligionMenu = true }
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        religion.ifBlank { "Tap to select" },
+                        color = if (religion.isBlank()) ShellMuted else ShellText, fontSize = 14.sp
+                    )
+                }
+                DropdownMenu(
+                    expanded = showReligionMenu,
+                    onDismissRequest = { showReligionMenu = false },
+                    modifier = Modifier.background(ShellPanel)
+                ) {
+                    ReligionOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option, color = ShellText) },
+                            onClick = { religion = option; showReligionMenu = false }
+                        )
+                    }
+                }
+            }
+        }
+
         Text(status, color = ShellMuted, fontSize = 12.sp)
         Button(
             onClick = {
@@ -267,7 +375,24 @@ private fun ProfileScreen(onBack: () -> Unit) {
                     loading = true
                     scope.launch {
                         try {
-                            SupabaseDataRepository.saveProfile(cleanName, cleanUsername)
+                            val saved = SupabaseDataRepository.saveProfile(
+                                displayName = cleanName,
+                                username = cleanUsername,
+                                avatarUrl = avatarUrl,
+                                bio = bio,
+                                birthday = birthday,
+                                religion = religion,
+                                address = address,
+                                phoneNumber = phoneNumber
+                            )
+                            displayName = saved.displayName
+                            username = saved.username.orEmpty()
+                            avatarUrl = saved.avatarUrl.orEmpty()
+                            bio = saved.bio.orEmpty()
+                            birthday = saved.birthday.orEmpty()
+                            religion = saved.religion.orEmpty()
+                            address = saved.address.orEmpty()
+                            phoneNumber = saved.phoneNumber.orEmpty()
                             status = "Profile saved."
                         } catch (error: Exception) {
                             status = error.message ?: "Could not save profile."
@@ -281,6 +406,14 @@ private fun ProfileScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(52.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
         ) { Text(if (loading) "SAVING…" else "SAVE PROFILE", fontWeight = FontWeight.Bold) }
+
+        Text(
+            "SayangqoeMeet v${BuildConfig.VERSION_NAME}",
+            color = ShellMuted,
+            fontSize = 9.sp,
+            letterSpacing = 1.sp,
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+        )
     }
 }
 
