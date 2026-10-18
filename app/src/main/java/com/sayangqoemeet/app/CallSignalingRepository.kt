@@ -91,7 +91,14 @@ internal object CallSignalingRepository {
             .put("call_type", type)
             .put("status", "ringing")
         val rows = JSONArray(io { request("POST", "call_sessions?select=*", body, "return=representation") })
-        return parse(rows.getJSONObject(0))
+        val created = parse(rows.getJSONObject(0))
+        // Best-effort push: call creation must still work if Firebase is not configured.
+        runCatching {
+            io {
+                request("POST", "functions/v1/notify-incoming-call", JSONObject().put("call_id", created.id))
+            }
+        }
+        return created
     }
 
     suspend fun pollIncoming(): List<CallSession> {
