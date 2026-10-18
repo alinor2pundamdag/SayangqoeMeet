@@ -37,7 +37,10 @@ internal data class ConversationRecord(
     val title: String?,
     val isGroup: Boolean,
     val createdAt: String,
-    val memberUsername: String? = null
+    val otherUserId: String? = null,
+    val otherUsername: String? = null,
+    val otherDisplayName: String? = null,
+    val displayLabel: String = "Private conversation"
 )
 
 internal data class MessageRecord(
@@ -269,18 +272,40 @@ internal object SupabaseDataRepository {
         runRequest { request("POST", "functions/v1/respond-conversation-invite", payload) }
     }
 
+    /**
+     * Loads the authenticated user's conversations through a SECURITY DEFINER RPC.
+     * The database enforces membership and resolves the other participant in one
+     * query, avoiding missing nested PostgREST profile joins and literal "null" labels.
+     */
     suspend fun loadConversations(): List<ConversationRecord> {
-        val id = userId()
-        val query = "conversation_members?user_id=eq.${enc(id)}&select=conversation_id,conversations(id,title,is_group,created_at)&order=joined_at.desc"
-        val rows = JSONArray(runRequest { request("GET", query) })
+        val rows = JSONArray(runRequest { request("POST", "rpc/get_my_conversation_list", JSONObject()) })
         return (0 until rows.length()).mapNotNull { index ->
-            val row = rows.getJSONObject(index)
-            val conversation = row.optJSONObject("conversations") ?: return@mapNotNull null
+            val row = rows.optJSONObject(index) ?: return@mapNotNull null
+            val id = row.optString("conversation_id").trim()
+            if (id.isBlank() || id == "null") return@mapNotNull null
+            val isGroup = row.optBoolean("is_group", false)
+            val title = row.optString("title").takeUnless { it.isBlank() || it == "null" }
+            val otherUserId = row.optString("other_user_id").takeUnless { it.isBlank() || it == "null" }
+            val otherUsername = row.optString("other_username").trim()
+                .takeUnless { it.isBlank() || it == "null" }
+            val otherDisplayName = row.optString("other_display_name").trim()
+                .takeUnless { it.isBlank() || it == "null" }
+            val serverLabel = row.optString("display_label").trim()
+                .takeUnless { it.isBlank() || it == "null" }
+            val fallback = if (isGroup) "Group conversation" else "Private conversation"
+            val displayLabel = when {
+                isGroup -> title ?: serverLabel ?: fallback
+                else -> serverLabel ?: otherDisplayName ?: otherUsername?.let { "@$it" } ?: "SayangqoeMeet user"
+            }
             ConversationRecord(
-                id = conversation.optString("id"),
-                title = conversation.optString("title").takeIf { it.isNotBlank() },
-                isGroup = conversation.optBoolean("is_group"),
-                createdAt = conversation.optString("created_at")
+                id = id,
+                title = title,
+                isGroup = isGroup,
+                createdAt = row.optString("created_at").takeUnless { it == "null" }.orEmpty(),
+                otherUserId = otherUserId,
+                otherUsername = otherUsername,
+                otherDisplayName = otherDisplayName,
+                displayLabel = displayLabel
             )
         }
     }

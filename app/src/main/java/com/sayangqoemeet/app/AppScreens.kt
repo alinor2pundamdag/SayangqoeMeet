@@ -475,8 +475,18 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
                             .clickable { onOpenConversation(conversation.id) }
                             .padding(16.dp)
                     ) {
-                        Text(conversation.title?.takeIf { it.isNotBlank() } ?: if (conversation.isGroup) "Group conversation" else "Private conversation",
-                            color = ShellText, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = conversation.displayLabel.ifBlank {
+                                if (conversation.isGroup) "Group conversation" else "SayangqoeMeet user"
+                            },
+                            color = ShellText,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!conversation.isGroup && !conversation.otherUsername.isNullOrBlank()) {
+                            Text("@${conversation.otherUsername}", color = ShellMuted, fontSize = 11.sp)
+                        }
                         Text("Tap to open messages", color = ShellMuted, fontSize = 11.sp)
                     }
                 }
