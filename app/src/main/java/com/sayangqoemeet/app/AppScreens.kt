@@ -202,8 +202,6 @@ private fun HomeScreen(onProfile: () -> Unit, onChats: () -> Unit, onCall: () ->
         Text("Your private communication space.", color = ShellMuted, fontSize = 14.sp)
         Spacer(Modifier.height(4.dp))
         ActionCard("REGISTERED USERS", "Browse SayangqoeMeet profiles and discover people", "BROWSE USERS", onUsers)
-        ActionCard("YOUR PROFILE", "Set up the name people recognize", "EDIT PROFILE", onProfile)
-        ActionCard("VOICE / VIDEO", "Call controls and connection status", "OPEN CALLS", onCall)
         Spacer(Modifier.weight(1f))
     }
 }
@@ -490,25 +488,77 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
 @Composable
 private fun CallScreen(onBack: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        Modifier.fillMaxSize().background(Color(0xFF030712)).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(end = 12.dp), fontSize = 11.sp)
+            Column(Modifier.weight(1f)) {
+                Text("PRIVATE CALL", color = ShellText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("00:00  ·  NOT CONNECTED", color = Color(0xFFFFCE79), fontSize = 10.sp, letterSpacing = 1.sp)
+            }
+            Box(Modifier.size(38.dp).background(ShellPanel, CircleShape).border(1.dp, ShellLine, CircleShape), contentAlignment = Alignment.Center) {
+                Text("?", color = ShellCyan, fontWeight = FontWeight.Bold)
+            }
+        }
         Box(
-            Modifier.size(112.dp).background(Color(0x223F8CFF), CircleShape).border(1.dp, ShellCyan, CircleShape),
+            Modifier.weight(1f).fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(24.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF16243B), Color(0xFF070B18))), RoundedCornerShape(24.dp)),
             contentAlignment = Alignment.Center
-        ) { Text("CALL", color = ShellCyan, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) }
-        Spacer(Modifier.height(24.dp))
-        Text("Voice & video", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Call state: idle", color = ShellMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("The call control layout is ready, but WebRTC signaling/media are not connected yet. No call is being placed.", color = ShellMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-        Spacer(Modifier.height(28.dp))
-        Button(
-            onClick = onBack,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83250)),
-            modifier = Modifier.fillMaxWidth().height(54.dp)
         ) {
-            Text("HANG UP / CANCEL", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.size(84.dp).background(Color(0x223F8CFF), CircleShape).border(1.dp, ShellCyan, CircleShape), contentAlignment = Alignment.Center) {
+                    Text("VIDEO", color = ShellCyan, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                }
+                Text("Remote video", color = ShellText, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("WebRTC signaling and media transport are not configured.", color = ShellMuted, fontSize = 12.sp)
+                Text("No camera or microphone is active.", color = Color(0xFFFFCE79), fontSize = 11.sp)
+            }
+            Box(
+                Modifier.align(Alignment.BottomEnd).padding(12.dp).size(width = 104.dp, height = 142.dp)
+                    .border(1.dp, ShellCyan, RoundedCornerShape(16.dp))
+                    .background(Color(0xFF10182B), RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("LOCAL", color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("PREVIEW", color = ShellMuted, fontSize = 9.sp)
+                }
+            }
+        }
+        Text("CALL CONTROLS · UNAVAILABLE UNTIL WEBRTC IS INTEGRATED", color = ShellMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("MIC", "CAM", "FLIP").forEach { label ->
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF172033),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ShellLine)
+                ) {
+                    Column(Modifier.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("—", color = ShellMuted, fontSize = 17.sp)
+                        Text(label, color = ShellMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("SPEAKER", "CHAT").forEach { label ->
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF172033),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ShellLine)
+                ) {
+                    Text(label, color = ShellMuted, modifier = Modifier.padding(vertical = 13.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Button(
+                onClick = onBack,
+                modifier = Modifier.weight(1.2f).height(44.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83250)),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("END", color = Color.White, fontWeight = FontWeight.ExtraBold) }
         }
     }
 }
