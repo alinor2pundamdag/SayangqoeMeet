@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
 private fun SayangqoeMeetRoot() {
     var signedIn by remember { mutableStateOf(false) }
     var checkingSession by remember { mutableStateOf(true) }
+    var showCalls by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val appContext = LocalContext.current
 
@@ -125,17 +126,33 @@ private fun SayangqoeMeetRoot() {
             Text("RESTORING SECURE SESSION…", color = NeonCyan, fontWeight = FontWeight.Bold)
         }
     } else if (signedIn) {
-        SignedInShell(
-            onSignOut = {
-                scope.launch {
-                    try {
-                        SupabaseAuthRepository.signOut()
-                    } finally {
-                        signedIn = false
+        if (showCalls) {
+            CallCenterScreen(onBack = { showCalls = false })
+        } else {
+            Column(Modifier.fillMaxSize().background(Midnight)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { showCalls = true }) {
+                        Text("VOICE / VIDEO CALLS", color = NeonCyan, fontWeight = FontWeight.Bold)
                     }
                 }
+                SignedInShell(
+                    onSignOut = {
+                        scope.launch {
+                            try {
+                                SupabaseAuthRepository.signOut()
+                            } finally {
+                                signedIn = false
+                                showCalls = false
+                            }
+                        }
+                    }
+                )
             }
-        )
+        }
     } else {
         SayangqoeMeetAuthScreen(onAuthenticated = { signedIn = true })
     }
