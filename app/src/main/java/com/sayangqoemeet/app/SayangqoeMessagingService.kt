@@ -84,14 +84,16 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
             openApp,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(this, MessageNotificationChannels.CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle("SayangqoeMeet")
-            .setContentText("You have a new message.")
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
+        // Keep the builder's concrete type explicit across Kotlin/AndroidX compiler versions.
+        val notificationBuilder: NotificationCompat.Builder =
+            NotificationCompat.Builder(this, MessageNotificationChannels.CHANNEL_ID)
+        notificationBuilder.setSmallIcon(android.R.drawable.stat_notify_chat)
+        notificationBuilder.setContentTitle("SayangqoeMeet")
+        notificationBuilder.setContentText("You have a new message.")
+        notificationBuilder.setContentIntent(pendingIntent)
+        notificationBuilder.setAutoCancel(true)
+        notificationBuilder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        val notification = notificationBuilder.build()
         runCatching {
             NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
         }
@@ -149,18 +151,19 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
         this, callId.hashCode() xor 0x51A, declineIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    val notification = NotificationCompat.Builder(this, CallNotificationChannels.CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.sym_call_incoming)
-        .setContentTitle("Incoming $type call")
-        .setContentText(caller)
-        .setCategory(NotificationCompat.CATEGORY_CALL)
-        .setPriority(NotificationCompat.PRIORITY_MAX)
-        .setContentIntent(acceptPending)
-        .setOngoing(true)
-        .setAutoCancel(false)
-        .addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
-        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
-        .build()
+    val callNotificationBuilder: NotificationCompat.Builder =
+        NotificationCompat.Builder(this, CallNotificationChannels.CHANNEL_ID)
+    callNotificationBuilder.setSmallIcon(android.R.drawable.sym_call_incoming)
+    callNotificationBuilder.setContentTitle("Incoming $type call")
+    callNotificationBuilder.setContentText(caller)
+    callNotificationBuilder.setCategory(NotificationCompat.CATEGORY_CALL)
+    callNotificationBuilder.setPriority(NotificationCompat.PRIORITY_MAX)
+    callNotificationBuilder.setContentIntent(acceptPending)
+    callNotificationBuilder.setOngoing(true)
+    callNotificationBuilder.setAutoCancel(false)
+    callNotificationBuilder.addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
+    callNotificationBuilder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
+    val notification = callNotificationBuilder.build()
     runCatching { NotificationManagerCompat.from(this).notify(callId.hashCode(), notification) }
 }
 
