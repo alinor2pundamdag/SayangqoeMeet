@@ -16,7 +16,12 @@ internal data class ProfileRecord(
     val id: String,
     val username: String?,
     val displayName: String,
-    val avatarUrl: String?
+    val avatarUrl: String?,
+    val bio: String? = null,
+    val birthday: String? = null,
+    val religion: String? = null,
+    val address: String? = null,
+    val phoneNumber: String? = null
 )
 
 internal data class RegisteredUserRecord(
@@ -61,10 +66,13 @@ internal object SupabaseDataRepository {
     private fun request(method: String, path: String, body: JSONObject? = null, prefer: String? = null): String {
         val token = SupabaseAuthRepository.currentAccessToken()
             ?: error("Your session is no longer available. Sign in again.")
-        val isFunction = path.startsWith("functions/v1/")
+        val isFunction = path.startsWith("functions/v1/") || path.startsWith("rpc/")
         val base = BuildConfig.SUPABASE_URL.trimEnd('/') + if (isFunction) "/" else "/rest/v1/"
-        val actualPath = if (isFunction) path else path
-        val connection = (URL(base + actualPath).openConnection() as HttpURLConnection).apply {
+        val restBase = BuildConfig.SUPABASE_URL.trimEnd('/') + "/rest/v1/"
+        val functionBase = BuildConfig.SUPABASE_URL.trimEnd('/') + "/"
+        val isEdgeFunction = path.startsWith("functions/v1/")
+        val fullUrl = if (isEdgeFunction) functionBase + path else restBase + path
+        val connection = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15000
             readTimeout = 20000
@@ -114,14 +122,26 @@ internal object SupabaseDataRepository {
         }
     }
 
+    private fun profileFromRow(row: JSONObject): ProfileRecord = ProfileRecord(
+        id = row.getString("id"),
+        username = row.optString("username").takeIf { it.isNotBlank() },
+        displayName = row.optString("display_name"),
+        avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() },
+        bio = row.optString("bio").takeIf { it.isNotBlank() },
+        birthday = row.optString("birthday").takeIf { it.isNotBlank() },
+        religion = row.optString("religion").takeIf { it.isNotBlank() },
+        address = row.optString("address").takeIf { it.isNotBlank() },
+        phoneNumber = row.optString("phone_number").takeIf { it.isNotBlank() }
+    )
+
+    // Reads the signed-in user's own full profile, including the fields
+    // (bio/birthday/religion/address/phone_number) that other users cannot
+    // read directly, via the get_my_profile() SECURITY DEFINER RPC.
     suspend fun loadProfile(): ProfileRecord? {
-        val id = userId()
-        val query = "profiles?id=eq.${enc(id)}&select=id,username,display_name,avatar_url&limit=1"
-        val json = runRequest { request("GET", query) }
+        val json = runRequest { request("POST", "rpc/get_my_profile", JSONObject()) }
         val rows = JSONArray(json)
         if (rows.length() == 0) return null
-        val row = rows.getJSONObject(0)
-        return ProfileRecord(row.getString("id"), row.optString("username").takeIf { it.isNotBlank() }, row.optString("display_name"), row.optString("avatar_url").takeIf { it.isNotBlank() })
+        return profileFromRow(rows.getJSONObject(0))
     }
 
     suspend fun loadRegisteredUsers(): List<RegisteredUserRecord> {
@@ -139,18 +159,35 @@ internal object SupabaseDataRepository {
         }
     }
 
-    suspend fun saveProfile(displayName: String, username: String): ProfileRecord {
+    suspend fun saveProfile(
+        displayName: String,
+        username: String,
+        avatarUrl: String? = null,
+        bio: String? = null,
+        birthday: String? = null,
+        religion: String? = null,
+        address: String? = null,
+        phoneNumber: String? = null
+    ): ProfileRecord {
         val id = userId()
         val payload = JSONObject()
             .put("id", id)
             .put("display_name", displayName.trim())
             .put("username", username.trim())
             .put("updated_at", java.time.Instant.now().toString())
-        val response = runRequest {
-            request("POST", "profiles?on_conflict=id", payload, "resolution=merge-duplicates,return=representation")
+        payload.put("avatar_url", avatarUrl?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("bio", bio?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("birthday", birthday?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("religion", religion?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("address", address?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("phone_number", phoneNumber?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        runRequest {
+            request("POST", "profiles?on_conflict=id", payload, "resolution=merge-duplicates,return=minimal")
         }
-        val row = JSONArray(response).getJSONObject(0)
-        return ProfileRecord(row.getString("id"), row.optString("username").ifBlank { null }, row.optString("display_name"), row.optString("avatar_url").ifBlank { null })
+        // The table-level SELECT grant no longer includes the sensitive columns
+        // (see migration 20261018120000), so re-read the saved row through the
+        // same RPC used by loadProfile() rather than the POST response body.
+        return loadProfile() ?: error("Profile save appeared to succeed but could not be re-read.")
     }
 
     suspend fun openPrivateConversation(targetUserId: String): String {
