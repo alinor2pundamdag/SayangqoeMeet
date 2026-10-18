@@ -56,10 +56,10 @@ private val CallRed = Color(0xFFFF536A)
 
 /** A real call entry point: session signaling and media are backed by Supabase and WebRTC. */
 @Composable
-internal fun CallCenterScreen(onBack: () -> Unit) {
+internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var targetId by remember { mutableStateOf("") }
+    var targetId by remember(initialTargetUserId) { mutableStateOf(initialTargetUserId.orEmpty()) }
     var callType by remember { mutableStateOf("voice") }
     var incoming by remember { mutableStateOf<List<CallSession>>(emptyList()) }
     var activeCall by remember { mutableStateOf<CallSession?>(null) }
