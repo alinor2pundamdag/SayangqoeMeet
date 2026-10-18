@@ -150,7 +150,6 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
         .setContentText(caller)
         .setCategory(NotificationCompat.CATEGORY_CALL)
         .setPriority(NotificationCompat.PRIORITY_MAX)
-        .setFullScreenIntent(acceptPending, false)
         .setContentIntent(acceptPending)
         .setOngoing(true)
         .setAutoCancel(false)
