@@ -55,7 +55,12 @@ Deno.serve(async (req: Request) => {
     } else if (username) {
       if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) return reply(400, { error: "target_username is invalid" });
       const { data, error } = await adminClient.from("profiles").select("id").eq("username", username).maybeSingle();
-      if (error) return reply(500, { error: "Could not look up target user" });
+      if (error) {
+        console.error("Target username lookup failed:", JSON.stringify({
+          code: error.code, message: error.message, details: error.details, hint: error.hint,
+        }));
+        return reply(500, { error: "Could not look up target user" });
+      }
       if (!data) return reply(404, { error: "Registered user not found" });
       targetId = data.id;
     } else {
@@ -64,8 +69,9 @@ Deno.serve(async (req: Request) => {
 
     if (callerId === targetId) return reply(400, { error: "You cannot message yourself" });
 
-    // Verify the UUID against Supabase Auth first. The service-role Auth Admin
-    // API is authoritative even if profile-column grants are tightened.
+    // Supabase Auth is the source of truth for registration. A profiles row is
+    // not a prerequisite for direct messaging; older or partially provisioned
+    // accounts must not fail with "Could not verify target profile".
     const { data: authTarget, error: authTargetError } =
       await adminClient.auth.admin.getUserById(targetId);
     if (authTargetError) {
@@ -74,42 +80,21 @@ Deno.serve(async (req: Request) => {
     }
     if (!authTarget.user) return reply(404, { error: "Registered user not found" });
 
-    // A direct chat is only available to users with a public directory profile.
-    // Keep this query minimal; never fetch private profile fields here.
-    const { data: targetProfile, error: profileError } = await adminClient
-      .from("profiles")
-      .select("id")
-      .eq("id", targetId)
-      .maybeSingle();
-    if (profileError) {
-      console.error("Target profile lookup failed:", JSON.stringify({
-        code: profileError.code,
-        message: profileError.message,
-        details: profileError.details,
-        hint: profileError.hint,
-      }));
-      return reply(500, { error: "Could not verify target profile" });
-    }
-    if (!targetProfile) return reply(404, { error: "Registered user profile not found" });
-
-    // A transaction-scoped advisory lock in this RPC serializes concurrent
-    // requests for the same unordered user pair; writes roll back together.
+    // The RPC verifies foreign-key-backed user identities and atomically
+    // creates/reuses the exact two-member conversation under an advisory lock.
     const { data: rpcData, error: rpcError } = await adminClient.rpc("get_or_create_direct_conversation", {
       p_user_1: callerId,
       p_user_2: targetId,
     });
     if (rpcError) {
-      // Keep invalid/missing-account failures client-actionable; unexpected
-      // database or infrastructure failures remain server errors.
       console.error("get_or_create_direct_conversation RPC failed:", JSON.stringify({
-        code: rpcError.code,
-        message: rpcError.message,
+        code: rpcError.code, message: rpcError.message,
       }));
       if (rpcError.code === "22004" || rpcError.code === "22023") {
         return reply(400, { error: "Invalid users for a private conversation" });
       }
       if (rpcError.code === "23503" || rpcError.code === "PGRST116") {
-        return reply(404, { error: "Registered user or profile not found" });
+        return reply(404, { error: "Registered user not found" });
       }
       return reply(500, { error: "Could not open private conversation" });
     }
