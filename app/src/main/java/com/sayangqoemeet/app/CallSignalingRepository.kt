@@ -110,7 +110,7 @@ internal object CallSignalingRepository {
     }
 
     suspend fun setOffer(id: String, sdp: String) {
-        update(id, JSONObject().put("offer_sdp", sdp).put("status", "connecting"))
+        update(id, JSONObject().put("offer_sdp", sdp))
     }
 
     suspend fun setAnswer(id: String, sdp: String) {
