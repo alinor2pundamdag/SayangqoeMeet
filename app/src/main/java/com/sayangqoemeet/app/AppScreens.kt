@@ -192,7 +192,7 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                     onBack = { destination = AppDestination.CHATS },
                     onCall = { destination = AppDestination.CALL }
                 )
-                AppDestination.CALL -> CallScreen(onBack = { destination = AppDestination.HOME })
+                AppDestination.CALL -> CallCenterScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.USERS -> RegisteredUsersScreen(
                     onBack = { destination = AppDestination.HOME },
@@ -664,84 +664,6 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                 enabled = !loading && draft.isNotBlank() && !conversationId.isNullOrBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
             ) { Text(if (loading) "…" else "SEND") }
-        }
-    }
-}
-
-@Composable
-private fun CallScreen(onBack: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().background(Color(0xFF030712)).padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(end = 12.dp), fontSize = 11.sp)
-            Column(Modifier.weight(1f)) {
-                Text("PRIVATE CALL", color = ShellText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("00:00  ·  NOT CONNECTED", color = Color(0xFFFFCE79), fontSize = 10.sp, letterSpacing = 1.sp)
-            }
-            Box(Modifier.size(38.dp).background(ShellPanel, CircleShape).border(1.dp, ShellLine, CircleShape), contentAlignment = Alignment.Center) {
-                Text("?", color = ShellCyan, fontWeight = FontWeight.Bold)
-            }
-        }
-        Box(
-            Modifier.weight(1f).fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(24.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF16243B), Color(0xFF070B18))), RoundedCornerShape(24.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(84.dp).background(Color(0x223F8CFF), CircleShape).border(1.dp, ShellCyan, CircleShape), contentAlignment = Alignment.Center) {
-                    Text("VIDEO", color = ShellCyan, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                }
-                Text("Remote video", color = ShellText, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Text("WebRTC signaling and media transport are not configured.", color = ShellMuted, fontSize = 12.sp)
-                Text("No camera or microphone is active.", color = Color(0xFFFFCE79), fontSize = 11.sp)
-            }
-            Box(
-                Modifier.align(Alignment.BottomEnd).padding(12.dp).size(width = 104.dp, height = 142.dp)
-                    .border(1.dp, ShellCyan, RoundedCornerShape(16.dp))
-                    .background(Color(0xFF10182B), RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("LOCAL", color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text("PREVIEW", color = ShellMuted, fontSize = 9.sp)
-                }
-            }
-        }
-        Text("CALL CONTROLS · UNAVAILABLE UNTIL WEBRTC IS INTEGRATED", color = ShellMuted, fontSize = 9.sp, letterSpacing = 1.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("MIC", "CAM", "FLIP").forEach { label ->
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF172033),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ShellLine)
-                ) {
-                    Column(Modifier.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("—", color = ShellMuted, fontSize = 17.sp)
-                        Text(label, color = ShellMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("SPEAKER", "CHAT").forEach { label ->
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF172033),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ShellLine)
-                ) {
-                    Text(label, color = ShellMuted, modifier = Modifier.padding(vertical = 13.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            Button(
-                onClick = onBack,
-                modifier = Modifier.weight(1.2f).height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83250)),
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("END", color = Color.White, fontWeight = FontWeight.ExtraBold) }
         }
     }
 }
