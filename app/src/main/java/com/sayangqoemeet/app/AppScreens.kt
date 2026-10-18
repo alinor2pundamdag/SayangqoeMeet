@@ -557,7 +557,6 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
                     }
                     TextButton(
-                        enabled = user.isOnline,
                         onClick = { onCall(user.id) }
                     ) { Text("CALL", color = ShellCyan, fontSize = 10.sp) }
                     TextButton(
