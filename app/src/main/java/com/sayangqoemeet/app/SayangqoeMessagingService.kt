@@ -121,6 +121,11 @@ internal object CallNotificationChannels {
 }
 
 private fun SayangqoeMessagingService.showIncomingCallNotification(message: RemoteMessage) {
+    // Lint cannot infer the caller's permission guard across this helper boundary.
+    if (Build.VERSION.SDK_INT >= 33 &&
+        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) return
+
     val callId = message.data["call_id"]?.takeIf { it.isNotBlank() } ?: return
     val caller = message.data["caller_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
     val type = message.data["call_type"]?.takeIf { it == "video" } ?: "voice"
