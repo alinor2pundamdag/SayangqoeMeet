@@ -148,3 +148,11 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Applied root WindowInsets.safeDrawing to protect main screens from status/navigation bars. Launcher icon assets and manifest icon references were not modified.
 - Verified CI run 193 for source commit 7fcba991a1a6757e5aedda9a4bf618b6e743869d: lintDebug, testDebugUnitTest, assembleDebug, and artifact upload passed. Artifact SHA-256: 7a6098cc204d63c12c54432fd77beba52626cbee39e67496a1f19ef62f221096.
 - Live Supabase migration execution and physical-device behavior remain pending.
+
+
+## 2026-10-19 — Floating bubble launch fix (CI verified)
+
+- Follow-up commit 22da77c4acad7067c01ee209930eb04e9a832ca4 changes the bubble launch flags to CLEAR_TOP so an existing MainActivity is recreated with the open_chats extra instead of remaining on its prior destination.
+- Android CI run 195 passed lintDebug, testDebugUnitTest, assembleDebug, and artifact upload: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39258139369
+- Artifact SayangqoeMeet-Android-APK: 37,075,511 bytes, SHA-256 a4725eedb51353a6cd04a80912309117079a1fe0247a058cdcbe03b8317bb039, expires 2026-11-02.
+- Live Storage/Realtime migration and physical-device tests are still pending.
