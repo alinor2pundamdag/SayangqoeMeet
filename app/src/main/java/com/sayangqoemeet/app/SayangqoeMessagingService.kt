@@ -65,14 +65,16 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) return
-
+        // Ringing is independent of notification permission; Android may suppress
+        // the notification while the high-priority FCM data event still arrives.
         if (message.data["type"] == "incoming_call") {
+            runCatching { CallForegroundService.start(this) }
             showIncomingCallNotification(message)
             return
         }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
 
         MessageNotificationChannels.ensureCreated(this)
         val openApp = Intent(this, MainActivity::class.java).apply {
