@@ -111,6 +111,7 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
     var destination by remember { mutableStateOf(AppDestination.HOME) }
     var selectedConversation by remember { mutableStateOf<String?>(null) }
     var selectedCallRecipient by remember { mutableStateOf<String?>(null) }
+    var selectedCallType by remember { mutableStateOf("voice") }
     var showAbout by remember { mutableStateOf(false) }
 
     Column(
@@ -191,14 +192,14 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                 AppDestination.CHAT -> ConversationScreen(
                     conversationId = selectedConversation,
                     onBack = { destination = AppDestination.CHATS },
-                    onCall = { selectedCallRecipient = it; destination = AppDestination.CALL }
+                    onCall = { id, type -> selectedCallRecipient = id; selectedCallType = type; destination = AppDestination.CALL }
                 )
-                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, onBack = { destination = AppDestination.HOME })
+                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, initialCallType = selectedCallType, onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.USERS -> RegisteredUsersScreen(
                     onBack = { destination = AppDestination.HOME },
                     onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT },
-                    onCall = { id -> selectedCallRecipient = id; destination = AppDestination.CALL }
+                    onCall = { id, type -> selectedCallRecipient = id; selectedCallType = type; destination = AppDestination.CALL }
                 )
             }
         }
@@ -498,7 +499,7 @@ private fun ChatListScreen(onBack: () -> Unit, onOpenConversation: (String) -> U
 }
 
 @Composable
-private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit, onCall: (String) -> Unit) {
+private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (String) -> Unit, onCall: (String, String) -> Unit) {
     val scope = rememberCoroutineScope()
     var users by remember { mutableStateOf<List<RegisteredUserRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading registered users…") }
@@ -556,9 +557,10 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
                         Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
                     }
-                    TextButton(
-                        onClick = { onCall(user.id) }
-                    ) { Text("CALL", color = ShellCyan, fontSize = 10.sp) }
+                    Column(horizontalAlignment = Alignment.End) {
+                        TextButton(onClick = { onCall(user.id, "voice") }) { Text("VOICE", color = ShellCyan, fontSize = 10.sp) }
+                        TextButton(onClick = { onCall(user.id, "video") }) { Text("VIDEO", color = ShellCyan, fontSize = 10.sp) }
+                    }
                     TextButton(
                         enabled = loadingUserId == null && !user.username.isNullOrBlank(),
                         onClick = {
@@ -586,7 +588,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
 }
 
 @Composable
-private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: (String?) -> Unit) {
+private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: (String?, String) -> Unit) {
     val scope = rememberCoroutineScope()
     var draft by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
@@ -594,15 +596,19 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
     var loading by remember { mutableStateOf(false) }
     var currentUserId by remember { mutableStateOf<String?>(null) }
     var otherUserId by remember { mutableStateOf<String?>(null) }
+    var otherDisplayName by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(conversationId) {
         currentUserId = SupabaseAuthRepository.currentUserId()
         otherUserId = null
+        otherDisplayName = null
         if (conversationId.isNullOrBlank()) {
             status = "Select a real conversation first."
         } else {
             try {
-                otherUserId = SupabaseDataRepository.loadConversations().firstOrNull { it.id == conversationId }?.otherUserId
+                val conversation = SupabaseDataRepository.loadConversations().firstOrNull { it.id == conversationId }
+                otherUserId = conversation?.otherUserId
+                otherDisplayName = conversation?.displayLabel
                 messages = SupabaseDataRepository.loadMessages(conversationId)
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
             } catch (error: Exception) {
@@ -615,10 +621,13 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(8.dp), fontSize = 11.sp)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                Text("PRIVATE CHAT", color = ShellText, fontWeight = FontWeight.Bold)
-                Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Conversation: ${conversationId.take(8)}…", color = ShellMuted, fontSize = 10.sp)
+                Text(otherDisplayName ?: "PRIVATE CHAT", color = ShellText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Private conversation", color = ShellMuted, fontSize = 10.sp)
             }
-            TextButton(onClick = { onCall(otherUserId) }, enabled = !otherUserId.isNullOrBlank()) { Text("CALL", color = ShellCyan) }
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { onCall(otherUserId, "voice") }, enabled = !otherUserId.isNullOrBlank()) { Text("VOICE", color = ShellCyan) }
+                TextButton(onClick = { onCall(otherUserId, "video") }, enabled = !otherUserId.isNullOrBlank()) { Text("VIDEO", color = ShellCyan) }
+            }
         }
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
         LazyColumn(
@@ -634,7 +643,7 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
                         Text(message.body, color = ShellText, fontSize = 14.sp)
-                        Text(if (mine) "YOU" else "MEMBER", color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

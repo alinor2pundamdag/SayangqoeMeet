@@ -2,6 +2,7 @@ package com.sayangqoemeet.app
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.ToneGenerator
 import android.util.Log
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
@@ -43,7 +44,8 @@ internal class WebRtcCallManager(
     private val callId: String,
     private val videoEnabled: Boolean,
     private val onStatus: (String) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    private val onCallEnded: (String) -> Unit = {}
 ) {
     val eglBase: EglBase = EglBase.create()
     private var factory: PeerConnectionFactory? = null
@@ -62,6 +64,7 @@ internal class WebRtcCallManager(
     private val disposed = AtomicBoolean(false)
     private var microphoneMuted = false
     private var speakerOn = true
+    private var ringbackTone: ToneGenerator? = null
 
     fun attachRenderers(local: SurfaceViewRenderer?, remote: SurfaceViewRenderer?) {
         localRenderer?.let { videoTrack?.removeSink(it) }
@@ -84,6 +87,7 @@ internal class WebRtcCallManager(
         initializePeer()
         val offer = createDescription(offer = true)
         CallSignalingRepository.setOffer(callId, offer.description)
+        startRingbackTone()
         onStatus("Ringing — waiting for the other participant")
         startSignalPolling(caller = true)
     }
@@ -123,6 +127,7 @@ internal class WebRtcCallManager(
                     when (state) {
                         PeerConnection.IceConnectionState.CONNECTED,
                         PeerConnection.IceConnectionState.COMPLETED -> {
+                            stopRingbackTone()
                             runCatching { CallSignalingRepository.setStatus(callId, "connected") }
                             onStatus("Connected")
                         }
@@ -309,10 +314,13 @@ internal class WebRtcCallManager(
                 try {
                     val call = CallSignalingRepository.getCall(callId)
                     if (call.status in setOf("declined", "ended", "missed", "failed")) {
+                        stopRingbackTone()
                         onStatus("Call ${call.status}")
+                        onCallEnded(call.status)
                         break
                     }
                     if (caller && call.answerSdp != null && peer?.remoteDescription == null) {
+                        stopRingbackTone()
                         setRemoteDescription(SessionDescription(SessionDescription.Type.ANSWER, call.answerSdp))
                         onStatus("Connecting")
                     }
@@ -324,6 +332,8 @@ internal class WebRtcCallManager(
                             peer?.addIceCandidate(IceCandidate(item.sdpMid, item.sdpMLineIndex, item.candidate))
                         }
                     }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
                 } catch (error: Exception) {
                     onError(error.message ?: "Call signaling temporarily failed.")
                 }
@@ -352,8 +362,21 @@ internal class WebRtcCallManager(
         (capturer as? CameraVideoCapturer)?.switchCamera(null)
     }
 
+    private fun startRingbackTone() {
+        stopRingbackTone()
+        ringbackTone = runCatching {
+            ToneGenerator(AudioManager.STREAM_VOICE_CALL, 70).also { it.startTone(ToneGenerator.TONE_SUP_RINGTONE) }
+        }.getOrNull()
+    }
+
+    private fun stopRingbackTone() {
+        ringbackTone?.let { tone -> runCatching { tone.stopTone() }; runCatching { tone.release() } }
+        ringbackTone = null
+    }
+
     suspend fun hangUp(status: String = "ended") {
         if (disposed.getAndSet(true)) return
+        stopRingbackTone()
         signalJob?.cancel()
         runCatching { CallSignalingRepository.setStatus(callId, status) }
         withContext(Dispatchers.Main) {

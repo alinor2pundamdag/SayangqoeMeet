@@ -24,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,11 +55,12 @@ private val CallRed = Color(0xFFFF536A)
 
 /** A real call entry point: session signaling and media are backed by Supabase and WebRTC. */
 @Composable
-internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () -> Unit) {
+internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallType: String = "voice", onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var targetId by remember(initialTargetUserId) { mutableStateOf(initialTargetUserId.orEmpty()) }
-    var callType by remember { mutableStateOf("voice") }
+    var callType by remember(initialCallType) { mutableStateOf(if (initialCallType == "video") "video" else "voice") }
+    var registeredUsers by remember { mutableStateOf<List<RegisteredUserRecord>>(emptyList()) }
     var incoming by remember { mutableStateOf<List<CallSession>>(emptyList()) }
     var activeCall by remember { mutableStateOf<CallSession?>(null) }
     var manager by remember { mutableStateOf<WebRtcCallManager?>(null) }
@@ -72,6 +72,17 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () ->
     var localRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var remoteRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            registeredUsers = SupabaseDataRepository.loadRegisteredUsers()
+            if (targetId.isBlank()) targetId = registeredUsers.firstOrNull()?.id.orEmpty()
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message ?: "Could not load registered users."
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -108,11 +119,23 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () ->
                     val instance = WebRtcCallManager(
                         context.applicationContext, scope, call.id, call.type == "video",
                         onStatus = { status = it },
-                        onError = { error = it }
+                        onError = { error = it },
+                        onCallEnded = { terminalStatus ->
+                            scope.launch {
+                                manager?.let { endedManager -> runCatching { endedManager.hangUp("ended") } }
+                                manager = null
+                                activeCall = null
+                                localRenderer = null
+                                remoteRenderer = null
+                                status = "Call $terminalStatus"
+                            }
+                        }
                     )
                     manager = instance
                     instance.attachRenderers(localRenderer, remoteRenderer)
                     if (caller) instance.startAsCaller() else instance.acceptAsCallee()
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
                 } catch (failure: Exception) {
                     error = failure.message ?: "Could not start the call."
                     status = "Call setup failed"
@@ -143,25 +166,19 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () ->
                 TextButton(onClick = onBack) { Text("BACK", color = CallMuted) }
             }
             if (activeCall == null) {
-                Text("Private voice and video calls", color = CallText)
-                Text("Enter the recipient's registered Supabase user UUID.", color = CallMuted)
-                OutlinedTextField(
-                    value = targetId,
-                    onValueChange = { targetId = it.trim() },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Recipient user UUID") },
-                    singleLine = true
-                )
+                Text("Call a registered user", color = CallText)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { callType = "voice" }, colors = ButtonDefaults.buttonColors(containerColor = if (callType == "voice") CallCyan else CallPanel)) { Text("VOICE", color = if (callType == "voice") CallBg else CallText) }
                     Button(onClick = { callType = "video" }, colors = ButtonDefaults.buttonColors(containerColor = if (callType == "video") CallCyan else CallPanel)) { Text("VIDEO", color = if (callType == "video") CallBg else CallText) }
                     Button(
-                        enabled = targetId.isNotBlank(),
+                        enabled = registeredUsers.any { it.id == targetId },
                         onClick = {
                             scope.launch {
                                 try {
                                     val created = CallSignalingRepository.createCall(targetId, callType)
                                     startMedia(created, caller = true)
+                                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                    throw cancelled
                                 } catch (failure: Exception) {
                                     error = failure.message ?: "Could not create call."
                                 }
@@ -169,6 +186,28 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () ->
                         }
                     ) { Text("CALL") }
                 }
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().height(180.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(registeredUsers, key = { it.id }) { user ->
+                        Card(
+                            onClick = { targetId = user.id },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (user.id == targetId) CallPanel.copy(alpha = 0.95f) else CallPanel.copy(alpha = 0.55f)
+                            )
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = CallText)
+                                    Text(user.username?.let { "@$it" } ?: "Registered user", color = CallMuted)
+                                }
+                                Text(if (user.id == targetId) "SELECTED" else "SELECT", color = CallCyan)
+                            }
+                        }
+                    }
+                }
+                if (registeredUsers.isEmpty()) Text("No other registered users are available.", color = CallMuted)
                 Text("Incoming calls", color = CallCyan)
                 if (incoming.isEmpty()) Text("No incoming calls.", color = CallMuted)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -177,7 +216,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, onBack: () ->
                             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text("${call.type.uppercase()} CALL", color = CallText)
-                                    Text("From ${call.callerId}", color = CallMuted)
+                                    Text("From ${registeredUsers.firstOrNull { it.id == call.callerId }?.displayName ?: "Registered user"}", color = CallMuted)
                                 }
                                 TextButton(onClick = {
                                     scope.launch {
