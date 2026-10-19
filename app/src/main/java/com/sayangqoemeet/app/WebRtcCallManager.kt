@@ -110,9 +110,8 @@ internal class WebRtcCallManager(
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .createPeerConnectionFactory()
-        val config = PeerConnection.RTCConfiguration(
-            listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
-        ).apply {
+        val iceServers = fetchIceServersOrFallback()
+        val config = PeerConnection.RTCConfiguration(iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
         }
@@ -186,6 +185,76 @@ internal class WebRtcCallManager(
         }
         setSpeaker(true)
     }
+
+    /**
+     * Requests short-lived ICE credentials from the authenticated Supabase Edge Function.
+     * Only the current user's access token and the public publishable key are sent.
+     * If the function is unavailable, retain STUN-only connectivity rather than failing
+     * call initialization; restrictive NATs may still require TURN and can fail to connect.
+     */
+    private suspend fun fetchIceServersOrFallback(): List<PeerConnection.IceServer> =
+        withContext(Dispatchers.IO) {
+            val fallback = listOf(
+                PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            )
+            try {
+                val token = SupabaseAuthRepository.currentAccessToken()
+                    ?: error("Sign in again before starting a call.")
+                val connection = (URL("${BuildConfig.SUPABASE_URL.trimEnd('/')}/functions/v1/get-turn-credentials")
+                    .openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 8000
+                    readTimeout = 10000
+                    doOutput = true
+                    setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                try {
+                    connection.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
+                    val code = connection.responseCode
+                    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                    val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    check(code in 200..299) {
+                        "get-turn-credentials returned HTTP $code"
+                    }
+                    val root = org.json.JSONObject(response)
+                    val servers = root.optJSONArray("iceServers")
+                        ?: error("get-turn-credentials response has no iceServers array")
+                    val parsed = buildList {
+                        for (index in 0 until servers.length()) {
+                            val item = servers.optJSONObject(index) ?: continue
+                            val urlsValue = item.opt("urls")
+                            val urls = when (urlsValue) {
+                                is String -> listOf(urlsValue)
+                                is org.json.JSONArray -> (0 until urlsValue.length())
+                                    .mapNotNull { urlsValue.optString(it).takeIf(String::isNotBlank) }
+                                else -> emptyList()
+                            }.filter { it.startsWith("stun:", ignoreCase = true) ||
+                                it.startsWith("turn:", ignoreCase = true) ||
+                                it.startsWith("turns:", ignoreCase = true) }
+                            if (urls.isEmpty()) continue
+                            val username = item.optString("username")
+                            val credential = item.optString("credential")
+                            val builder = PeerConnection.IceServer.builder(urls)
+                            if (username.isNotBlank() && username != "null") builder.setUsername(username)
+                            if (credential.isNotBlank() && credential != "null") builder.setPassword(credential)
+                            add(builder.createIceServer())
+                        }
+                    }
+                    check(parsed.isNotEmpty()) {
+                        "get-turn-credentials returned no usable ICE servers"
+                    }
+                    parsed
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (error: Exception) {
+                Log.w(TAG, "Dynamic ICE credentials unavailable; falling back to STUN", error)
+                fallback
+            }
+        }
 
     private suspend fun createDescription(offer: Boolean): SessionDescription =
         kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
