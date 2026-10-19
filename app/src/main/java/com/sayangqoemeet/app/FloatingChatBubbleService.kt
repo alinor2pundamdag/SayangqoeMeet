@@ -39,7 +39,7 @@ class FloatingChatBubbleService : Service() {
             MotionEvent.ACTION_DOWN -> { startX=event.rawX; startY=event.rawY; originX=params.x; originY=params.y; true }
             MotionEvent.ACTION_MOVE -> { params.x=originX+(event.rawX-startX).toInt(); params.y=originY+(event.rawY-startY).toInt(); runCatching { manager?.updateViewLayout(view,params) }; true }
             MotionEvent.ACTION_UP -> { if (kotlin.math.abs(event.rawX-startX)<8 && kotlin.math.abs(event.rawY-startY)<8) {
-                packageManager.getLaunchIntentForPackage(packageName)?.let { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP); it.putExtra("open_chats",true); startActivity(it) }
+                packageManager.getLaunchIntentForPackage(packageName)?.let { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); it.putExtra("open_chats",true); startActivity(it) }
             }; true }
             else -> false
         } }
