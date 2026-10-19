@@ -1,5 +1,7 @@
 package com.sayangqoemeet.app
 
+import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,7 +31,8 @@ internal data class RegisteredUserRecord(
     val username: String?,
     val displayName: String,
     val createdAt: String,
-    val isOnline: Boolean = false
+    val isOnline: Boolean = false,
+    val avatarUrl: String? = null
 )
 
 internal data class ConversationRecord(
@@ -148,6 +151,34 @@ internal object SupabaseDataRepository {
         return profileFromRow(rows.getJSONObject(0))
     }
 
+    suspend fun uploadProfileAvatar(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
+        val id = userId()
+        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+        require(mime in setOf("image/jpeg", "image/png", "image/webp")) { "Choose a JPG, PNG, or WebP image." }
+        val extension = when (mime) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not read the selected image.")
+        require(bytes.isNotEmpty() && bytes.size <= 8 * 1024 * 1024) { "Profile photos must be smaller than 8 MB." }
+        val objectPath = "$id/avatar.$extension"
+        val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/profile-avatars/" + objectPath
+        val token = SupabaseAuthRepository.currentAccessToken() ?: error("Your session is no longer available. Sign in again.")
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"; connectTimeout = 15000; readTimeout = 30000; doOutput = true
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", mime)
+            setRequestProperty("x-upsert", "true")
+        }
+        try {
+            connection.outputStream.use { it.write(bytes) }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val detail = (connection.errorStream?.bufferedReader()?.use { it.readText() }).orEmpty()
+                error("Profile photo upload failed ($code): ${detail.take(160)}")
+            }
+        } finally { connection.disconnect() }
+        BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/public/profile-avatars/" + objectPath
+    }
+
     suspend fun heartbeatPresence() {
         val id = userId()
         val payload = JSONObject()
@@ -182,7 +213,7 @@ internal object SupabaseDataRepository {
 
     suspend fun loadRegisteredUsers(): List<RegisteredUserRecord> {
         val id = userId()
-        val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at&order=created_at.desc&limit=500"
+        val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at,avatar_url&order=created_at.desc&limit=500"
         val rows = JSONArray(runRequest { request("GET", query) })
         val onlineIds = runCatching { loadOnlineUserIds() }.getOrDefault(emptySet())
         return (0 until rows.length()).map { index ->
@@ -193,7 +224,8 @@ internal object SupabaseDataRepository {
                 username = row.optString("username").takeIf { it.isNotBlank() },
                 displayName = row.optString("display_name"),
                 createdAt = row.optString("created_at"),
-                isOnline = userId in onlineIds
+                isOnline = userId in onlineIds,
+                avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() }
             )
         }
     }

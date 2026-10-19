@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                     color = Midnight
                 ) {
                     SayangqoeMeetRoot()
@@ -141,6 +141,7 @@ private fun SayangqoeMeetRoot() {
                     }
                 }
                 SignedInShell(
+                    openChatsOnStart = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_chats", false) == true,
                     onSignOut = {
                         scope.launch {
                             try {
@@ -194,7 +195,6 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .imePadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp, vertical = 28.dp),

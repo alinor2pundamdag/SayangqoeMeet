@@ -1,5 +1,14 @@
 package com.sayangqoemeet.app
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,7 +97,7 @@ private val ReligionOptions = listOf(
 internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
-internal fun SignedInShell(onSignOut: () -> Unit) {
+internal fun SignedInShell(openChatsOnStart: Boolean = false, onSignOut: () -> Unit) {
     // Heartbeats run only while this screen's Activity is STARTED. When the
     // app goes to the background, stop refreshing and expire this user's row.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -109,11 +118,12 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
         }
     }
 
-    var destination by remember { mutableStateOf(AppDestination.HOME) }
+    var destination by remember { mutableStateOf(if (openChatsOnStart) AppDestination.CHATS else AppDestination.HOME) }
     var selectedConversation by remember { mutableStateOf<String?>(null) }
     var selectedCallRecipient by remember { mutableStateOf<String?>(null) }
     var selectedCallType by remember { mutableStateOf("voice") }
     var showAbout by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -156,6 +166,16 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                         text = { Text("About", color = ShellText) },
                         onClick = { showOverflow = false; showAbout = true }
                     )
+                    DropdownMenuItem(text = { Text("Enable floating chat bubble", color = ShellText) }, onClick = {
+                        showOverflow = false
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } else context.startService(Intent(context, FloatingChatBubbleService::class.java))
+                    })
+                    DropdownMenuItem(text = { Text("Disable floating chat bubble", color = ShellText) }, onClick = {
+                        showOverflow = false
+                        context.stopService(Intent(context, FloatingChatBubbleService::class.java))
+                    })
                     DropdownMenuItem(
                         text = { Text("Logout", color = ShellMuted) },
                         onClick = { showOverflow = false; onSignOut() }
@@ -277,6 +297,21 @@ private fun ProfileScreen(onBack: () -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showReligionMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            loading = true
+            status = "Uploading profile photo…"
+            scope.launch {
+                try {
+                    avatarUrl = SupabaseDataRepository.uploadProfileAvatar(context, uri)
+                    status = "Photo uploaded. Save your profile to publish the change."
+                } catch (error: Exception) {
+                    status = error.message ?: "Could not upload profile photo."
+                } finally { loading = false }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -326,23 +361,21 @@ private fun ProfileScreen(onBack: () -> Unit) {
         Text("Make it yours.", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Your profile is linked to your signed-in account.", color = ShellMuted, fontSize = 13.sp)
 
-        Box(
-            Modifier.size(84.dp).align(Alignment.CenterHorizontally)
-                .border(1.dp, ShellCyan, CircleShape)
-                .background(ShellPanel, CircleShape)
-                .clickable { status = "Avatar upload is not implemented yet — paste an image URL in the field below for now." },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                if (avatarUrl.isBlank()) "ADD\nPHOTO" else "CHANGE\nPHOTO",
-                color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(96.dp).border(1.dp, ShellCyan, CircleShape).background(ShellPanel, CircleShape).clip(CircleShape), contentAlignment = Alignment.Center) {
+                if (avatarUrl.isNotBlank()) {
+                    AsyncImage(model = avatarUrl, contentDescription = "Profile photo", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                } else {
+                    Text(displayName.trim().firstOrNull()?.uppercase() ?: username.trim().firstOrNull()?.uppercase() ?: "?", color = ShellCyan, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            TextButton(onClick = { avatarPicker.launch("image/*") }, enabled = !loading) {
+                Text(if (avatarUrl.isBlank()) "CHOOSE PROFILE PHOTO" else "CHANGE PROFILE PHOTO", color = ShellCyan)
+            }
         }
 
         Field("DISPLAY NAME", displayName, { displayName = it }, "How should people see you?")
         Field("USERNAME", username, { username = it }, "3–24 letters, numbers, _, ., -")
-        Field("AVATAR URL", avatarUrl, { avatarUrl = it }, "Paste an image URL (upload not implemented yet)")
         Field("BIO", bio, { bio = it }, "A short line about you")
         Field("ADDRESS", address, { address = it }, "City / area")
         Field("PHONE NUMBER", phoneNumber, { phoneNumber = it }, "e.g. 09xx xxx xxxx")
@@ -518,16 +551,22 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
     }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(15_000)
-            if (loadingUserId == null) {
-                val refreshed = runCatching {
-                    SupabaseDataRepository.loadRegisteredUsers()
-                }.getOrNull()
-                // Avoid invalidating the whole list when presence/data did not change.
-                if (refreshed != null && refreshed != users) users = refreshed
+        val subscription = SupabaseRealtime.subscribe(table = "user_presence", filter = "", onRecord = { record ->
+            val id = record.optString("user_id")
+            if (id.isNotBlank()) {
+                val online = runCatching { java.time.Instant.parse(record.optString("last_seen_at")).isAfter(java.time.Instant.now().minusSeconds(90)) }.getOrDefault(false)
+                users = users.map { if (it.id == id) it.copy(isOnline = online) else it }
             }
-        }
+        }, onFailure = { /* Keep the polling fallback for transient Realtime errors. */ })
+        try {
+            while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                kotlinx.coroutines.delay(30_000)
+                if (loadingUserId == null) {
+                    val refreshed = runCatching { SupabaseDataRepository.loadRegisteredUsers() }.getOrNull()
+                    if (refreshed != null && refreshed != users) users = refreshed
+                }
+            }
+        } finally { subscription?.close() }
     }
 
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -552,6 +591,12 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                 ) {
                     Box(Modifier.size(10.dp).background(if (user.isOnline) Color(0xFF43E08A) else ShellMuted, CircleShape))
                     Spacer(Modifier.width(12.dp))
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(ShellPanel), contentAlignment = Alignment.Center) {
+                        if (!user.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(model = user.avatarUrl, contentDescription = "Profile photo for ${user.displayName}", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                        } else Text(user.displayName.trim().firstOrNull()?.uppercase() ?: "?", color = ShellCyan, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = ShellText, fontWeight = FontWeight.SemiBold)
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
