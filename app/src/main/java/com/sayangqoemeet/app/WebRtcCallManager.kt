@@ -60,6 +60,8 @@ internal class WebRtcCallManager(
     private var localRenderer: SurfaceViewRenderer? = null
     private var remoteRenderer: SurfaceViewRenderer? = null
     private var signalJob: Job? = null
+    private var callStatusSubscription: SupabaseRealtime.Subscription? = null
+    private val endNotified = AtomicBoolean(false)
     private var lastIceId = 0L
     private val disposed = AtomicBoolean(false)
     private var microphoneMuted = false
@@ -308,6 +310,17 @@ internal class WebRtcCallManager(
         }
 
     private fun startSignalPolling(caller: Boolean) {
+        callStatusSubscription?.close()
+        callStatusSubscription = SupabaseRealtime.subscribe("call_sessions", "id=eq.$callId", { row ->
+            val terminal = row.optString("status")
+            if (terminal in setOf("declined", "ended", "missed", "failed") && endNotified.compareAndSet(false, true)) {
+                scope.launch {
+                    stopRingbackTone()
+                    onStatus("Call $terminal")
+                    onCallEnded(terminal)
+                }
+            }
+        }, { Log.w(TAG, it) })
         signalJob?.cancel()
         signalJob = scope.launch {
             while (isActive && !disposed.get()) {
@@ -378,6 +391,8 @@ internal class WebRtcCallManager(
         if (disposed.getAndSet(true)) return
         stopRingbackTone()
         signalJob?.cancel()
+        callStatusSubscription?.close()
+        callStatusSubscription = null
         runCatching { CallSignalingRepository.setStatus(callId, status) }
         withContext(Dispatchers.Main) {
             localRenderer?.let { videoTrack?.removeSink(it); it.release() }

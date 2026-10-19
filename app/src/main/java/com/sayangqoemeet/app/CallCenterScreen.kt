@@ -110,6 +110,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
     }
 
     fun startMedia(call: CallSession, caller: Boolean) {
+        CallForegroundService.stop(context.applicationContext)
         withPermissions(call.type == "video") {
             scope.launch {
                 try {
@@ -145,6 +146,15 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         }
     }
 
+    LaunchedEffect(incoming.firstOrNull()?.id, activeCall?.id) {
+        if (activeCall == null && incoming.isNotEmpty()) {
+            runCatching { CallForegroundService.start(context.applicationContext) }
+                .onFailure { error = "Incoming call alert could not start: ${it.message}" }
+        } else {
+            runCatching { CallForegroundService.stop(context.applicationContext) }
+        }
+    }
+
     LaunchedEffect(activeCall?.id) {
         while (activeCall == null) {
             runCatching { incoming = CallSignalingRepository.pollIncoming() }
@@ -155,6 +165,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
 
     DisposableEffect(Unit) {
         onDispose {
+            runCatching { CallForegroundService.stop(context.applicationContext) }
             val instance = manager
             if (instance != null) scope.launch { runCatching { instance.hangUp() } }
         }

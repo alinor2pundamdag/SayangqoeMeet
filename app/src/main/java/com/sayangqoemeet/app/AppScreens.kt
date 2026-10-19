@@ -598,6 +598,19 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
     var otherUserId by remember { mutableStateOf<String?>(null) }
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
 
+    DisposableEffect(conversationId) {
+        if (conversationId.isNullOrBlank()) return@DisposableEffect onDispose { }
+        val subscription = SupabaseDataRepository.subscribeToMessages(conversationId) {
+            scope.launch {
+                runCatching { SupabaseDataRepository.loadMessages(conversationId) }.onSuccess { fresh ->
+                    messages = (messages + fresh).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                    if (messages.isNotEmpty()) status = ""
+                }
+            }
+        }
+        onDispose { subscription?.close() }
+    }
+
     LaunchedEffect(conversationId) {
         currentUserId = SupabaseAuthRepository.currentUserId()
         otherUserId = null
@@ -667,7 +680,7 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                         scope.launch {
                             try {
                                 val sent = SupabaseDataRepository.sendMessage(conversationId, content)
-                                messages = messages + sent
+                                messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
                                 draft = ""
                                 status = ""
                             } catch (error: Exception) {
