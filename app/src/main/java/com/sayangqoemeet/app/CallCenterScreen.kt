@@ -128,6 +128,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                                 localRenderer = null
                                 remoteRenderer = null
                                 status = "Call $terminalStatus"
+                                onBack()
                             }
                         }
                     )
@@ -261,6 +262,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                                 localRenderer = null
                                 remoteRenderer = null
                                 status = "Call ended"
+                                onBack()
                             }
                         }
                     ) { Text("HANG UP") }
