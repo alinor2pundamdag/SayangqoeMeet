@@ -144,7 +144,13 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
                     openChatsOnStart = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_chats", false) == true,
                     initialConversationId = initialConversationId,
                     isDarkTheme = darkTheme,
-                    onThemeChanged = { darkTheme = it },
+                    onThemeChanged = { enabled ->
+                        darkTheme = enabled
+                        appContext.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE)
+                            .edit()
+                            .putBoolean("dark_theme", enabled)
+                            .apply()
+                    },
                     onSignOut = {
                         scope.launch {
                             try {

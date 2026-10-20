@@ -156,3 +156,11 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Android CI run 195 passed lintDebug, testDebugUnitTest, assembleDebug, and artifact upload: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39258139369
 - Artifact SayangqoeMeet-Android-APK: 37,075,511 bytes, SHA-256 a4725eedb51353a6cd04a80912309117079a1fe0247a058cdcbe03b8317bb039, expires 2026-11-02.
 - Live Storage/Realtime migration and physical-device tests are still pending.
+
+
+## 2026-10-20 — Local-first and deletion policy audit
+
+- Persist theme toggle to local SharedPreferences only.
+- Filter soft-deleted messages from message-history reads.
+- Add forward migration to revoke direct client hard-delete privileges on profiles/messages and enforce non-deleted member-only message reads.
+- Document verified live schema and migration-history drift, plus WebRTC TURN call-chain findings and unimplemented local media-cache/settings controls.

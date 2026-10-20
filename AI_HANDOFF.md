@@ -51,3 +51,13 @@
 - Android CI run 195 passed lintDebug, testDebugUnitTest, assembleDebug, and artifact upload: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39258139369
 - Artifact SayangqoeMeet-Android-APK: 37,075,511 bytes, SHA-256 a4725eedb51353a6cd04a80912309117079a1fe0247a058cdcbe03b8317bb039, expires 2026-11-02.
 - Live Storage/Realtime migration and physical-device tests are still pending.
+
+
+## 2026-10-20 handoff — Local-first/delete audit
+
+- Branch: fix/local-first-identity-and-migration-audit.
+- Theme persistence fix and message deleted_at read filter are in the pending change set.
+- New SQL migration is forward-only; inspect and test on staging before applying live.
+- Live schema has profile-avatars bucket and policies, but migration ledger does not match repository migration filename/version; presence and atomic RPC migration versions also differ. Do not use blind `supabase db push` until drift is reconciled.
+- TURN integration is source-wired and Edge Function ACTIVE/JWT-protected; physical relay/media verification remains pending.
+- Media cache download/cleanup and local notification sound/vibration settings are not implemented yet.
