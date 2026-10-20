@@ -1,6 +1,19 @@
 package com.sayangqoemeet.app
 
 import android.content.Intent
+import android.Manifest
+import android.media.MediaRecorder
+import android.content.pm.PackageManager
+import android.database.Cursor
+import android.provider.OpenableColumns
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.window.Dialog
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
@@ -635,8 +648,9 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
 }
 
 @Composable
-private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: (String?, String) -> Unit) {
+internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: (String?, String) -> Unit) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var draft by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading message history…") }
@@ -644,7 +658,37 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
     var currentUserId by remember { mutableStateOf<String?>(null) }
     var otherUserId by remember { mutableStateOf<String?>(null) }
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
+    var showAttachmentSheet by remember { mutableStateOf(false) }
+    var showVoiceRecorder by remember { mutableStateOf(false) }
     val messageListState = rememberLazyListState()
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && !conversationId.isNullOrBlank()) {
+            scope.launch {
+                loading = true
+                try {
+                    val name = context.contentResolver.getDisplayName(uri) ?: "video"
+                    val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, context.contentResolver.getType(uri) ?: "video/mp4", name)
+                    messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                    status = ""
+                } catch (error: Exception) { status = error.message ?: "Video upload failed." }
+                finally { loading = false }
+            }
+        }
+    }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && !conversationId.isNullOrBlank()) {
+            scope.launch {
+                loading = true
+                try {
+                    val name = context.contentResolver.getDisplayName(uri) ?: "attachment"
+                    val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, context.contentResolver.getType(uri) ?: "application/octet-stream", name)
+                    messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                    status = ""
+                } catch (error: Exception) { status = error.message ?: "Attachment upload failed." }
+                finally { loading = false }
+            }
+        }
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) messageListState.animateScrollToItem(messages.lastIndex)
@@ -676,9 +720,7 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                 otherDisplayName = conversation?.displayLabel
                 messages = SupabaseDataRepository.loadMessages(conversationId)
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
-            } catch (error: Exception) {
-                status = error.message ?: "Could not load messages."
-            }
+            } catch (error: Exception) { status = error.message ?: "Could not load messages." }
         }
     }
 
@@ -704,17 +746,36 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                 val mine = message.senderId == currentUserId
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                     Column(
-                        Modifier.widthIn(max = 260.dp)
+                        Modifier.widthIn(max = 280.dp)
                             .background(if (mine) Color(0xFF173B70) else ShellPanel, RoundedCornerShape(16.dp))
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
-                        Text(message.body, color = ShellText, fontSize = 14.sp)
+                        if (message.attachmentPath == null) {
+                            Text(message.body, color = ShellText, fontSize = 14.sp)
+                        } else {
+                            Text("ATTACHMENT", color = ShellCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(message.attachmentName ?: message.body, color = ShellText, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            val signedUrl = SupabaseDataRepository.createSignedAttachmentUrl(message.attachmentPath)
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signedUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                                    }
+                                }
+                            ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                        }
                         Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = { showAttachmentSheet = true },
+                enabled = !loading && !conversationId.isNullOrBlank()
+            ) { Icon(Icons.Default.Add, contentDescription = "Add attachment", tint = ShellCyan) }
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
@@ -736,11 +797,8 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
                                 messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
                                 draft = ""
                                 status = ""
-                            } catch (error: Exception) {
-                                status = error.message ?: "Message could not be sent."
-                            } finally {
-                                loading = false
-                            }
+                            } catch (error: Exception) { status = error.message ?: "Message could not be sent." }
+                            finally { loading = false }
                         }
                     }
                 },
@@ -749,6 +807,106 @@ private fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCa
             ) { Text(if (loading) "…" else "SEND") }
         }
     }
+
+    if (showAttachmentSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttachmentSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = ShellPanel
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("SHARE WITH THIS CONVERSATION", color = ShellCyan, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { showAttachmentSheet = false; showVoiceRecorder = true }) { Text("🎙  Voice recording", color = ShellText) }
+                TextButton(onClick = { showAttachmentSheet = false; videoPicker.launch("video/*") }) { Text("▶  Select video", color = ShellText) }
+                TextButton(onClick = { showAttachmentSheet = false; filePicker.launch("*/*") }) { Text("▤  Select file", color = ShellText) }
+                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+    if (showVoiceRecorder) {
+        VoiceAttachmentRecorder(
+            onDismiss = { showVoiceRecorder = false },
+            onRecorded = { uri ->
+                showVoiceRecorder = false
+                if (!conversationId.isNullOrBlank()) scope.launch {
+                    loading = true
+                    try {
+                        val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, "audio/mp4", "voice-note.m4a")
+                        messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                        status = ""
+                    } catch (error: Exception) { status = error.message ?: "Voice note upload failed." }
+                    finally { loading = false }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> Unit) {
+    val context = LocalContext.current
+    var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var recordingFile by remember { mutableStateOf<java.io.File?>(null) }
+    var recording by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) error = "Microphone permission is required to record a voice note."
+    }
+    DisposableEffect(Unit) {
+        onDispose { runCatching { recorder?.release() }; recorder = null }
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("VOICE NOTE", color = ShellCyan, fontWeight = FontWeight.Bold)
+                Text(if (recording) "Recording… tap stop to attach the voice note." else "Record a short audio note. It will upload privately to this conversation.", color = ShellText, fontSize = 13.sp)
+                error?.let { Text(it, color = Color(0xFFFF8297), fontSize = 11.sp) }
+                Button(
+                    onClick = {
+                        if (!recording) {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                runCatching {
+                                    val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
+                                    @Suppress("DEPRECATION")
+                                    val mediaRecorder = MediaRecorder()
+                                    mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+                                    mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                                    mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                                    mediaRecorder.setOutputFile(file.absolutePath)
+                                    mediaRecorder.prepare()
+                                    mediaRecorder.start()
+                                    recorder = mediaRecorder
+                                    recordingFile = file
+                                    recording = true
+                                    error = null
+                                }.onFailure { error = it.message ?: "Could not start recording." }
+                            }
+                        } else {
+                            val file = recordingFile
+                            val success = runCatching { recorder?.stop() }.isSuccess
+                            runCatching { recorder?.release() }
+                            recorder = null
+                            recording = false
+                            if (success && file?.exists() == true && file.length() > 0) onRecorded(Uri.fromFile(file))
+                            else error = "Recording was too short. Try again."
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (recording) Color(0xFFB9415B) else ShellBlue)
+                ) { Text(if (recording) "STOP & ATTACH" else "START RECORDING") }
+                TextButton(onClick = onDismiss) { Text("CANCEL", color = ShellMuted) }
+            }
+        }
+    }
+}
+
+private fun android.content.ContentResolver.getDisplayName(uri: Uri): String? {
+    var cursor: Cursor? = null
+    return try {
+        cursor = query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+        if (cursor?.moveToFirst() == true) cursor.getString(0) else null
+    } catch (_: Exception) { null } finally { cursor?.close() }
 }
 
 @Composable
