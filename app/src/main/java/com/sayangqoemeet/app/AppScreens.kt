@@ -116,7 +116,7 @@ private val ReligionOptions = listOf(
 internal enum class AppDestination { HOME, PROFILE, SETTINGS, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
-internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, onSignOut: () -> Unit) {
+internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, isDarkTheme: Boolean = true, onThemeChanged: (Boolean) -> Unit = {}, onSignOut: () -> Unit) {
     // Heartbeats run only while this screen's Activity is STARTED. When the
     // app goes to the background, stop refreshing and expire this user's row.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -153,12 +153,12 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF0C1530), ShellBg)))
+            .background(if (isDarkTheme) Brush.verticalGradient(listOf(Color(0xFF0C1530), ShellBg)) else Brush.verticalGradient(listOf(Color(0xFFF5F8FF), Color(0xFFE5EDFA)))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xE60B1225))
+                .background(if (isDarkTheme) Color(0xE60B1225) else Color(0xFFF8FAFF))
                 .padding(horizontal = 20.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -232,7 +232,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                     onUsers = { destination = AppDestination.USERS }
                 )
                 AppDestination.PROFILE -> ProfileScreen(onBack = { destination = AppDestination.HOME })
-                AppDestination.SETTINGS -> SettingsScreen(onBack = { destination = AppDestination.HOME })
+                AppDestination.SETTINGS -> SettingsScreen(isDarkTheme = isDarkTheme, onThemeChanged = onThemeChanged, onBack = { destination = AppDestination.HOME })
                 AppDestination.CHATS -> ChatListScreen(
                     onBack = { destination = AppDestination.HOME },
                     onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT }
@@ -253,7 +253,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
         }
 
         Row(
-            Modifier.fillMaxWidth().background(Color(0xF20A1020)).padding(horizontal = 8.dp, vertical = 7.dp),
+            Modifier.fillMaxWidth().background(if (isDarkTheme) Color(0xF20A1020) else Color(0xFFF8FAFF)).padding(horizontal = 8.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             NavAction("HOME", destination == AppDestination.HOME) { destination = AppDestination.HOME }
@@ -311,11 +311,10 @@ private fun ActionCard(title: String, subtitle: String, action: String, onClick:
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScreen(onBack: () -> Unit) {
+private fun SettingsScreen(isDarkTheme: Boolean, onThemeChanged: (Boolean) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE) }
     var showRegistrationDates by remember { mutableStateOf(preferences.getBoolean("show_registration_dates", true)) }
-    var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", true)) }
     var historyCount by remember { mutableStateOf(context.getSharedPreferences("people_search_history", android.content.Context.MODE_PRIVATE).getStringSet("queries", emptySet()).orEmpty().size) }
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BackHeader("SETTINGS", onBack)
@@ -336,9 +335,9 @@ private fun SettingsScreen(onBack: () -> Unit) {
                 Text("Dark theme", color = ShellText, fontWeight = FontWeight.SemiBold)
                 Text("Use the dark appearance for app surfaces.", color = ShellMuted, fontSize = 11.sp)
             }
-            androidx.compose.material3.Switch(checked = darkTheme, onCheckedChange = {
-                darkTheme = it
+            androidx.compose.material3.Switch(checked = isDarkTheme, onCheckedChange = {
                 preferences.edit().putBoolean("dark_theme", it).apply()
+                onThemeChanged(it)
             })
         }
         Text("Privacy", color = ShellCyan, fontWeight = FontWeight.Bold)
