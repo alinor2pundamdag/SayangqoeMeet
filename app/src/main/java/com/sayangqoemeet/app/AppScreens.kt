@@ -1075,7 +1075,14 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                             }
                         }
                     }
-                    TextButton(onClick = { showSharedMedia = false }, modifier = Modifier.align(Alignment.End)) { Text("CLOSE", color = She@Composable
+                    TextButton(onClick = { showSharedMedia = false }, modifier = Modifier.align(Alignment.End)) { Text("CLOSE", color = ShellMuted) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> Unit) {
     val context = LocalContext.current
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
