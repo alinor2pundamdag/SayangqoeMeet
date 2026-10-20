@@ -84,6 +84,21 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         }
     }
 
+    // A call launched from a chat header already has its intended participant and type.
+    // Start signaling immediately instead of requiring a second tap on a call-center screen.
+    LaunchedEffect(initialTargetUserId, initialCallType) {
+        val recipient = initialTargetUserId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        if (activeCall != null) return@LaunchedEffect
+        try {
+            val created = CallSignalingRepository.createCall(recipient, callType)
+            startMedia(created, caller = true)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message ?: "Could not start the call."
+        }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -235,27 +250,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                     }
                 }
                 if (registeredUsers.isEmpty()) Text("No other registered users are available.", color = CallMuted)
-                Text("Incoming calls", color = CallCyan)
-                if (incoming.isEmpty()) Text("No incoming calls.", color = CallMuted)
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(incoming, key = { it.id }) { call ->
-                        Card(colors = CardDefaults.cardColors(containerColor = CallPanel)) {
-                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("${call.type.uppercase()} CALL", color = CallText)
-                                    Text("From ${registeredUsers.firstOrNull { it.id == call.callerId }?.displayName ?: "Registered user"}", color = CallMuted)
-                                }
-                                TextButton(onClick = {
-                                    scope.launch {
-                                        runCatching { CallSignalingRepository.setStatus(call.id, "declined") }
-                                        incoming = incoming.filterNot { it.id == call.id }
-                                    }
-                                }) { Text("DECLINE", color = CallRed) }
-                                TextButton(onClick = { startMedia(call, caller = false) }) { Text("ACCEPT", color = CallCyan) }
-                            }
-                        }
-                    }
-                }
+                Text("Incoming calls are delivered through the system call notification.", color = CallMuted)
             } else {
                 Text(status, color = CallCyan)
                 if (activeCall?.type == "video") {
