@@ -15,6 +15,7 @@ internal data class CallSession(
     val calleeId: String,
     val type: String,
     val status: String,
+    val createdAt: String,
     val offerSdp: String?,
     val answerSdp: String?
 )
@@ -78,6 +79,7 @@ internal object CallSignalingRepository {
         calleeId = row.getString("callee_id"),
         type = row.getString("call_type"),
         status = row.getString("status"),
+        createdAt = row.getString("created_at"),
         offerSdp = row.optString("offer_sdp").takeIf { it.isNotBlank() && it != "null" },
         answerSdp = row.optString("answer_sdp").takeIf { it.isNotBlank() && it != "null" }
     )
@@ -102,10 +104,18 @@ internal object CallSignalingRepository {
     }
 
     suspend fun pollIncoming(): List<CallSession> {
+        // Calls older than 30 seconds must not be re-enqueued as ringing after resume.
+        val cutoff = java.time.Instant.now().minusSeconds(30).toString()
         val rows = JSONArray(io {
-            request("GET", "call_sessions?callee_id=eq.${enc(currentUserId())}&status=eq.ringing&select=*&order=created_at.desc&limit=10")
+            request(
+                "GET",
+                "call_sessions?callee_id=eq.${enc(currentUserId())}&status=eq.ringing&created_at=gte.${enc(cutoff)}&select=*&order=created_at.desc&limit=10"
+            )
         })
-        return (0 until rows.length()).map { parse(rows.getJSONObject(it)) }
+        val nowCutoff = java.time.Instant.now().minusSeconds(30)
+        return (0 until rows.length()).map { parse(rows.getJSONObject(it)) }.filter { call ->
+            runCatching { java.time.Instant.parse(call.createdAt).isAfter(nowCutoff) }.getOrDefault(false)
+        }
     }
 
     suspend fun getCall(id: String): CallSession {
@@ -125,9 +135,11 @@ internal object CallSignalingRepository {
     }
 
     suspend fun setStatus(id: String, status: String) {
-        require(status in setOf("accepted", "declined", "connecting", "connected", "ended", "missed", "failed"))
+        require(status in setOf("accepted", "declined", "cancelled", "connecting", "connected", "ended", "missed", "failed"))
         val body = JSONObject().put("status", status)
-        if (status in setOf("ended", "declined", "missed", "failed")) body.put("ended_at", java.time.Instant.now().toString())
+        if (status in setOf("ended", "declined", "cancelled", "missed", "failed")) {
+            body.put("ended_at", java.time.Instant.now().toString())
+        }
         update(id, body)
     }
 
