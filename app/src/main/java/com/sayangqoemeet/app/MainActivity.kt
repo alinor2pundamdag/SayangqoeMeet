@@ -109,6 +109,7 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
     var checkingSession by remember { mutableStateOf(true) }
     var showCalls by remember { mutableStateOf(false) }
     var incomingCallId by remember { mutableStateOf<String?>(null) }
+    var initialConversationId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val appContext = LocalContext.current
 
