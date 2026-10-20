@@ -654,6 +654,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onCall: (String?, String) -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
