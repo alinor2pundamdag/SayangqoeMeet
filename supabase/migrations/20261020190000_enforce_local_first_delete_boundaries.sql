@@ -2,7 +2,7 @@
 -- Active profiles are not user-deletable; account lifecycle remains owned by Supabase Auth.
 -- Messages use deleted_at soft deletion. Client roles cannot hard-delete message rows.
 BEGIN;
-REVOKE DELETE ON TABLE public.profiles FROM anon, authenticated;
+REVOKE DELETE ON TABLE public.profiles FROM PUBLIC, anon, authenticated;
 REVOKE DELETE ON TABLE public.messages FROM anon, authenticated;
 DROP POLICY IF EXISTS "members can read messages" ON public.messages;
 CREATE POLICY "members can read messages" ON public.messages FOR SELECT TO authenticated USING (
