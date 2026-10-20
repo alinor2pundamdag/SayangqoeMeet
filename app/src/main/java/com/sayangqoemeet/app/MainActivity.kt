@@ -334,38 +334,6 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                     )
                 }
 
-                TextButton(
-                    onClick = {
-                        val normalizedEmail = email.trim()
-                        if (!normalizedEmail.contains("@") || normalizedEmail.endsWith("@")) {
-                            feedbackIsError = true
-                            feedback = "Enter your email address first."
-                        } else if (BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
-                            feedbackIsError = true
-                            feedback = "Supabase is not configured in this build."
-                        } else {
-                            isLoading = true
-                            feedback = null
-                            coroutineScope.launch {
-                                try {
-                                    feedback = SupabaseAuthRepository.resendSignupVerification(normalizedEmail)
-                                    feedbackIsError = false
-                                } catch (error: Exception) {
-                                    feedbackIsError = true
-                                    feedback = error.message?.take(180)
-                                        ?: "Could not request a verification email. Wait a little and try again."
-                                } finally {
-                                    isLoading = false
-                                }
-                            }
-                        }
-                    },
-                    enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("RESEND VERIFICATION EMAIL", color = NeonCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-
                 Spacer(Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
