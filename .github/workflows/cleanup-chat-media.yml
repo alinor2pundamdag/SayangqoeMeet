@@ -1,0 +1,53 @@
+name: Scheduled Chat Media Cleanup
+
+on:
+  schedule:
+    # Runs every day at 03:30 UTC
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Invoke cleanup worker
+        env:
+          SUPABASE_URL: https://phjwzrrsaemgcedwpyyp.supabase.co
+          CLEANUP_SECRET: ${{ secrets.MEDIA_CLEANUP_CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${CLEANUP_SECRET}" ]]; then
+            echo "Required cleanup secret is not configured."
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          status="$(
+            curl --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 120 \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --header "x-cleanup-secret: ${CLEANUP_SECRET}" \
+              --data '{}' \
+              "${SUPABASE_URL}/functions/v1/cleanup-chat-media"
+          )"
+
+          if [[ "$status" != "200" ]]; then
+            echo "Cleanup request failed with HTTP ${status}."
+            exit 1
+          fi
+
+          echo "Cleanup worker returned HTTP 200."
+          cat "$response_file"
