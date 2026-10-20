@@ -128,7 +128,11 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
                     shortcutBuilder.setLongLived(true)
                     shortcutBuilder.setPerson(Person.Builder().setName(senderName).build())
                 }
-                shortcutManager?.pushDynamicShortcut(shortcutBuilder.build())
+                shortcutManager?.let { manager ->
+                    val shortcut = shortcutBuilder.build()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) manager.pushDynamicShortcut(shortcut)
+                    else manager.addDynamicShortcuts(listOf(shortcut))
+                }
                 val bubble = NotificationCompat.BubbleMetadata.Builder(
                     pendingIntent,
                     Icon.createWithResource(this, android.R.drawable.sym_action_chat)
