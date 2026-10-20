@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +70,7 @@ private val TextMuted = Color(0xFF9BAAC5)
 private val ErrorRed = Color(0xFFFF8297)
 
 class MainActivity : ComponentActivity() {
+    private var intentSignal by mutableIntStateOf(0)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SupabaseAuthRepository.handleDeepLink(intent)
@@ -87,7 +89,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                     color = Midnight
                 ) {
-                    SayangqoeMeetRoot()
+                    SayangqoeMeetRoot(intentSignal)
                 }
             }
         }
@@ -97,14 +99,16 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         SupabaseAuthRepository.handleDeepLink(intent)
+        intentSignal++
     }
 }
 
 @Composable
-private fun SayangqoeMeetRoot() {
+private fun SayangqoeMeetRoot(intentSignal: Int) {
     var signedIn by remember { mutableStateOf(false) }
     var checkingSession by remember { mutableStateOf(true) }
     var showCalls by remember { mutableStateOf(false) }
+    var incomingCallId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val appContext = LocalContext.current
 
@@ -112,8 +116,10 @@ private fun SayangqoeMeetRoot() {
         if (signedIn) FcmTokenRegistrar.registerCurrentToken(appContext, scope)
     }
 
-    LaunchedEffect(Unit) {
-        showCalls = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_calls", false) == true
+    LaunchedEffect(intentSignal) {
+        val activityIntent = (appContext as? ComponentActivity)?.intent
+        showCalls = activityIntent?.getBooleanExtra("open_calls", false) == true
+        incomingCallId = activityIntent?.getStringExtra("incoming_call_id")
         signedIn = try {
             SupabaseAuthRepository.restoreSession()
         } catch (_: Exception) {
@@ -128,7 +134,7 @@ private fun SayangqoeMeetRoot() {
         }
     } else if (signedIn) {
         if (showCalls) {
-            CallCenterScreen(onBack = { showCalls = false })
+            CallCenterScreen(initialCallId = incomingCallId, onBack = { showCalls = false; incomingCallId = null })
         } else {
             Column(Modifier.fillMaxSize().background(Midnight)) {
                 Row(

@@ -55,7 +55,7 @@ private val CallRed = Color(0xFFFF536A)
 
 /** A real call entry point: session signaling and media are backed by Supabase and WebRTC. */
 @Composable
-internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallType: String = "voice", onBack: () -> Unit) {
+internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallType: String = "voice", initialCallId: String? = null, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var targetId by remember(initialTargetUserId) { mutableStateOf(initialTargetUserId.orEmpty()) }
@@ -152,6 +152,21 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                 .onFailure { error = "Incoming call alert could not start: ${it.message}" }
         } else {
             runCatching { CallForegroundService.stop(context.applicationContext) }
+        }
+    }
+
+    LaunchedEffect(initialCallId) {
+        val id = initialCallId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        try {
+            val incomingCall = CallSignalingRepository.getCall(id)
+            check(incomingCall.calleeId == SupabaseAuthRepository.currentUserId() && incomingCall.status == "ringing") {
+                "This incoming call is no longer available."
+            }
+            startMedia(incomingCall, caller = false)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message ?: "Could not accept incoming call."
         }
     }
 
