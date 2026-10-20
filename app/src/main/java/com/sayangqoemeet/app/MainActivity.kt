@@ -112,6 +112,7 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
     var initialConversationId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val appContext = LocalContext.current
+    var darkTheme by remember { mutableStateOf(appContext.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE).getBoolean("dark_theme", true)) }
 
     LaunchedEffect(signedIn) {
         if (signedIn) FcmTokenRegistrar.registerCurrentToken(appContext, scope)
@@ -142,6 +143,8 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
                 SignedInShell(
                     openChatsOnStart = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_chats", false) == true,
                     initialConversationId = initialConversationId,
+                    isDarkTheme = darkTheme,
+                    onThemeChanged = { darkTheme = it },
                     onSignOut = {
                         scope.launch {
                             try {
