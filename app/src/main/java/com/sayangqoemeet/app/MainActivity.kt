@@ -120,6 +120,7 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
         val activityIntent = (appContext as? ComponentActivity)?.intent
         showCalls = activityIntent?.getBooleanExtra("open_calls", false) == true
         incomingCallId = activityIntent?.getStringExtra("incoming_call_id")
+        initialConversationId = activityIntent?.getStringExtra("open_conversation_id")
         signedIn = try {
             SupabaseAuthRepository.restoreSession()
         } catch (_: Exception) {
@@ -148,6 +149,7 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
                 }
                 SignedInShell(
                     openChatsOnStart = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_chats", false) == true,
+                    initialConversationId = initialConversationId,
                     onSignOut = {
                         scope.launch {
                             try {
