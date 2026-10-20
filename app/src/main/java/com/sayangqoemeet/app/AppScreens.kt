@@ -1190,12 +1190,6 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
         }
     }
 }
-CANCEL", color = ShellMuted) }
-            }
-        }
-    }
-}
-
 private fun android.content.ContentResolver.getDisplayName(uri: Uri): String? {
     var cursor: Cursor? = null
     return try {
