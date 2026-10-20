@@ -36,6 +36,12 @@ jobs:
       - name: Install Android platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Run Android lint
+        run: gradle --no-daemon lintDebug --stacktrace
+
+      - name: Run unit tests
+        run: gradle --no-daemon testDebugUnitTest --stacktrace
+
       - name: Assemble debug APK
         run: gradle --no-daemon assembleDebug --stacktrace
 

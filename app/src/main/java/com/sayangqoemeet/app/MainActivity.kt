@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +70,7 @@ private val TextMuted = Color(0xFF9BAAC5)
 private val ErrorRed = Color(0xFFFF8297)
 
 class MainActivity : ComponentActivity() {
+    private var intentSignal by mutableIntStateOf(0)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SupabaseAuthRepository.handleDeepLink(intent)
@@ -84,10 +86,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                     color = Midnight
                 ) {
-                    SayangqoeMeetRoot()
+                    SayangqoeMeetRoot(intentSignal)
                 }
             }
         }
@@ -97,21 +99,30 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         SupabaseAuthRepository.handleDeepLink(intent)
+        intentSignal++
     }
 }
 
 @Composable
-private fun SayangqoeMeetRoot() {
+private fun SayangqoeMeetRoot(intentSignal: Int) {
     var signedIn by remember { mutableStateOf(false) }
     var checkingSession by remember { mutableStateOf(true) }
+    var showCalls by remember { mutableStateOf(false) }
+    var incomingCallId by remember { mutableStateOf<String?>(null) }
+    var initialConversationId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val appContext = LocalContext.current
+    var darkTheme by remember { mutableStateOf(appContext.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE).getBoolean("dark_theme", true)) }
 
     LaunchedEffect(signedIn) {
         if (signedIn) FcmTokenRegistrar.registerCurrentToken(appContext, scope)
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(intentSignal) {
+        val activityIntent = (appContext as? ComponentActivity)?.intent
+        showCalls = activityIntent?.getBooleanExtra("open_calls", false) == true
+        incomingCallId = activityIntent?.getStringExtra("incoming_call_id")
+        initialConversationId = activityIntent?.getStringExtra("open_conversation_id")
         signedIn = try {
             SupabaseAuthRepository.restoreSession()
         } catch (_: Exception) {
@@ -125,17 +136,28 @@ private fun SayangqoeMeetRoot() {
             Text("RESTORING SECURE SESSION…", color = NeonCyan, fontWeight = FontWeight.Bold)
         }
     } else if (signedIn) {
-        SignedInShell(
-            onSignOut = {
-                scope.launch {
-                    try {
-                        SupabaseAuthRepository.signOut()
-                    } finally {
-                        signedIn = false
+        if (showCalls) {
+            CallCenterScreen(initialCallId = incomingCallId, onBack = { showCalls = false; incomingCallId = null })
+        } else {
+            Column(Modifier.fillMaxSize().background(Midnight)) {
+                SignedInShell(
+                    openChatsOnStart = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_chats", false) == true,
+                    initialConversationId = initialConversationId,
+                    isDarkTheme = darkTheme,
+                    onThemeChanged = { darkTheme = it },
+                    onSignOut = {
+                        scope.launch {
+                            try {
+                                SupabaseAuthRepository.signOut()
+                            } finally {
+                                signedIn = false
+                                showCalls = false
+                            }
+                        }
                     }
-                }
+                )
             }
-        )
+        }
     } else {
         SayangqoeMeetAuthScreen(onAuthenticated = { signedIn = true })
     }
@@ -151,6 +173,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
     var feedback by remember { mutableStateOf<String?>(null) }
     var feedbackIsError by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var showResendVerification by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -175,7 +198,6 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .imePadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp, vertical = 28.dp),
@@ -230,6 +252,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                     onValueChange = {
                         email = it
                         feedback = null
+                        showResendVerification = false
                     },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("you@example.com", color = TextMuted) },
@@ -299,16 +322,35 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                                 feedback = null
                                 coroutineScope.launch {
                                     try {
-                                        feedback = if (isRegister) {
-                                            SupabaseAuthRepository.signUp(normalizedEmail, password)
+                                        if (isRegister) {
+                                            feedback = SupabaseAuthRepository.signUp(normalizedEmail, password)
+                                            showResendVerification = true
+                                            feedback = "If this is a new account, check your inbox and spam folder for the confirmation email. If you already registered, switch to Sign in."
                                         } else {
-                                            SupabaseAuthRepository.signIn(normalizedEmail, password)
+                                            feedback = SupabaseAuthRepository.signIn(normalizedEmail, password)
+                                            showResendVerification = false
+                                            onAuthenticated()
                                         }
                                         feedbackIsError = false
-                                        if (!isRegister) onAuthenticated()
                                     } catch (error: Exception) {
                                         feedbackIsError = true
-                                        feedback = error.message?.take(180) ?: "Authentication failed. Please try again."
+                                        val raw = error.message.orEmpty()
+                                        val lower = raw.lowercase()
+                                        feedback = when {
+                                            lower.contains("invalid login credentials") || lower.contains("invalid_credentials") ->
+                                                "Email or password is incorrect. Check both fields, or create an account if you have not registered."
+                                            lower.contains("already registered") || lower.contains("user already exists") ->
+                                                "This account may already be registered. Switch to Sign in, or request a password reset."
+                                            lower.contains("email not confirmed") || lower.contains("email_not_confirmed") ->
+                                                "Email not verified yet. Check your inbox or request a new verification email below."
+                                            lower.contains("rate limit") || lower.contains("too many requests") ->
+                                                "Too many attempts. Please wait a little before trying again."
+                                            else -> raw.take(180).ifBlank { "Authentication failed. Please try again." }
+                                        }
+                                        showResendVerification =
+                                            lower.contains("email not confirmed") ||
+                                            lower.contains("email_not_confirmed") ||
+                                            (isRegister && (lower.contains("already registered") || lower.contains("user already exists")))
                                     } finally {
                                         isLoading = false
                                     }
@@ -334,6 +376,41 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                     )
                 }
 
+                if (showResendVerification) {
+                    TextButton(
+                        onClick = {
+                            val normalizedEmail = email.trim()
+                            if (!normalizedEmail.contains("@") || normalizedEmail.endsWith("@")) {
+                                feedbackIsError = true
+                                feedback = "Enter the same valid email address you used to register."
+                            } else {
+                                isLoading = true
+                                coroutineScope.launch {
+                                    try {
+                                        feedback = SupabaseAuthRepository.resendSignupVerification(normalizedEmail)
+                                        feedbackIsError = false
+                                    } catch (error: Exception) {
+                                        feedbackIsError = true
+                                        val detail = error.message.orEmpty().lowercase()
+                                        feedback = when {
+                                            detail.contains("rate limit") || detail.contains("too many") ->
+                                                "Please wait before requesting another email. Supabase limits email sends."
+                                            detail.contains("not found") || detail.contains("signup") ->
+                                                "No pending signup was found for this address. Check the email or try Sign in."
+                                            else -> "Could not request a new verification email. Check the email address and try again later."
+                                        }
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isLoading && email.contains("@")
+                    ) {
+                        Text("Resend verification email", color = NeonCyan, fontSize = 12.sp)
+                    }
+                }
+
                 Spacer(Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -349,6 +426,7 @@ private fun SayangqoeMeetAuthScreen(onAuthenticated: () -> Unit) {
                         onClick = {
                             isRegister = !isRegister
                             feedback = null
+                            showResendVerification = false
                         }
                     ) {
                         Text(

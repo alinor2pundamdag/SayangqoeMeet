@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "347321781725",
+    "project_id": "sayangqoemeet-6b008",
+    "storage_bucket": "sayangqoemeet-6b008.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:347321781725:android:2128095b9d2f0a899f3a34",
+        "android_client_info": {
+          "package_name": "com.sayangqoemeet.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCd0_VulldadY33PJbK-Z2hod3p-g7_c_E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,7 @@
 package com.sayangqoemeet.app
 
+import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,7 +18,21 @@ internal data class ProfileRecord(
     val id: String,
     val username: String?,
     val displayName: String,
-    val avatarUrl: String?
+    val avatarUrl: String?,
+    val bio: String? = null,
+    val birthday: String? = null,
+    val religion: String? = null,
+    val address: String? = null,
+    val phoneNumber: String? = null
+)
+
+internal data class RegisteredUserRecord(
+    val id: String,
+    val username: String?,
+    val displayName: String,
+    val createdAt: String,
+    val isOnline: Boolean = false,
+    val avatarUrl: String? = null
 )
 
 internal data class ConversationRecord(
@@ -24,7 +40,10 @@ internal data class ConversationRecord(
     val title: String?,
     val isGroup: Boolean,
     val createdAt: String,
-    val memberUsername: String? = null
+    val otherUserId: String? = null,
+    val otherUsername: String? = null,
+    val otherDisplayName: String? = null,
+    val displayLabel: String = "Private conversation"
 )
 
 internal data class MessageRecord(
@@ -32,7 +51,10 @@ internal data class MessageRecord(
     val conversationId: String,
     val senderId: String,
     val body: String,
-    val createdAt: String
+    val createdAt: String,
+    val attachmentPath: String? = null,
+    val attachmentMimeType: String? = null,
+    val attachmentName: String? = null
 )
 
 internal data class InvitationRecord(
@@ -54,10 +76,13 @@ internal object SupabaseDataRepository {
     private fun request(method: String, path: String, body: JSONObject? = null, prefer: String? = null): String {
         val token = SupabaseAuthRepository.currentAccessToken()
             ?: error("Your session is no longer available. Sign in again.")
-        val isFunction = path.startsWith("functions/v1/")
+        val isFunction = path.startsWith("functions/v1/") || path.startsWith("rpc/")
         val base = BuildConfig.SUPABASE_URL.trimEnd('/') + if (isFunction) "/" else "/rest/v1/"
-        val actualPath = if (isFunction) path else path
-        val connection = (URL(base + actualPath).openConnection() as HttpURLConnection).apply {
+        val restBase = BuildConfig.SUPABASE_URL.trimEnd('/') + "/rest/v1/"
+        val functionBase = BuildConfig.SUPABASE_URL.trimEnd('/') + "/"
+        val isEdgeFunction = path.startsWith("functions/v1/")
+        val fullUrl = if (isEdgeFunction) functionBase + path else restBase + path
+        val connection = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15000
             readTimeout = 20000
@@ -107,28 +132,143 @@ internal object SupabaseDataRepository {
         }
     }
 
+    private fun profileFromRow(row: JSONObject): ProfileRecord = ProfileRecord(
+        id = row.getString("id"),
+        username = row.optString("username").takeIf { it.isNotBlank() },
+        displayName = row.optString("display_name"),
+        avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() },
+        bio = row.optString("bio").takeIf { it.isNotBlank() },
+        birthday = row.optString("birthday").takeIf { it.isNotBlank() },
+        religion = row.optString("religion").takeIf { it.isNotBlank() },
+        address = row.optString("address").takeIf { it.isNotBlank() },
+        phoneNumber = row.optString("phone_number").takeIf { it.isNotBlank() }
+    )
+
+    // Reads the signed-in user's own full profile, including the fields
+    // (bio/birthday/religion/address/phone_number) that other users cannot
+    // read directly, via the get_my_profile() SECURITY DEFINER RPC.
     suspend fun loadProfile(): ProfileRecord? {
-        val id = userId()
-        val query = "profiles?id=eq.${enc(id)}&select=id,username,display_name,avatar_url&limit=1"
-        val json = runRequest { request("GET", query) }
+        val json = runRequest { request("POST", "rpc/get_my_profile", JSONObject()) }
         val rows = JSONArray(json)
         if (rows.length() == 0) return null
-        val row = rows.getJSONObject(0)
-        return ProfileRecord(row.getString("id"), row.optString("username").takeIf { it.isNotBlank() }, row.optString("display_name"), row.optString("avatar_url").takeIf { it.isNotBlank() })
+        return profileFromRow(rows.getJSONObject(0))
     }
 
-    suspend fun saveProfile(displayName: String, username: String): ProfileRecord {
+    suspend fun uploadProfileAvatar(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
+        val id = userId()
+        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+        require(mime in setOf("image/jpeg", "image/png", "image/webp")) { "Choose a JPG, PNG, or WebP image." }
+        val extension = when (mime) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not read the selected image.")
+        require(bytes.isNotEmpty() && bytes.size <= 8 * 1024 * 1024) { "Profile photos must be smaller than 8 MB." }
+        val objectPath = "$id/avatar.$extension"
+        val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/profile-avatars/" + objectPath
+        val token = SupabaseAuthRepository.currentAccessToken() ?: error("Your session is no longer available. Sign in again.")
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"; connectTimeout = 15000; readTimeout = 30000; doOutput = true
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", mime)
+            setRequestProperty("x-upsert", "true")
+        }
+        try {
+            connection.outputStream.use { it.write(bytes) }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val detail = (connection.errorStream?.bufferedReader()?.use { it.readText() }).orEmpty()
+                error("Profile photo upload failed ($code): ${detail.take(160)}")
+            }
+        } finally { connection.disconnect() }
+        BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/public/profile-avatars/" + objectPath
+    }
+
+    suspend fun heartbeatPresence() {
+        val id = userId()
+        val payload = JSONObject()
+            .put("user_id", id)
+            .put("last_seen_at", java.time.Instant.now().toString())
+        runRequest {
+            request("POST", "user_presence?on_conflict=user_id", payload,
+                "resolution=merge-duplicates,return=minimal")
+        }
+    }
+
+    /**
+     * Marks this account offline without requiring DELETE permission.
+     * The user_presence RLS policy allows a user to update only their own row.
+     */
+    suspend fun clearPresence() {
+        val id = userId()
+        val payload = JSONObject()
+            .put("last_seen_at", "1970-01-01T00:00:00Z")
+        runRequest {
+            request("PATCH", "user_presence?user_id=eq.${enc(id)}", payload,
+                "return=minimal")
+        }
+    }
+
+    private suspend fun loadOnlineUserIds(): Set<String> {
+        val cutoff = java.time.Instant.now().minusSeconds(90).toString()
+        val query = "user_presence?select=user_id&last_seen_at=gte.${enc(cutoff)}"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { rows.getJSONObject(it).getString("user_id") }.toSet()
+    }
+
+    suspend fun loadRegisteredUsers(): List<RegisteredUserRecord> {
+        val id = userId()
+        val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at,avatar_url&order=created_at.desc&limit=500"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        val onlineIds = runCatching { loadOnlineUserIds() }.getOrDefault(emptySet())
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            val userId = row.getString("id")
+            RegisteredUserRecord(
+                id = userId,
+                username = row.optString("username").takeIf { it.isNotBlank() },
+                displayName = row.optString("display_name"),
+                createdAt = row.optString("created_at"),
+                isOnline = userId in onlineIds,
+                avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() }
+            )
+        }
+    }
+
+    suspend fun saveProfile(
+        displayName: String,
+        username: String,
+        avatarUrl: String? = null,
+        bio: String? = null,
+        birthday: String? = null,
+        religion: String? = null,
+        address: String? = null,
+        phoneNumber: String? = null
+    ): ProfileRecord {
         val id = userId()
         val payload = JSONObject()
             .put("id", id)
             .put("display_name", displayName.trim())
             .put("username", username.trim())
             .put("updated_at", java.time.Instant.now().toString())
-        val response = runRequest {
-            request("POST", "profiles?on_conflict=id", payload, "resolution=merge-duplicates,return=representation")
+        payload.put("avatar_url", avatarUrl?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("bio", bio?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("birthday", birthday?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("religion", religion?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("address", address?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        payload.put("phone_number", phoneNumber?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
+        runRequest {
+            request("POST", "profiles?on_conflict=id", payload, "resolution=merge-duplicates,return=minimal")
         }
-        val row = JSONArray(response).getJSONObject(0)
-        return ProfileRecord(row.getString("id"), row.optString("username").ifBlank { null }, row.optString("display_name"), row.optString("avatar_url").ifBlank { null })
+        // The table-level SELECT grant no longer includes the sensitive columns
+        // (see migration 20261018120000), so re-read the saved row through the
+        // same RPC used by loadProfile() rather than the POST response body.
+        return loadProfile() ?: error("Profile save appeared to succeed but could not be re-read.")
+    }
+
+    suspend fun openPrivateConversation(targetUserId: String): String {
+        require(targetUserId.isNotBlank()) { "Select a valid user to message." }
+        val payload = JSONObject().put("target_user_id", targetUserId)
+        val response = runRequest { request("POST", "functions/v1/open-private-conversation", payload) }
+        return JSONObject(response).getString("conversation_id")
     }
 
     suspend fun createConversation(recipientUsername: String): InvitationRecord {
@@ -167,28 +307,50 @@ internal object SupabaseDataRepository {
         runRequest { request("POST", "functions/v1/respond-conversation-invite", payload) }
     }
 
+    /**
+     * Loads the authenticated user's conversations through a SECURITY DEFINER RPC.
+     * The database enforces membership and resolves the other participant in one
+     * query, avoiding missing nested PostgREST profile joins and literal "null" labels.
+     */
     suspend fun loadConversations(): List<ConversationRecord> {
-        val id = userId()
-        val query = "conversation_members?user_id=eq.${enc(id)}&select=conversation_id,conversations(id,title,is_group,created_at)&order=joined_at.desc"
-        val rows = JSONArray(runRequest { request("GET", query) })
+        val rows = JSONArray(runRequest { request("POST", "rpc/get_my_conversation_list", JSONObject()) })
         return (0 until rows.length()).mapNotNull { index ->
-            val row = rows.getJSONObject(index)
-            val conversation = row.optJSONObject("conversations") ?: return@mapNotNull null
+            val row = rows.optJSONObject(index) ?: return@mapNotNull null
+            val id = row.optString("conversation_id").trim()
+            if (id.isBlank() || id == "null") return@mapNotNull null
+            val isGroup = row.optBoolean("is_group", false)
+            val title = row.optString("title").takeUnless { it.isBlank() || it == "null" }
+            val otherUserId = row.optString("other_user_id").takeUnless { it.isBlank() || it == "null" }
+            val otherUsername = row.optString("other_username").trim()
+                .takeUnless { it.isBlank() || it == "null" }
+            val otherDisplayName = row.optString("other_display_name").trim()
+                .takeUnless { it.isBlank() || it == "null" }
+            val serverLabel = row.optString("display_label").trim()
+                .takeUnless { it.isBlank() || it == "null" }
+            val fallback = if (isGroup) "Group conversation" else "Private conversation"
+            val displayLabel = when {
+                isGroup -> title ?: serverLabel ?: fallback
+                else -> serverLabel ?: otherDisplayName ?: otherUsername?.let { "@$it" } ?: "SayangqoeMeet user"
+            }
             ConversationRecord(
-                id = conversation.optString("id"),
-                title = conversation.optString("title").takeIf { it.isNotBlank() },
-                isGroup = conversation.optBoolean("is_group"),
-                createdAt = conversation.optString("created_at")
+                id = id,
+                title = title,
+                isGroup = isGroup,
+                createdAt = row.optString("created_at").takeUnless { it == "null" }.orEmpty(),
+                otherUserId = otherUserId,
+                otherUsername = otherUsername,
+                otherDisplayName = otherDisplayName,
+                displayLabel = displayLabel
             )
         }
     }
 
     suspend fun loadMessages(conversationId: String): List<MessageRecord> {
-        val query = "messages?conversation_id=eq.${enc(conversationId)}&select=id,conversation_id,sender_id,body,created_at&order=created_at.asc&limit=100"
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.asc&limit=100"
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
-            MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.getString("body"), row.getString("created_at"))
+            MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.optString("body"), row.getString("created_at"), row.optString("attachment_path").takeIf { it.isNotBlank() && it != "null" }, row.optString("attachment_mime_type").takeIf { it.isNotBlank() && it != "null" }, row.optString("attachment_name").takeIf { it.isNotBlank() && it != "null" })
         }
     }
 
@@ -212,6 +374,84 @@ internal object SupabaseDataRepository {
         }
         return saved
     }
+
+    suspend fun uploadChatAttachment(context: Context, conversationId: String, uri: Uri, mimeType: String, displayName: String): MessageRecord {
+        val uid = userId()
+        val safeName = displayName.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(90).ifBlank { "attachment" }
+        val objectPath = "$conversationId/$uid/${java.util.UUID.randomUUID()}_$safeName"
+        val bytes = withContext(Dispatchers.IO) {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: error("Could not read the selected attachment.")
+        }
+        require(bytes.isNotEmpty()) { "The selected attachment is empty." }
+        require(bytes.size <= 25 * 1024 * 1024) { "Attachments must be 25 MB or smaller." }
+        runRequest {
+            val token = SupabaseAuthRepository.currentAccessToken() ?: error("Sign in again to upload attachments.")
+            val encodedPath = objectPath.split("/").joinToString("/") { enc(it) }
+            val connection = (URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/chat-attachments/" + encodedPath).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 20000
+                readTimeout = 60000
+                doOutput = true
+                setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Content-Type", mimeType.ifBlank { "application/octet-stream" })
+                setRequestProperty("x-upsert", "false")
+            }
+            try {
+                connection.outputStream.use { it.write(bytes) }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) error("Attachment upload failed ($code): ${response.take(160)}")
+            } finally { connection.disconnect() }
+            ""
+        }
+        val payload = JSONObject()
+            .put("conversation_id", conversationId)
+            .put("sender_id", uid)
+            .put("body", displayName.ifBlank { "Attachment" })
+            .put("attachment_path", objectPath)
+            .put("attachment_mime_type", mimeType.ifBlank { "application/octet-stream" })
+            .put("attachment_name", safeName)
+        val response = runRequest { request("POST", "messages", payload, "return=representation") }
+        val row = JSONArray(response).getJSONObject(0)
+        val saved = MessageRecord(
+            row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"),
+            row.optString("body"), row.getString("created_at"), row.optString("attachment_path"),
+            row.optString("attachment_mime_type"), row.optString("attachment_name")
+        )
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { request("POST", "functions/v1/send-message-push", JSONObject().put("conversation_id", saved.conversationId).put("message_id", saved.id)) }
+        }
+        return saved
+    }
+
+    suspend fun createSignedAttachmentUrl(objectPath: String): String = runRequest {
+        val token = SupabaseAuthRepository.currentAccessToken() ?: error("Sign in again to open attachments.")
+        val encodedPath = objectPath.split("/").joinToString("/") { enc(it) }
+        val connection = (URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/sign/chat-attachments/" + encodedPath).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15000
+            readTimeout = 20000
+            doOutput = true
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "application/json")
+        }
+        try {
+            connection.outputStream.use { it.write(JSONObject().put("expiresIn", 3600).toString().toByteArray(StandardCharsets.UTF_8)) }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) error("Could not open attachment ($code).")
+            val signed = JSONObject(response).optString("signedURL")
+            if (signed.startsWith("http")) signed else BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1" + if (signed.startsWith("/")) signed else "/$signed"
+        } finally { connection.disconnect() }
+    }
+
+    fun subscribeToMessages(conversationId: String, onChange: () -> Unit): SupabaseRealtime.Subscription? =
+        SupabaseRealtime.subscribe("messages", "conversation_id=eq.$conversationId", { onChange() })
 
     private fun enc(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
 }
