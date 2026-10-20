@@ -139,15 +139,6 @@ private fun SayangqoeMeetRoot(intentSignal: Int) {
             CallCenterScreen(initialCallId = incomingCallId, onBack = { showCalls = false; incomingCallId = null })
         } else {
             Column(Modifier.fillMaxSize().background(Midnight)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = { showCalls = true }) {
-                        Text("VOICE / VIDEO CALLS", color = NeonCyan, fontWeight = FontWeight.Bold)
-                    }
-                }
                 SignedInShell(
                     openChatsOnStart = (appContext as? ComponentActivity)?.intent?.getBooleanExtra("open_chats", false) == true,
                     initialConversationId = initialConversationId,
