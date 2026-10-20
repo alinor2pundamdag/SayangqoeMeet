@@ -110,7 +110,7 @@ private val ReligionOptions = listOf(
     "Prefer not to say", "Christianity", "Islam", "Buddhism", "Hinduism", "Judaism", "Other", "None"
 )
 
-internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, USERS }
+internal enum class AppDestination { HOME, PROFILE, SETTINGS, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
 internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, onSignOut: () -> Unit) {
@@ -184,6 +184,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                     onDismissRequest = { showOverflow = false },
                     modifier = Modifier.background(ShellPanel)
                 ) {
+                    DropdownMenuItem(text = { Text("Settings", color = ShellText) }, onClick = { showOverflow = false; destination = AppDestination.SETTINGS })
                     DropdownMenuItem(
                         text = { Text("About", color = ShellText) },
                         onClick = { showOverflow = false; showAbout = true }
@@ -228,6 +229,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                     onUsers = { destination = AppDestination.USERS }
                 )
                 AppDestination.PROFILE -> ProfileScreen(onBack = { destination = AppDestination.HOME })
+                AppDestination.SETTINGS -> SettingsScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.CHATS -> ChatListScreen(
                     onBack = { destination = AppDestination.HOME },
                     onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT }
@@ -254,6 +256,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
             NavAction("HOME", destination == AppDestination.HOME) { destination = AppDestination.HOME }
             NavAction("PROFILE", destination == AppDestination.PROFILE) { destination = AppDestination.PROFILE }
             NavAction("CHATS", destination == AppDestination.CHATS) { destination = AppDestination.CHATS }
+            NavAction("SETTINGS", destination == AppDestination.SETTINGS) { destination = AppDestination.SETTINGS }
         }
     }
 }
@@ -304,6 +307,39 @@ private fun ActionCard(title: String, subtitle: String, action: String, onClick:
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val preferences = remember { context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE) }
+    var showRegistrationDates by remember { mutableStateOf(preferences.getBoolean("show_registration_dates", true)) }
+    var historyCount by remember { mutableStateOf(context.getSharedPreferences("people_search_history", android.content.Context.MODE_PRIVATE).getStringSet("queries", emptySet()).orEmpty().size) }
+    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        BackHeader("SETTINGS", onBack)
+        Text("App preferences", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("These preferences are saved only on this device.", color = ShellMuted, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth().background(ShellPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Show registration dates", color = ShellText, fontWeight = FontWeight.SemiBold)
+                Text("Display registration dates in the People directory.", color = ShellMuted, fontSize = 11.sp)
+            }
+            androidx.compose.material3.Switch(checked = showRegistrationDates, onCheckedChange = {
+                showRegistrationDates = it
+                preferences.edit().putBoolean("show_registration_dates", it).apply()
+            })
+        }
+        Text("Privacy", color = ShellCyan, fontWeight = FontWeight.Bold)
+        Text("People search history is stored locally on this device and is never uploaded to Supabase.", color = ShellMuted, fontSize = 12.sp)
+        Text("Saved search terms: $historyCount", color = ShellMuted, fontSize = 12.sp)
+        Button(onClick = {
+            context.getSharedPreferences("people_search_history", android.content.Context.MODE_PRIVATE).edit().remove("queries").apply()
+            historyCount = 0
+        }, enabled = historyCount > 0, colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)) {
+            Text("CLEAR LOCAL SEARCH HISTORY")
+        }
+        Text("Push notifications, online presence, and calls still depend on Android permissions and backend configuration.", color = ShellMuted, fontSize = 12.sp)
+    }
+}
+
 @Composable
 private fun ProfileScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -561,6 +597,15 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
     var status by remember { mutableStateOf("Loading registered users…") }
     var loadingUserId by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearchHistory by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val searchPrefs = remember { context.getSharedPreferences("people_search_history", android.content.Context.MODE_PRIVATE) }
+    var searchHistory by remember { mutableStateOf(searchPrefs.getStringSet("queries", emptySet()).orEmpty().toList().take(8)) }
+    val filteredUsers = remember(users, searchQuery) {
+        val query = searchQuery.trim().removePrefix("@").lowercase()
+        if (query.isBlank()) users else users.filter { it.displayName.lowercase().contains(query) || it.username.orEmpty().lowercase().contains(query) }
+    }
 
     LaunchedEffect(refreshKey) {
         status = "Loading registered users…"
@@ -602,10 +647,26 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                 Text("REFRESH", color = ShellCyan, fontSize = 11.sp)
             }
         }
-        Text("Green = active within the last 90 seconds. Presence updates while the app is open.", color = ShellMuted, fontSize = 11.sp)
+        OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it; showSearchHistory = false }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search name or @username", color = ShellMuted) }, trailingIcon = { TextButton(onClick = { showSearchHistory = !showSearchHistory }) { Text("RECENT", color = ShellCyan, fontSize = 9.sp) } }, colors = fieldColorsForShell())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = {
+                val query = searchQuery.trim()
+                if (query.isNotBlank()) {
+                    searchHistory = (listOf(query) + searchHistory.filterNot { it.equals(query, ignoreCase = true) }).take(8)
+                    searchPrefs.edit().putStringSet("queries", searchHistory.toSet()).apply()
+                    showSearchHistory = false
+                }
+            }, enabled = searchQuery.isNotBlank()) { Text("SAVE SEARCH LOCALLY", color = ShellCyan, fontSize = 9.sp) }
+            TextButton(onClick = { searchHistory = emptyList(); searchPrefs.edit().remove("queries").apply() }) { Text("CLEAR HISTORY", color = ShellMuted, fontSize = 9.sp) }
+        }
+        if (showSearchHistory && searchHistory.isNotEmpty()) Column(Modifier.fillMaxWidth().background(ShellPanel, RoundedCornerShape(12.dp)).padding(8.dp)) {
+            searchHistory.forEach { query -> TextButton(onClick = { searchQuery = query; showSearchHistory = false }) { Text(query, color = ShellText) } }
+        }
+        Text("Green = active within the last 90 seconds. Search history stays on this device.", color = ShellMuted, fontSize = 11.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
+        if (filteredUsers.isEmpty() && status.isBlank()) Text("No people match this search.", color = ShellMuted, fontSize = 12.sp)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(users, key = { it.id }) { user ->
+            items(filteredUsers, key = { it.id }) { user ->
                 Row(
                     Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(16.dp))
                         .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
@@ -622,7 +683,8 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                     Column(Modifier.weight(1f)) {
                         Text(user.displayName.ifBlank { user.username ?: "SayangqoeMeet user" }, color = ShellText, fontWeight = FontWeight.SemiBold)
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
-                        Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
+                        val showDates = context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE).getBoolean("show_registration_dates", true)
+                        if (showDates) Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
                         Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
                     }
                     Column(horizontalAlignment = Alignment.End) {
@@ -669,6 +731,8 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
     var showAttachmentSheet by remember { mutableStateOf(false) }
     var showVoiceRecorder by remember { mutableStateOf(false) }
+    var showChatInfo by remember { mutableStateOf(false) }
+    var showSharedMedia by remember { mutableStateOf(false) }
     val messageListState = rememberLazyListState()
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null && !conversationId.isNullOrBlank()) {
@@ -741,6 +805,8 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Private conversation", color = ShellMuted, fontSize = 10.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { showChatInfo = true }, enabled = !conversationId.isNullOrBlank()) { Text("INFO", color = ShellCyan, fontSize = 9.sp) }
+                TextButton(onClick = { showSharedMedia = true }, enabled = messages.any { it.attachmentPath != null }) { Text("MEDIA", color = ShellCyan, fontSize = 9.sp) }
                 IconButton(onClick = { onCall(otherUserId, "voice") }, enabled = !otherUserId.isNullOrBlank()) {
                     Icon(Icons.Default.Call, contentDescription = "Start voice call", tint = ShellCyan)
                 }
@@ -853,6 +919,55 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             }
         )
     }
+
+    if (showChatInfo) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showChatInfo = false }) {
+            Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("CHAT INFO", color = ShellCyan, fontWeight = FontWeight.Bold)
+                    Text(otherDisplayName ?: "Private conversation", color = ShellText, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text(if (otherUserId.isNullOrBlank()) "Participant details are unavailable." else "Direct participant: ${otherDisplayName ?: "Contact"}", color = ShellMuted, fontSize = 12.sp)
+                    Text("Conversation ID", color = ShellCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(conversationId.orEmpty(), color = ShellMuted, fontSize = 11.sp)
+                    Text("Messages loaded: ${messages.size}", color = ShellMuted, fontSize = 11.sp)
+                    Text("Attachments are opened using authenticated conversation membership and short-lived signed storage URLs.", color = ShellMuted, fontSize = 11.sp)
+                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { showChatInfo = false; showSharedMedia = true }) { Text("SHARED MEDIA", color = ShellCyan) }
+                        TextButton(onClick = { showChatInfo = false }) { Text("CLOSE", color = ShellMuted) }
+                    }
+                }
+            }
+        }
+    }
+    if (showSharedMedia) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showSharedMedia = false }) {
+            Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("SHARED MEDIA & FILES", color = ShellCyan, fontWeight = FontWeight.Bold)
+                    val attachments = messages.filter { it.attachmentPath != null }.asReversed()
+                    if (attachments.isEmpty()) Text("No shared attachments in the loaded conversation history.", color = ShellMuted, fontSize = 12.sp)
+                    else LazyColumn(Modifier.fillMaxWidth().height(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(attachments, key = { it.id }) { attachment ->
+                            Column(Modifier.fillMaxWidth().background(Color(0xFF18243A), RoundedCornerShape(12.dp)).padding(10.dp)) {
+                                Text(attachment.attachmentName ?: attachment.body, color = ShellText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(attachment.createdAt, color = ShellMuted, fontSize = 9.sp)
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        try {
+                                            val signedUrl = SupabaseDataRepository.createSignedAttachmentUrl(attachment.attachmentPath!!)
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signedUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        } catch (error: Exception) { status = error.message ?: "Could not open shared media." }
+                                    }
+                                }) { Text("OPEN SECURELY", color = ShellCyan, fontSize = 10.sp) }
+                            }
+                        }
+                    }
+                    TextButton(onClick = { showSharedMedia = false }, modifier = Modifier.align(Alignment.End)) { Text("CLOSE", color = ShellMuted) }
+                }
+            }
+        }
+    }
+
 }
 
 @Composable

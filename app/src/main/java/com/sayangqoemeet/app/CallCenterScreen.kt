@@ -84,21 +84,6 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         }
     }
 
-    // A call launched from a chat header already has its intended participant and type.
-    // Start signaling immediately instead of requiring a second tap on a call-center screen.
-    LaunchedEffect(initialTargetUserId, initialCallType) {
-        val recipient = initialTargetUserId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
-        if (activeCall != null) return@LaunchedEffect
-        try {
-            val created = CallSignalingRepository.createCall(recipient, callType)
-            startMedia(created, caller = true)
-        } catch (cancelled: kotlinx.coroutines.CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            error = failure.message ?: "Could not start the call."
-        }
-    }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -158,6 +143,21 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                     status = "Call setup failed"
                 }
             }
+        }
+    }
+
+    // A call launched from a chat header already has its intended participant and type.
+    // Start signaling immediately instead of requiring a second tap on a call-center screen.
+    LaunchedEffect(initialTargetUserId, initialCallType) {
+        val recipient = initialTargetUserId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        if (activeCall != null) return@LaunchedEffect
+        try {
+            val created = CallSignalingRepository.createCall(recipient, callType)
+            startMedia(created, caller = true)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message ?: "Could not start the call."
         }
     }
 
