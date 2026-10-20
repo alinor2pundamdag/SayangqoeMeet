@@ -38,38 +38,7 @@ class MainActivity : ComponentActivity() {
         if (!CallPipController.isVideoCallActive) return
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
 
-        val actions = buildList {
-            add(
-                CallPipController.createAction(
-                    this@MainActivity,
-                    501,
-                    CallPipController.ACTION_MUTE,
-                    if (CallPipController.isMuted) "Unmute" else "Mute",
-                    if (CallPipController.isMuted)
-                        android.R.drawable.ic_lock_silent_mode
-                    else
-                        android.R.drawable.ic_lock_silent_mode_off
-                )
-            )
-            add(
-                CallPipController.createAction(
-                    this@MainActivity,
-                    502,
-                    CallPipController.ACTION_CAMERA,
-                    if (CallPipController.isCameraEnabled) "Turn camera off" else "Turn camera on",
-                    android.R.drawable.presence_video_online
-                )
-            )
-            add(
-                CallPipController.createAction(
-                    this@MainActivity,
-                    503,
-                    CallPipController.ACTION_END_CALL,
-                    "End call",
-                    android.R.drawable.ic_menu_close_clear_cancel
-                )
-            )
-        }
+        val actions = CallPipController.createActions(this)
 
         val params = PictureInPictureParams.Builder()
             .setAspectRatio(Rational(16, 9))
