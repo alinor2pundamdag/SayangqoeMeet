@@ -600,12 +600,17 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
     var refreshKey by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearchHistory by remember { mutableStateOf(false) }
+    var activeOnly by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val searchPrefs = remember { context.getSharedPreferences("people_search_history", android.content.Context.MODE_PRIVATE) }
     var searchHistory by remember { mutableStateOf(searchPrefs.getStringSet("queries", emptySet()).orEmpty().toList().take(8)) }
-    val filteredUsers = remember(users, searchQuery) {
+    val filteredUsers = remember(users, searchQuery, activeOnly) {
         val query = searchQuery.trim().removePrefix("@").lowercase()
-        if (query.isBlank()) users else users.filter { it.displayName.lowercase().contains(query) || it.username.orEmpty().lowercase().contains(query) }
+        users.filter { user ->
+            (!activeOnly || user.isOnline) &&
+                (query.isBlank() || user.displayName.lowercase().contains(query) ||
+                    user.username.orEmpty().lowercase().contains(query))
+        }
     }
 
     LaunchedEffect(refreshKey) {
@@ -650,6 +655,14 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
         }
         OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it; showSearchHistory = false }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search name or @username", color = ShellMuted) }, trailingIcon = { TextButton(onClick = { showSearchHistory = !showSearchHistory }) { Text("RECENT", color = ShellCyan, fontSize = 9.sp) } }, colors = fieldColorsForShell())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { activeOnly = true }) {
+                Text("ACTIVE", color = if (activeOnly) ShellCyan else ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = { activeOnly = false }) {
+                Text("ALL PEOPLE", color = if (!activeOnly) ShellCyan else ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = {
                 val query = searchQuery.trim()
                 if (query.isNotBlank()) {
@@ -661,7 +674,17 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
             TextButton(onClick = { searchHistory = emptyList(); searchPrefs.edit().remove("queries").apply() }) { Text("CLEAR HISTORY", color = ShellMuted, fontSize = 9.sp) }
         }
         if (showSearchHistory && searchHistory.isNotEmpty()) Column(Modifier.fillMaxWidth().background(ShellPanel, RoundedCornerShape(12.dp)).padding(8.dp)) {
-            searchHistory.forEach { query -> TextButton(onClick = { searchQuery = query; showSearchHistory = false }) { Text(query, color = ShellText) } }
+            searchHistory.forEach { query ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { searchQuery = query; showSearchHistory = false }, modifier = Modifier.weight(1f)) {
+                        Text(query, color = ShellText)
+                    }
+                    TextButton(onClick = {
+                        searchHistory = searchHistory.filterNot { it == query }
+                        searchPrefs.edit().putStringSet("queries", searchHistory.toSet()).apply()
+                    }) { Text("X", color = ShellMuted, fontSize = 10.sp) }
+                }
+            }
         }
         Text("Green = active within the last 90 seconds. Search history stays on this device.", color = ShellMuted, fontSize = 11.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
