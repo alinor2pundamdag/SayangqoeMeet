@@ -1,111 +1,68 @@
 package com.sayangqoemeet.app
 
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.app.RemoteAction
-import android.graphics.drawable.Icon
-import java.lang.ref.WeakReference
 
-/**
- * Routes PiP actions to the active call.
- *
- * The call screen registers its current manager while a call is active.
- * No credentials or signaling secrets are stored here.
- */
 internal object CallPipController {
+    const val ACTION_SET_MUTED =
+        "com.sayangqoemeet.app.pip.SET_MUTED"
 
-    const val ACTION_MUTE =
-        "com.sayangqoemeet.app.pip.MUTE"
+    const val ACTION_SET_CAMERA_ENABLED =
+        "com.sayangqoemeet.app.pip.SET_CAMERA_ENABLED"
 
-    const val ACTION_CAMERA =
-        "com.sayangqoemeet.app.pip.CAMERA"
+    const val ACTION_HANG_UP =
+        "com.sayangqoemeet.app.pip.HANG_UP"
 
-    const val ACTION_END_CALL =
-        "com.sayangqoemeet.app.pip.END_CALL"
+    const val EXTRA_CALL_ID = "call_id"
+    const val EXTRA_ENABLED = "enabled"
 
-    private var managerRef: WeakReference<WebRtcCallManager>? = null
-
-    @Volatile
-    var isVideoCallActive: Boolean = false
-        private set
-
-    @Volatile
-    var isMuted: Boolean = false
-        private set
-
-    @Volatile
-    var isCameraEnabled: Boolean = true
-        private set
-
-    fun register(
-        manager: WebRtcCallManager,
-        isVideo: Boolean
-    ) {
-        managerRef = WeakReference(manager)
-        isVideoCallActive = isVideo
-        isMuted = false
-        isCameraEnabled = isVideo
-    }
-
-    fun clear(manager: WebRtcCallManager? = null) {
-        val current = managerRef?.get()
-
-        if (manager == null || current === manager) {
-            managerRef?.clear()
-            managerRef = null
-            isVideoCallActive = false
-            isMuted = false
-            isCameraEnabled = true
-        }
-    }
-
-    fun toggleMute(): Boolean? {
-        val manager = managerRef?.get() ?: return null
-
-        isMuted = !isMuted
-        manager.setMuted(isMuted)
-
-        return isMuted
-    }
-
-    fun toggleCamera(): Boolean? {
-        val manager = managerRef?.get() ?: return null
-
-        if (!isVideoCallActive) return null
-
-        isCameraEnabled = !isCameraEnabled
-        manager.setVideoEnabled(isCameraEnabled)
-
-        return isCameraEnabled
-    }
-
-    fun activeManager(): WebRtcCallManager? =
-        managerRef?.get()
-
-    fun createAction(
+    fun setMuted(
         context: Context,
-        requestCode: Int,
+        callId: String,
+        muted: Boolean
+    ) {
+        dispatch(
+            context = context,
+            callId = callId,
+            action = ACTION_SET_MUTED,
+            enabled = muted
+        )
+    }
+
+    fun setCameraEnabled(
+        context: Context,
+        callId: String,
+        enabled: Boolean
+    ) {
+        dispatch(
+            context = context,
+            callId = callId,
+            action = ACTION_SET_CAMERA_ENABLED,
+            enabled = enabled
+        )
+    }
+
+    fun hangUp(context: Context, callId: String) {
+        val intent = Intent(context, CallPipActionReceiver::class.java)
+            .setAction(ACTION_HANG_UP)
+            .putExtra(EXTRA_CALL_ID, callId)
+
+        context.sendBroadcast(intent)
+    }
+
+    private fun dispatch(
+        context: Context,
+        callId: String,
         action: String,
-        title: String,
-        iconRes: Int
-    ): RemoteAction {
+        enabled: Boolean
+    ) {
+        require(callId.isNotBlank()) { "A call ID is required." }
+
         val intent = Intent(context, CallPipActionReceiver::class.java)
             .setAction(action)
+            .putExtra(EXTRA_CALL_ID, callId)
+            .putExtra(EXTRA_ENABLED, enabled)
 
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            requestCode,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return RemoteAction(
-            Icon.createWithResource(context, iconRes),
-            title,
-            title,
-            pendingIntent
-        )
+        context.sendBroadcast(intent)
     }
 }
