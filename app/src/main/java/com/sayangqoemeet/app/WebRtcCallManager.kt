@@ -67,6 +67,8 @@ internal class WebRtcCallManager(
     private var microphoneMuted = false
     private var speakerOn = true
     private var ringbackTone: ToneGenerator? = null
+    private var isCaller = false
+    private val connectionEstablished = AtomicBoolean(false)
 
     fun attachRenderers(local: SurfaceViewRenderer?, remote: SurfaceViewRenderer?) {
         localRenderer?.let { videoTrack?.removeSink(it) }
@@ -86,6 +88,7 @@ internal class WebRtcCallManager(
     }
 
     suspend fun startAsCaller() {
+        isCaller = true
         initializePeer()
         val offer = createDescription(offer = true)
         CallSignalingRepository.setOffer(callId, offer.description)
@@ -130,6 +133,7 @@ internal class WebRtcCallManager(
                         PeerConnection.IceConnectionState.CONNECTED,
                         PeerConnection.IceConnectionState.COMPLETED -> {
                             stopRingbackTone()
+                            connectionEstablished.set(true)
                             runCatching { CallSignalingRepository.setStatus(callId, "connected") }
                             onStatus("Connected")
                         }
@@ -313,7 +317,7 @@ internal class WebRtcCallManager(
         callStatusSubscription?.close()
         callStatusSubscription = SupabaseRealtime.subscribe("call_sessions", "id=eq.$callId", { row ->
             val terminal = row.optString("status")
-            if (terminal in setOf("declined", "ended", "missed", "failed") && endNotified.compareAndSet(false, true)) {
+            if (terminal in setOf("declined", "cancelled", "ended", "missed", "failed") && endNotified.compareAndSet(false, true)) {
                 scope.launch {
                     stopRingbackTone()
                     onStatus("Call $terminal")
@@ -326,7 +330,7 @@ internal class WebRtcCallManager(
             while (isActive && !disposed.get()) {
                 try {
                     val call = CallSignalingRepository.getCall(callId)
-                    if (call.status in setOf("declined", "ended", "missed", "failed")) {
+                    if (call.status in setOf("declined", "cancelled", "ended", "missed", "failed")) {
                         stopRingbackTone()
                         onStatus("Call ${call.status}")
                         onCallEnded(call.status)
@@ -387,13 +391,14 @@ internal class WebRtcCallManager(
         ringbackTone = null
     }
 
-    suspend fun hangUp(status: String = "ended") {
+    suspend fun hangUp(status: String? = null) {
         if (disposed.getAndSet(true)) return
+        val terminalStatus = status ?: if (isCaller && !connectionEstablished.get()) "cancelled" else "ended"
         stopRingbackTone()
         signalJob?.cancel()
         callStatusSubscription?.close()
         callStatusSubscription = null
-        runCatching { CallSignalingRepository.setStatus(callId, status) }
+        runCatching { CallSignalingRepository.setStatus(callId, terminalStatus) }
         withContext(Dispatchers.Main) {
             localRenderer?.let { videoTrack?.removeSink(it); it.release() }
             remoteRenderer?.let { renderer ->
