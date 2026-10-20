@@ -72,21 +72,34 @@ internal class WebRtcCallManager(
 
     val isVideoCall: Boolean get() = videoEnabled
 
+    @Synchronized
     fun attachRenderers(local: SurfaceViewRenderer?, remote: SurfaceViewRenderer?) {
         if (disposed.get()) return
-        localRenderer?.let { videoTrack?.removeSink(it) }
-        remoteRenderer?.let { peer?.receivers?.forEach { receiver -> (receiver.track() as? VideoTrack)?.removeSink(it) } }
-        localRenderer = local
-        remoteRenderer = remote
-        local?.let {
-            it.init(eglBase.eglBaseContext, null)
-            it.setMirror(true)
-            videoTrack?.addSink(it)
+        val previousLocal = localRenderer
+        val previousRemote = remoteRenderer
+        if (previousLocal !== local) {
+            previousLocal?.let { videoTrack?.removeSink(it) }
+            localRenderer = local
+            local?.let {
+                it.init(eglBase.eglBaseContext, null)
+                it.setMirror(true)
+                videoTrack?.addSink(it)
+            }
         }
-        remote?.let {
-            it.init(eglBase.eglBaseContext, null)
-            it.setMirror(false)
-            peer?.receivers?.forEach { receiver -> (receiver.track() as? VideoTrack)?.addSink(it) }
+        if (previousRemote !== remote) {
+            previousRemote?.let { old ->
+                peer?.receivers?.forEach { receiver ->
+                    (receiver.track() as? VideoTrack)?.removeSink(old)
+                }
+            }
+            remoteRenderer = remote
+            remote?.let {
+                it.init(eglBase.eglBaseContext, null)
+                it.setMirror(false)
+                peer?.receivers?.forEach { receiver ->
+                    (receiver.track() as? VideoTrack)?.addSink(it)
+                }
+            }
         }
     }
 
