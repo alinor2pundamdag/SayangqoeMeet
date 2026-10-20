@@ -137,6 +137,12 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
     var selectedCallRecipient by remember { mutableStateOf<String?>(null) }
     var selectedCallType by remember { mutableStateOf("voice") }
     var showAbout by remember { mutableStateOf(false) }
+    LaunchedEffect(initialConversationId) {
+        if (!initialConversationId.isNullOrBlank()) {
+            selectedConversation = initialConversationId
+            destination = AppDestination.CHAT
+        }
+    }
     val context = LocalContext.current
 
     Column(
