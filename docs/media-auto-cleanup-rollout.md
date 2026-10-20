@@ -1,0 +1,11 @@
+# Private media cleanup rollout
+- Attachment columns are nullable and existing messages/history are preserved. Purging stamps attachment_purged_at; it does not delete message rows or clear metadata.
+- Private object path format: <conversation UUID>/<sender UUID>/<filename>. The database trigger validates the path and enqueues it in the fixed chat-attachments bucket.
+- Recipient confirmation uses the authenticated JWT identity and checks conversation membership; sender cannot confirm as a recipient. Android must call it only after the entire object is downloaded and validated locally.
+- Immediate purge requires confirmation from every current conversation member except the sender. TTL fallback is 14 days. Group chats use the same all-recipient rule.
+- Worker claims with FOR UPDATE SKIP LOCKED; claims older than 10 minutes are reclaimable. Only chat-attachments is deleted. Storage errors return jobs to pending.
+- Live migration ledger records atomic RPC as 20261017175440, while repository migration filename is 20261017153000_atomic_direct_conversation_rpc.sql. Do not rewrite migration history or replay old DDL blindly; inspect migration contents and schema before any repair.
+- Deploy confirmation function with JWT verification on. Set a high-entropy MEDIA_CLEANUP_CRON_SECRET server-side, deploy cleanup-chat-media with platform JWT verification off only because it validates x-cleanup-secret itself, and schedule trusted POST calls. Never put service-role or cleanup secrets in Android/Git.
+- Verification: schema columns/RLS/grants; 401 unauthenticated; 400 malformed ID/sender; 403 nonmember; 200 valid recipient; idempotent duplicate confirmation; group all-recipient gate; TTL fallback; concurrent worker claims; unsafe path rejection; missing object retry behavior; transient deletion failure retry; message/history/placeholder persistence.
+- Device settings, theme, notification tones/vibration and local media/thumbnail caches remain device-side.
+- Release gates: live schema and Edge Function checks, scheduler setup, Android post-download confirmation integration, two-account/two-device media and WebRTC testing (ICE exchange, restrictive NAT/TURN relay, STUN fallback, expired TURN credentials/recovery).
