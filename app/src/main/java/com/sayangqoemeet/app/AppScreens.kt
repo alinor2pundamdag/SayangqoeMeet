@@ -30,6 +30,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1067,68 +1068,124 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                             }
                         }
                     }
-                    TextButton(onClick = { showSharedMedia = false }, modifier = Modifier.align(Alignment.End)) { Text("CLOSE", color = ShellMuted) }
-                }
-            }
-        }
-    }
-
-}
-
-@Composable
+                    TextButton(onClick = { showSharedMedia = false }, modifier = Modifier.align(Alignment.End)) { Text("CLOSE", color = She@Composable
 private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> Unit) {
     val context = LocalContext.current
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var recordingFile by remember { mutableStateOf<java.io.File?>(null) }
     var recording by remember { mutableStateOf(false) }
+    var elapsedSeconds by remember { mutableStateOf(0) }
+    var dragDistance by remember { mutableStateOf(0f) }
     var error by remember { mutableStateOf<String?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) error = "Microphone permission is required to record a voice note."
     }
-    DisposableEffect(Unit) {
-        onDispose { runCatching { recorder?.release() }; recorder = null }
+    fun finishRecording(keepFile: Boolean): Uri? {
+        val file = recordingFile
+        val success = runCatching { recorder?.stop() }.isSuccess
+        runCatching { recorder?.release() }
+        recorder = null
+        recording = false
+        return if (keepFile && success && file?.exists() == true && file.length() > 0L) Uri.fromFile(file) else {
+            runCatching { file?.delete() }
+            null
+        }
     }
-    Dialog(onDismissRequest = onDismiss) {
+    fun startRecording() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        runCatching {
+            val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
+            @Suppress("DEPRECATION")
+            val mediaRecorder = MediaRecorder()
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            mediaRecorder.setOutputFile(file.absolutePath)
+            mediaRecorder.prepare()
+            mediaRecorder.start()
+            recorder = mediaRecorder
+            recordingFile = file
+            elapsedSeconds = 0
+            recording = true
+            error = null
+        }.onFailure { error = it.message ?: "Could not start recording." }
+    }
+    LaunchedEffect(recording) {
+        while (recording) {
+            kotlinx.coroutines.delay(1_000)
+            elapsedSeconds += 1
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            runCatching { recorder?.release() }
+            recorder = null
+            if (recording) runCatching { recordingFile?.delete() }
+        }
+    }
+    val waveform = rememberInfiniteTransition(label = "voice-waveform")
+    val bars = (0 until 24).map { index ->
+        waveform.animateFloat(
+            initialValue = 5f + (index % 4) * 2f,
+            targetValue = 13f + (index % 5) * 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 280 + index * 23, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "wave-$index"
+        )
+    }
+    Dialog(onDismissRequest = { if (recording) finishRecording(false); onDismiss() }) {
         Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("VOICE NOTE", color = ShellCyan, fontWeight = FontWeight.Bold)
-                Text(if (recording) "Recording… tap stop to attach the voice note." else "Record a short audio note. It will upload privately to this conversation.", color = ShellText, fontSize = 13.sp)
-                error?.let { Text(it, color = Color(0xFFFF8297), fontSize = 11.sp) }
-                Button(
-                    onClick = {
-                        if (!recording) {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            } else {
-                                runCatching {
-                                    val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
-                                    @Suppress("DEPRECATION")
-                                    val mediaRecorder = MediaRecorder()
-                                    mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-                                    mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                                    mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                                    mediaRecorder.setOutputFile(file.absolutePath)
-                                    mediaRecorder.prepare()
-                                    mediaRecorder.start()
-                                    recorder = mediaRecorder
-                                    recordingFile = file
-                                    recording = true
-                                    error = null
-                                }.onFailure { error = it.message ?: "Could not start recording." }
-                            }
-                        } else {
-                            val file = recordingFile
-                            val success = runCatching { recorder?.stop() }.isSuccess
-                            runCatching { recorder?.release() }
-                            recorder = null
-                            recording = false
-                            if (success && file?.exists() == true && file.length() > 0) onRecorded(Uri.fromFile(file))
-                            else error = "Recording was too short. Try again."
+                Text(if (recording) "Recording in progress" else "Record a private voice note.", color = ShellText, fontSize = 13.sp)
+                Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    bars.forEach { bar ->
+                        Box(Modifier.weight(1f).height(if (recording) bar.value.dp else 5.dp).background(if (recording) ShellCyan else ShellMuted, RoundedCornerShape(4.dp)))
+                    }
+                }
+                Text(String.format(java.util.Locale.ROOT, "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60), color = if (recording) ShellCyan else ShellMuted, fontWeight = FontWeight.Bold)
+                if (recording) {
+                    Text(
+                        when { dragDistance < -70f -> "Release to cancel"; dragDistance > 70f -> "Release to send"; else -> "Slide left to cancel • slide right to send" },
+                        color = if (kotlin.math.abs(dragDistance) > 70f) ShellCyan else ShellMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.fillMaxWidth().pointerInput(recording) {
+                            detectDragGestures(
+                                onDragEnd = {
+                                    when {
+                                        dragDistance < -70f -> { finishRecording(false); dragDistance = 0f; error = "Recording discarded." }
+                                        dragDistance > 70f -> { val uri = finishRecording(true); dragDistance = 0f; if (uri != null) onRecorded(uri) else error = "Recording was too short. Try again." }
+                                        else -> dragDistance = 0f
+                                    }
+                                },
+                                onDragCancel = { dragDistance = 0f },
+                                onDrag = { change, amount -> change.consume(); dragDistance += amount.x }
+                            )
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (recording) Color(0xFFB9415B) else ShellBlue)
-                ) { Text(if (recording) "STOP & ATTACH" else "START RECORDING") }
-                TextButton(onClick = onDismiss) { Text("CANCEL", color = ShellMuted) }
+                    )
+                }
+                error?.let { Text(it, color = Color(0xFFFF8297), fontSize = 11.sp) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextButton(onClick = { if (recording) finishRecording(false); onDismiss() }, modifier = Modifier.weight(1f)) { Text("CANCEL", color = ShellMuted) }
+                    Button(
+                        onClick = {
+                            if (!recording) startRecording()
+                            else { val uri = finishRecording(true); if (uri != null) onRecorded(uri) else error = "Recording was too short. Try again." }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (recording) Color(0xFFB9415B) else ShellBlue)
+                    ) { Text(if (recording) "STOP & SEND" else "RECORD") }
+                }
+            }
+        }
+    }
+}
+CANCEL", color = ShellMuted) }
             }
         }
     }
