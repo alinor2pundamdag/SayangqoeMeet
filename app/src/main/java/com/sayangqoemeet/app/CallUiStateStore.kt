@@ -72,6 +72,15 @@ internal class CallUiStateStore {
     }
 
     @Synchronized
+    fun updateVideoState(local: VideoTrackUiState? = null, remote: VideoTrackUiState? = null) {
+        val current = mutableState.value
+        mutableState.value = current.copy(
+            localVideo = local ?: current.localVideo,
+            remoteVideo = remote ?: current.remoteVideo
+        )
+    }
+
+    @Synchronized
     fun setPhase(phase: CallPhase, error: String? = null) {
         mutableState.value = mutableState.value.copy(
             phase = phase,
@@ -82,5 +91,9 @@ internal class CallUiStateStore {
     @Synchronized
     fun clear() {
         mutableState.value = CallUiState(phase = CallPhase.ENDED)
+    }
+
+    companion object {
+        val shared: CallUiStateStore by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { CallUiStateStore() }
     }
 }

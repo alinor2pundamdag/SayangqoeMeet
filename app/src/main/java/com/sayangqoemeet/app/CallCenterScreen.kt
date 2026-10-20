@@ -72,6 +72,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
     var localRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var remoteRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val callUiStateStore = remember { CallUiStateStore.shared }
 
     LaunchedEffect(Unit) {
         try {
@@ -124,6 +125,8 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                         onCallEnded = { terminalStatus ->
                             scope.launch {
                                 manager?.let { endedManager -> runCatching { endedManager.hangUp("ended") } }
+                                activeCall?.id?.let(CallPipController::unregister)
+                                callUiStateStore.clear()
                                 manager = null
                                 activeCall = null
                                 localRenderer = null
@@ -134,6 +137,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                         }
                     )
                     manager = instance
+                    CallPipController.register(call.id, instance, callUiStateStore)
                     instance.attachRenderers(localRenderer, remoteRenderer)
                     if (caller) instance.startAsCaller() else instance.acceptAsCallee()
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -266,9 +270,9 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { muted = !muted; manager?.setMuted(muted) }) { Text(if (muted) "UNMUTE" else "MUTE") }
+                    Button(onClick = { muted = !muted; callUiStateStore.setMuted(muted); manager?.setMuted(muted) }) { Text(if (muted) "UNMUTE" else "MUTE") }
                     Button(onClick = { speaker = !speaker; manager?.setSpeaker(speaker) }) { Text(if (speaker) "SPEAKER ON" else "SPEAKER OFF") }
-                    Button(onClick = { videoOn = !videoOn; manager?.setVideoEnabled(videoOn) }, enabled = activeCall?.type == "video") { Text(if (videoOn) "CAMERA OFF" else "CAMERA ON") }
+                    Button(onClick = { videoOn = !videoOn; callUiStateStore.setCameraEnabled(videoOn); manager?.setVideoEnabled(videoOn) }, enabled = activeCall?.type == "video") { Text(if (videoOn) "CAMERA OFF" else "CAMERA ON") }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { manager?.switchCamera() }, enabled = activeCall?.type == "video") { Text("FLIP CAMERA") }
@@ -278,6 +282,8 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             val current = manager
                             scope.launch {
                                 runCatching { current?.hangUp("ended") }
+                                activeCall?.id?.let(CallPipController::unregister)
+                                callUiStateStore.clear()
                                 manager = null
                                 activeCall = null
                                 localRenderer = null

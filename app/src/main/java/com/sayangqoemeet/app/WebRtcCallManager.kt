@@ -70,7 +70,10 @@ internal class WebRtcCallManager(
     private var isCaller = false
     private val connectionEstablished = AtomicBoolean(false)
 
+    val isVideoCall: Boolean get() = videoEnabled
+
     fun attachRenderers(local: SurfaceViewRenderer?, remote: SurfaceViewRenderer?) {
+        if (disposed.get()) return
         localRenderer?.let { videoTrack?.removeSink(it) }
         remoteRenderer?.let { peer?.receivers?.forEach { receiver -> (receiver.track() as? VideoTrack)?.removeSink(it) } }
         localRenderer = local
@@ -360,6 +363,7 @@ internal class WebRtcCallManager(
     }
 
     fun setMuted(muted: Boolean) {
+        if (disposed.get()) return
         microphoneMuted = muted
         audioTrack?.setEnabled(!muted)
     }
@@ -372,6 +376,7 @@ internal class WebRtcCallManager(
     }
 
     fun setVideoEnabled(enabled: Boolean) {
+        if (disposed.get() || !videoEnabled) return
         videoTrack?.setEnabled(enabled)
     }
 

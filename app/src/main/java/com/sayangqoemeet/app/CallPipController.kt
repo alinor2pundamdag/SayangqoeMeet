@@ -2,67 +2,92 @@ package com.sayangqoemeet.app
 
 import android.content.Context
 import android.content.Intent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 
+/** Call-scoped in-process router for explicit PiP commands. */
 internal object CallPipController {
-    const val ACTION_SET_MUTED =
-        "com.sayangqoemeet.app.pip.SET_MUTED"
-
-    const val ACTION_SET_CAMERA_ENABLED =
-        "com.sayangqoemeet.app.pip.SET_CAMERA_ENABLED"
-
-    const val ACTION_HANG_UP =
-        "com.sayangqoemeet.app.pip.HANG_UP"
-
+    const val ACTION_SET_MUTED = "com.sayangqoemeet.app.pip.SET_MUTED"
+    const val ACTION_SET_CAMERA_ENABLED = "com.sayangqoemeet.app.pip.SET_CAMERA_ENABLED"
+    const val ACTION_HANG_UP = "com.sayangqoemeet.app.pip.HANG_UP"
     const val EXTRA_CALL_ID = "call_id"
     const val EXTRA_ENABLED = "enabled"
 
-    fun setMuted(
-        context: Context,
-        callId: String,
-        muted: Boolean
-    ) {
-        dispatch(
-            context = context,
-            callId = callId,
-            action = ACTION_SET_MUTED,
-            enabled = muted
-        )
+    @Volatile private var activeCallId: String? = null
+    @Volatile private var managerRef: WeakReference<WebRtcCallManager>? = null
+    @Volatile private var stateRef: WeakReference<CallUiStateStore>? = null
+
+    @Synchronized
+    fun register(callId: String, manager: WebRtcCallManager, state: CallUiStateStore) {
+        require(callId.isNotBlank())
+        activeCallId = callId
+        managerRef = WeakReference(manager)
+        stateRef = WeakReference(state)
+        state.begin(callId, manager.isVideoCall)
     }
 
-    fun setCameraEnabled(
-        context: Context,
-        callId: String,
-        enabled: Boolean
-    ) {
-        dispatch(
-            context = context,
-            callId = callId,
-            action = ACTION_SET_CAMERA_ENABLED,
-            enabled = enabled
-        )
+    @Synchronized
+    fun unregister(callId: String) {
+        if (activeCallId != callId) return
+        managerRef?.clear()
+        stateRef?.clear()
+        managerRef = null
+        stateRef = null
+        activeCallId = null
     }
+
+    fun setMuted(context: Context, callId: String, muted: Boolean) =
+        dispatch(context, callId, ACTION_SET_MUTED, muted)
+
+    fun setCameraEnabled(context: Context, callId: String, enabled: Boolean) =
+        dispatch(context, callId, ACTION_SET_CAMERA_ENABLED, enabled)
 
     fun hangUp(context: Context, callId: String) {
-        val intent = Intent(context, CallPipActionReceiver::class.java)
-            .setAction(ACTION_HANG_UP)
-            .putExtra(EXTRA_CALL_ID, callId)
-
-        context.sendBroadcast(intent)
+        require(callId.isNotBlank())
+        context.sendBroadcast(Intent(context, CallPipActionReceiver::class.java)
+            .setAction(ACTION_HANG_UP).putExtra(EXTRA_CALL_ID, callId))
     }
 
-    private fun dispatch(
-        context: Context,
-        callId: String,
-        action: String,
-        enabled: Boolean
-    ) {
+    fun handle(context: Context, intent: Intent) {
+        val callId = intent.getStringExtra(EXTRA_CALL_ID) ?: return
+        val manager: WebRtcCallManager
+        val state: CallUiStateStore
+        synchronized(this) {
+            if (activeCallId != callId) return
+            manager = managerRef?.get() ?: return
+            state = stateRef?.get() ?: return
+        }
+        when (intent.action) {
+            ACTION_SET_MUTED -> {
+                val muted = intent.getBooleanExtra(EXTRA_ENABLED, false)
+                state.setMuted(muted)
+                manager.setMuted(muted)
+            }
+            ACTION_SET_CAMERA_ENABLED -> {
+                if (!manager.isVideoCall) return
+                val enabled = intent.getBooleanExtra(EXTRA_ENABLED, true)
+                state.setCameraEnabled(enabled)
+                manager.setVideoEnabled(enabled)
+            }
+            ACTION_HANG_UP -> {
+                state.setPhase(CallPhase.ENDING)
+                CoroutineScope(Dispatchers.Main.immediate).launch {
+                    try {
+                        manager.hangUp("ended")
+                    } finally {
+                        unregister(callId)
+                        state.clear()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun dispatch(context: Context, callId: String, action: String, enabled: Boolean) {
         require(callId.isNotBlank()) { "A call ID is required." }
-
-        val intent = Intent(context, CallPipActionReceiver::class.java)
-            .setAction(action)
-            .putExtra(EXTRA_CALL_ID, callId)
-            .putExtra(EXTRA_ENABLED, enabled)
-
-        context.sendBroadcast(intent)
+        context.sendBroadcast(Intent(context, CallPipActionReceiver::class.java)
+            .setAction(action).putExtra(EXTRA_CALL_ID, callId).putExtra(EXTRA_ENABLED, enabled))
     }
 }
