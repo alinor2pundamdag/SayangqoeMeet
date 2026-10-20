@@ -4,6 +4,10 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.Person
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import android.content.Context
 import android.content.Intent
 import android.content.BroadcastReceiver
@@ -50,7 +54,13 @@ internal object MessageNotificationChannels {
                 enableVibration(true)
                 setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), null)
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) channel.setAllowBubbles(true)
             manager.createNotificationChannel(channel)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            manager.getNotificationChannel(CHANNEL_ID)?.let { existing ->
+                existing.setAllowBubbles(true)
+                manager.createNotificationChannel(existing)
+            }
         }
     }
 }
@@ -77,24 +87,58 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         ) return
 
         MessageNotificationChannels.ensureCreated(this)
-        val openApp = Intent(this, MainActivity::class.java).apply {
+        val conversationId = message.data["conversation_id"]?.takeIf { it.matches(Regex("^[0-9a-fA-F-]{36}$")) }
+        val senderName = message.data["sender_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet"
+        val bubbleIntent = if (conversationId != null) Intent(this, ChatBubbleActivity::class.java).apply {
+            putExtra(ChatBubbleActivity.EXTRA_CONVERSATION_ID, conversationId)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        } else Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("open_chats", true)
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
-            4101,
-            openApp,
+            conversationId?.hashCode() ?: 4101,
+            bubbleIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        // Keep the builder's concrete type explicit across Kotlin/AndroidX compiler versions.
         val notificationBuilder: NotificationCompat.Builder =
             NotificationCompat.Builder(this, MessageNotificationChannels.CHANNEL_ID)
         notificationBuilder.setSmallIcon(android.R.drawable.stat_notify_chat)
-        notificationBuilder.setContentTitle("SayangqoeMeet")
-        notificationBuilder.setContentText("You have a new message.")
+        notificationBuilder.setContentTitle(senderName)
+        notificationBuilder.setContentText(message.data["message_preview"]?.takeIf { it.isNotBlank() } ?: "You have a new message.")
         notificationBuilder.setContentIntent(pendingIntent)
         notificationBuilder.setAutoCancel(true)
         notificationBuilder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        if (conversationId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching {
+                val shortcutId = "conversation-$conversationId"
+                val shortcutManager = getSystemService(ShortcutManager::class.java)
+                val shortcutIntent = Intent(this, ChatBubbleActivity::class.java).apply {
+                    putExtra(ChatBubbleActivity.EXTRA_CONVERSATION_ID, conversationId)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val shortcutBuilder = ShortcutInfo.Builder(this, shortcutId)
+                    .setShortLabel(senderName.take(25))
+                    .setLongLabel("Chat with $senderName")
+                    .setIcon(Icon.createWithResource(this, android.R.drawable.sym_action_chat))
+                    .setIntent(shortcutIntent)
+                    .setCategories(setOf(ShortcutInfo.SHORTCUT_CATEGORY_CONVERSATION))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    shortcutBuilder.setLongLived(true)
+                    shortcutBuilder.setPerson(Person.Builder().setName(senderName).build())
+                }
+                shortcutManager?.pushDynamicShortcut(shortcutBuilder.build())
+                val bubble = NotificationCompat.BubbleMetadata.Builder(
+                    pendingIntent,
+                    Icon.createWithResource(this, android.R.drawable.sym_action_chat)
+                ).setDesiredHeight((600 * resources.displayMetrics.density).toInt())
+                    .setAutoExpandBubble(false)
+                    .setSuppressNotification(false)
+                    .build()
+                notificationBuilder.setBubbleMetadata(bubble)
+            }
+        }
         val notification = notificationBuilder.build()
         runCatching {
             NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
