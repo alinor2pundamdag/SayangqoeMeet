@@ -51,3 +51,14 @@
 - Android CI run 195 passed lintDebug, testDebugUnitTest, assembleDebug, and artifact upload: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39258139369
 - Artifact SayangqoeMeet-Android-APK: 37,075,511 bytes, SHA-256 a4725eedb51353a6cd04a80912309117079a1fe0247a058cdcbe03b8317bb039, expires 2026-11-02.
 - Live Storage/Realtime migration and physical-device tests are still pending.
+
+
+## 2026-10-20 — Media cleanup implementation handoff
+
+- Work branch: feat/media-download-cleanup; PR #10: https://github.com/alinor2pundamdag/SayangqoeMeet/pull/10.
+- Commit: 094497dc1a52aeb665134471c5cfba937432a644 (media backend implementation plus migration version alignment).
+- Live migrations applied: 20261020121714_media_download_tracking_and_cleanup and 20261020121824_lock_down_media_trigger_rpc. Verify with Supabase migration listing before any further migration action.
+- Live functions: confirm-message-media-download ACTIVE v1 verify_jwt=true; cleanup-chat-media ACTIVE v1 verify_jwt=false with x-cleanup-secret validation. Configure MEDIA_CLEANUP_CRON_SECRET out-of-band and add trusted scheduling before worker use.
+- Important: no Android code currently invokes confirmation after media download. Until that is implemented, immediate purge cannot be driven by real app download events; TTL fallback is the only automatic eligibility path. Do not claim end-to-end media cleanup is tested.
+- Migration drift remains beyond atomic RPC version naming. Do not run supabase db push blindly; compare each repository migration's effects to live schema and migration ledger. Existing live data was not deleted or rewritten by these changes.
+- Next: wait for PR CI; inspect Supabase security advisor (the two new RLS-no-policy notices are intentional service-role-only tables; leaked-password protection remains disabled, and unrelated SECURITY DEFINER warnings remain); configure secret/scheduler; implement Android post-download confirmation; test auth denial, idempotency, group all-recipient gating, TTL fallback, worker retry and concurrent claims; then two-device WebRTC ICE/TURN/STUN/expired-credential tests.

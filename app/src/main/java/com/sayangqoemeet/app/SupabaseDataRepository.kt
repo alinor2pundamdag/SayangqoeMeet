@@ -2,6 +2,10 @@ package com.sayangqoemeet.app
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -444,12 +448,115 @@ internal object SupabaseDataRepository {
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) error("Could not open attachment ($code).")
+            if (code !in 200..299) error("Could not create attachment URL ($code).")
             val signed = JSONObject(response).optString("signedURL")
-            if (signed.startsWith("http")) signed else BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1" + if (signed.startsWith("/")) signed else "/$signed"
+            require(signed.isNotBlank()) { "Storage returned an empty signed URL." }
+            if (signed.startsWith("https://")) signed else {
+                require(signed.startsWith("/")) { "Storage returned an invalid signed URL." }
+                BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1" + signed
+            }
         } finally { connection.disconnect() }
     }
 
+    /**
+     * Downloads to app-private cache and atomically publishes only a complete, non-empty file.
+     * Recipient confirmation is retried only after the atomic move succeeds; the sender is excluded.
+     */
+    suspend fun downloadAttachmentToCache(
+        context: Context,
+        messageId: String,
+        senderId: String,
+        objectPath: String,
+        mimeType: String?,
+        displayName: String?
+    ): Uri = withContext(Dispatchers.IO) {
+        val currentUserId = userId()
+        require(messageId.isNotBlank()) { "Missing attachment message ID." }
+        require(objectPath.isNotBlank() && !objectPath.startsWith("/") &&
+            objectPath.split("/").none { it == "." || it == ".." }) { "Invalid attachment path." }
+
+        val attachmentDir = File(context.cacheDir, "attachments").apply {
+            if (!exists() && !mkdirs()) error("Could not prepare the private attachment cache.")
+            if (!isDirectory) error("Attachment cache path is not a directory.")
+        }
+        val extension = when (mimeType?.substringBefore(';')?.trim()?.lowercase()) {
+            "image/jpeg" -> "jpg"
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "video/mp4" -> "mp4"
+            "video/webm" -> "webm"
+            "audio/mpeg" -> "mp3"
+            "audio/mp4" -> "m4a"
+            "audio/ogg" -> "ogg"
+            "application/pdf" -> "pdf"
+            else -> displayName?.substringAfterLast('.', "")?.replace(Regex("[^A-Za-z0-9]"), "")
+                ?.take(8)?.takeIf { it.isNotBlank() } ?: "bin"
+        }
+        val finalFile = File(attachmentDir, "${messageId}.$extension")
+        val tempFile = File.createTempFile("${messageId}_", ".part", attachmentDir)
+        try {
+            val signedUrl = createSignedAttachmentUrl(objectPath)
+            val connection = (URL(signedUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 15000
+                readTimeout = 60000
+                instanceFollowRedirects = true
+            }
+            try {
+                val code = connection.responseCode
+                if (code !in 200..299) error("Attachment download failed (HTTP $code).")
+                val expectedLength = connection.contentLengthLong
+                connection.inputStream.use { input ->
+                    tempFile.outputStream().buffered().use { output ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        var total = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            if (count == 0) continue
+                            total += count
+                            if (total > 25L * 1024 * 1024) error("Attachment exceeds the 25 MB download limit.")
+                            output.write(buffer, 0, count)
+                        }
+                        output.flush()
+                    }
+                }
+                if (!tempFile.isFile || tempFile.length() <= 0L) error("Downloaded attachment is empty.")
+                if (expectedLength >= 0L && tempFile.length() != expectedLength) {
+                    error("Attachment download was incomplete; please retry.")
+                }
+            } finally {
+                connection.disconnect()
+            }
+
+            // Same-directory move ensures an atomic publication on the cache filesystem.
+            Files.move(tempFile.toPath(), finalFile.toPath(),
+                StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+
+            // This is intentionally after successful HTTP, length, non-empty, and atomic-move checks.
+            if (senderId != currentUserId) {
+                var lastError: Exception? = null
+                for (attempt in 0 until 3) {
+                    try {
+                        request("POST", "functions/v1/confirm-message-media-download",
+                            JSONObject().put("message_id", messageId))
+                        lastError = null
+                        break
+                    } catch (error: Exception) {
+                        lastError = error
+                        if (attempt < 2) kotlinx.coroutines.delay(300L * (attempt + 1))
+                    }
+                }
+                if (lastError != null) {
+                    error("Attachment is cached, but recipient confirmation failed after retries. Tap OPEN FILE to retry.")
+                }
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", finalFile)
+        } finally {
+            if (tempFile.exists()) tempFile.delete()
+        }
+    }
     fun subscribeToMessages(conversationId: String, onChange: () -> Unit): SupabaseRealtime.Subscription? =
         SupabaseRealtime.subscribe("messages", "conversation_id=eq.$conversationId", { onChange() })
 
