@@ -15,6 +15,7 @@ import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.FirebaseApp
@@ -135,7 +136,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
                 }
                 val bubble = NotificationCompat.BubbleMetadata.Builder(
                     pendingIntent,
-                    Icon.createWithResource(this, android.R.drawable.sym_action_chat)
+                    IconCompat.createWithResource(this, android.R.drawable.sym_action_chat)
                 ).setDesiredHeight((600 * resources.displayMetrics.density).toInt())
                     .setAutoExpandBubble(false)
                     .setSuppressNotification(false)
