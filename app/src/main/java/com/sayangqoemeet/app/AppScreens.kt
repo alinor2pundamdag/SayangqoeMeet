@@ -3,6 +3,9 @@ package com.sayangqoemeet.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -43,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -50,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val ShellBg = Color(0xFF070B18)
 private val ShellPanel = Color(0xFF10182B)
@@ -75,6 +83,7 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xE60B1225))
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 20.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -84,7 +93,19 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
             }
             var showOverflow by remember { mutableStateOf(false) }
             Box {
-                TextButton(onClick = { showOverflow = true }) {
+                TextButton(
+                    onClick = { showOverflow = true },
+                    modifier = Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            val released = withTimeoutOrNull(5_000L) { waitForUpOrCancellation() }
+                            if (released == null) {
+                                showOverflow = false
+                                destination = AppDestination.ADMIN
+                            }
+                        }
+                    }
+                ) {
                     Text("⋮", color = ShellCyan, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 }
                 DropdownMenu(
@@ -92,10 +113,6 @@ internal fun SignedInShell(onSignOut: () -> Unit) {
                     onDismissRequest = { showOverflow = false },
                     modifier = Modifier.background(ShellPanel)
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("Admin access", color = ShellText) },
-                        onClick = { showOverflow = false; destination = AppDestination.ADMIN }
-                    )
                     DropdownMenuItem(
                         text = { Text("Sign out", color = ShellMuted) },
                         onClick = { showOverflow = false; onSignOut() }
@@ -163,12 +180,8 @@ private fun HomeScreen(onProfile: () -> Unit, onChats: () -> Unit, onCall: () ->
         Text("Your private communication space.", color = ShellMuted, fontSize = 14.sp)
         Spacer(Modifier.height(4.dp))
         ActionCard("MESSAGES", "Open your conversations and message history", "OPEN CHATS", onChats)
-        ActionCard("YOUR PROFILE", "Set up the name people recognize", "EDIT PROFILE", onProfile)
         ActionCard("VOICE / VIDEO", "Call controls and connection status", "OPEN CALLS", onCall)
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = onAdmin, modifier = Modifier.align(Alignment.End)) {
-            Text("ADMIN CONSOLE  ›", color = ShellMuted, fontSize = 10.sp, letterSpacing = 1.sp)
-        }
     }
 }
 
@@ -465,22 +478,20 @@ private fun CallScreen(onBack: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            Modifier.size(112.dp).background(Color(0x223F8CFF), CircleShape).border(1.dp, ShellCyan, CircleShape),
-            contentAlignment = Alignment.Center
-        ) { Text("CALL", color = ShellCyan, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) }
-        Spacer(Modifier.height(24.dp))
-        Text("Voice & video", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Call state: idle", color = ShellMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("The call control layout is ready, but WebRTC signaling/media are not connected yet. No call is being placed.", color = ShellMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-        Spacer(Modifier.height(28.dp))
+        Text("VOICE / VIDEO", color = ShellCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Spacer(Modifier.height(16.dp))
+        Text("Your contacts", color = ShellText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        EmptyState(
+            "CALLING IS NOT AVAILABLE YET",
+            "Online contacts cannot be shown until presence is connected. Voice/video signaling and media are not configured, so no call can be started from this screen."
+        )
+        Spacer(Modifier.height(20.dp))
         Button(
             onClick = onBack,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB83250)),
-            modifier = Modifier.fillMaxWidth().height(54.dp)
-        ) {
-            Text("HANG UP / CANCEL", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-        }
+            colors = ButtonDefaults.buttonColors(containerColor = ShellBlue),
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) { Text("BACK", color = Color.White, fontWeight = FontWeight.Bold) }
     }
 }
 
