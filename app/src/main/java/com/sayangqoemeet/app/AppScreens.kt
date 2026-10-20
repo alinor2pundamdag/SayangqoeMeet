@@ -340,6 +340,7 @@ private fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
