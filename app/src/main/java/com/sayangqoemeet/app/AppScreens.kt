@@ -930,8 +930,20 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                                 onClick = {
                                     scope.launch {
                                         try {
-                                            val signedUrl = SupabaseDataRepository.createSignedAttachmentUrl(message.attachmentPath)
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signedUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                            val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
+                                                context = context,
+                                                messageId = message.id,
+                                                senderId = message.senderId,
+                                                objectPath = message.attachmentPath,
+                                                mimeType = message.attachmentMimeType,
+                                                displayName = message.attachmentName ?: message.body
+                                            )
+                                            val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
+                                            }
+                                            context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
                                         } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
                                     }
                                 }
