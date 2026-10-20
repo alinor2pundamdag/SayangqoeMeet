@@ -111,7 +111,7 @@ private val ReligionOptions = listOf(
 internal enum class AppDestination { HOME, PROFILE, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
-internal fun SignedInShell(openChatsOnStart: Boolean = false, onSignOut: () -> Unit) {
+internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, onSignOut: () -> Unit) {
     // Heartbeats run only while this screen's Activity is STARTED. When the
     // app goes to the background, stop refreshing and expire this user's row.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -132,8 +132,8 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, onSignOut: () -> U
         }
     }
 
-    var destination by remember { mutableStateOf(if (openChatsOnStart) AppDestination.CHATS else AppDestination.HOME) }
-    var selectedConversation by remember { mutableStateOf<String?>(null) }
+    var destination by remember { mutableStateOf(if (!initialConversationId.isNullOrBlank()) AppDestination.CHAT else if (openChatsOnStart) AppDestination.CHATS else AppDestination.HOME) }
+    var selectedConversation by remember { mutableStateOf<String?>(initialConversationId) }
     var selectedCallRecipient by remember { mutableStateOf<String?>(null) }
     var selectedCallType by remember { mutableStateOf("voice") }
     var showAbout by remember { mutableStateOf(false) }
