@@ -161,7 +161,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDarkTheme) Brush.verticalGradient(listOf(Color(0xFF0C1530), ShellBg)) else Brush.verticalGradient(listOf(Color(0xFFF5F8FF), Color(0xFFE5EDFA)))
+            .background(if (isDarkTheme) Brush.verticalGradient(listOf(Color(0xFF0C1530), ShellBg)) else Brush.verticalGradient(listOf(Color(0xFFF5F8FF), Color(0xFFE5EDFA))))
     ) {
         Row(
             modifier = Modifier
