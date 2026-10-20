@@ -6,6 +6,8 @@ import android.media.MediaRecorder
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.provider.OpenableColumns
+import android.provider.MediaStore
+import android.content.ContentValues
 import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -312,6 +314,7 @@ private fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE) }
     var showRegistrationDates by remember { mutableStateOf(preferences.getBoolean("show_registration_dates", true)) }
+    var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", true)) }
     var historyCount by remember { mutableStateOf(context.getSharedPreferences("people_search_history", android.content.Context.MODE_PRIVATE).getStringSet("queries", emptySet()).orEmpty().size) }
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BackHeader("SETTINGS", onBack)
@@ -325,6 +328,16 @@ private fun SettingsScreen(onBack: () -> Unit) {
             androidx.compose.material3.Switch(checked = showRegistrationDates, onCheckedChange = {
                 showRegistrationDates = it
                 preferences.edit().putBoolean("show_registration_dates", it).apply()
+            })
+        }
+        Row(Modifier.fillMaxWidth().background(ShellPanel, RoundedCornerShape(16.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Dark theme", color = ShellText, fontWeight = FontWeight.SemiBold)
+                Text("Use the dark appearance for app surfaces.", color = ShellMuted, fontSize = 11.sp)
+            }
+            androidx.compose.material3.Switch(checked = darkTheme, onCheckedChange = {
+                darkTheme = it
+                preferences.edit().putBoolean("dark_theme", it).apply()
             })
         }
         Text("Privacy", color = ShellCyan, fontWeight = FontWeight.Bold)
@@ -757,7 +770,21 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var showVoiceRecorder by remember { mutableStateOf(false) }
     var showChatInfo by remember { mutableStateOf(false) }
     var showSharedMedia by remember { mutableStateOf(false) }
+    var capturePreviewUri by remember { mutableStateOf<Uri?>(null) }
+    var capturePreviewMime by remember { mutableStateOf<String?>(null) }
+    var capturePreviewName by remember { mutableStateOf<String?>(null) }
     val messageListState = rememberLazyListState()
+    val photoCapture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        if (!saved) { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
+    }
+    val videoCapture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && uri != null) {
+            capturePreviewUri = uri
+            capturePreviewMime = context.contentResolver.getType(uri) ?: "video/mp4"
+            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "captured-video.mp4"
+        } else { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
+    }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null && !conversationId.isNullOrBlank()) {
             scope.launch {
@@ -818,6 +845,39 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 messages = SupabaseDataRepository.loadMessages(conversationId)
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
             } catch (error: Exception) { status = error.message ?: "Could not load messages." }
+        }
+    }
+
+    fun beginPhotoCapture() {
+        runCatching {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "sayangqoemeet-${System.currentTimeMillis()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            }
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: error("Could not create a photo destination.")
+            capturePreviewUri = uri; capturePreviewMime = "image/jpeg"
+            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "photo.jpg"
+            photoCapture.launch(uri)
+        }.onFailure { status = it.message ?: "Could not open the camera." }
+    }
+    fun beginVideoCapture() {
+        runCatching { videoCapture.launch(Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) }
+            .onFailure { status = it.message ?: "Could not open video capture." }
+    }
+    fun sendCapturedMedia() {
+        val uri = capturePreviewUri ?: return
+        val mime = capturePreviewMime ?: context.contentResolver.getType(uri) ?: "application/octet-stream"
+        val name = capturePreviewName ?: context.contentResolver.getDisplayName(uri) ?: "capture"
+        if (conversationId.isNullOrBlank()) return
+        scope.launch {
+            loading = true
+            try {
+                val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, mime, name)
+                messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                status = ""; capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null
+            } catch (error: Exception) { status = error.message ?: "Media upload failed." }
+            finally { loading = false }
         }
     }
 
@@ -919,10 +979,31 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         ) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("SHARE WITH THIS CONVERSATION", color = ShellCyan, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { showAttachmentSheet = false; beginPhotoCapture() }) { Text("📷  Take photo", color = ShellText) }
+                TextButton(onClick = { showAttachmentSheet = false; beginVideoCapture() }) { Text("🎥  Record video", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; showVoiceRecorder = true }) { Text("🎙  Voice recording", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; videoPicker.launch("video/*") }) { Text("▶  Select video", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; filePicker.launch("*/*") }) { Text("▤  Select file", color = ShellText) }
                 Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+    if (capturePreviewUri != null && capturePreviewMime != null) {
+        Dialog(onDismissRequest = { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }) {
+            Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(if (capturePreviewMime.orEmpty().startsWith("image/")) "PHOTO PREVIEW" else "VIDEO PREVIEW", color = ShellCyan, fontWeight = FontWeight.Bold)
+                    if (capturePreviewMime.orEmpty().startsWith("image/")) {
+                        AsyncImage(model = capturePreviewUri, contentDescription = "Captured photo preview", modifier = Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Fit)
+                    } else {
+                        Text(capturePreviewName ?: "Captured video", color = ShellText)
+                        TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(capturePreviewUri, capturePreviewMime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }.onFailure { status = it.message ?: "Could not preview video." } }) { Text("PLAY VIDEO", color = ShellCyan) }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TextButton(onClick = { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }, modifier = Modifier.weight(1f)) { Text("DISCARD", color = ShellMuted) }
+                        Button(onClick = ::sendCapturedMedia, enabled = !loading, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)) { Text(if (loading) "SENDING…" else "SEND") }
+                    }
+                }
             }
         }
     }
