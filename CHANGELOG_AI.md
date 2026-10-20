@@ -156,3 +156,13 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Android CI run 195 passed lintDebug, testDebugUnitTest, assembleDebug, and artifact upload: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39258139369
 - Artifact SayangqoeMeet-Android-APK: 37,075,511 bytes, SHA-256 a4725eedb51353a6cd04a80912309117079a1fe0247a058cdcbe03b8317bb039, expires 2026-11-02.
 - Live Storage/Realtime migration and physical-device tests are still pending.
+
+
+## 2026-10-20 — Private media download tracking and cleanup
+
+- Added a transaction-safe migration for message attachment metadata, recipient download confirmations, private cleanup queue, claim/finish RPCs, and a 14-day TTL fallback.
+- Added authenticated confirm-message-media-download and secret-protected cleanup-chat-media Edge Functions. Storage deletion is limited to chat-attachments and validated conversation-relative object paths; message rows remain intact after purge.
+- Applied live migrations recorded as 20261020121714 and 20261020121824; deployed both functions. Confirm endpoint has JWT verification enabled. Cleanup worker requires the server-side MEDIA_CLEANUP_CRON_SECRET and trusted scheduler, which are not configured yet.
+- Restricted enqueue_message_media_cleanup RPC execution to service_role after advisor inspection. Verified attachment columns, RLS enabled/no client policies for cleanup tables, and service-role-only execution grants for cleanup RPCs.
+- Renamed atomic RPC migration file to version 20261017175440 to match the live ledger. Other migration drift remains and must be reconciled before any blanket db push.
+- PR #10 is open; CI run 260 was queued/in progress at last check. Android post-download confirmation integration and physical media/WebRTC tests remain outstanding.
