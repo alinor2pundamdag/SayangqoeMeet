@@ -9,6 +9,8 @@ import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -738,9 +740,13 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 Text(otherDisplayName ?: "PRIVATE CHAT", color = ShellText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Private conversation", color = ShellMuted, fontSize = 10.sp)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                TextButton(onClick = { onCall(otherUserId, "voice") }, enabled = !otherUserId.isNullOrBlank()) { Text("VOICE", color = ShellCyan) }
-                TextButton(onClick = { onCall(otherUserId, "video") }, enabled = !otherUserId.isNullOrBlank()) { Text("VIDEO", color = ShellCyan) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onCall(otherUserId, "voice") }, enabled = !otherUserId.isNullOrBlank()) {
+                    Icon(Icons.Default.Call, contentDescription = "Start voice call", tint = ShellCyan)
+                }
+                IconButton(onClick = { onCall(otherUserId, "video") }, enabled = !otherUserId.isNullOrBlank()) {
+                    Icon(Icons.Default.Videocam, contentDescription = "Start video call", tint = ShellCyan)
+                }
             }
         }
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
