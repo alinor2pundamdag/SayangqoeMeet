@@ -51,7 +51,10 @@ internal data class MessageRecord(
     val conversationId: String,
     val senderId: String,
     val body: String,
-    val createdAt: String
+    val createdAt: String,
+    val attachmentPath: String? = null,
+    val attachmentMimeType: String? = null,
+    val attachmentName: String? = null
 )
 
 internal data class InvitationRecord(
@@ -343,11 +346,11 @@ internal object SupabaseDataRepository {
     }
 
     suspend fun loadMessages(conversationId: String): List<MessageRecord> {
-        val query = "messages?conversation_id=eq.${enc(conversationId)}&select=id,conversation_id,sender_id,body,created_at&order=created_at.asc&limit=100"
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.asc&limit=100"
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
-            MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.getString("body"), row.getString("created_at"))
+            MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.optString("body"), row.getString("created_at"), row.optString("attachment_path").takeIf { it.isNotBlank() && it != "null" }, row.optString("attachment_mime_type").takeIf { it.isNotBlank() && it != "null" }, row.optString("attachment_name").takeIf { it.isNotBlank() && it != "null" })
         }
     }
 
@@ -370,6 +373,81 @@ internal object SupabaseDataRepository {
             }
         }
         return saved
+    }
+
+    suspend fun uploadChatAttachment(context: Context, conversationId: String, uri: Uri, mimeType: String, displayName: String): MessageRecord {
+        val uid = userId()
+        val safeName = displayName.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(90).ifBlank { "attachment" }
+        val objectPath = "$conversationId/$uid/${java.util.UUID.randomUUID()}_$safeName"
+        val bytes = withContext(Dispatchers.IO) {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: error("Could not read the selected attachment.")
+        }
+        require(bytes.isNotEmpty()) { "The selected attachment is empty." }
+        require(bytes.size <= 25 * 1024 * 1024) { "Attachments must be 25 MB or smaller." }
+        runRequest {
+            val token = SupabaseAuthRepository.currentAccessToken() ?: error("Sign in again to upload attachments.")
+            val encodedPath = objectPath.split("/").joinToString("/") { enc(it) }
+            val connection = (URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/chat-attachments/" + encodedPath).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 20000
+                readTimeout = 60000
+                doOutput = true
+                setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Content-Type", mimeType.ifBlank { "application/octet-stream" })
+                setRequestProperty("x-upsert", "false")
+            }
+            try {
+                connection.outputStream.use { it.write(bytes) }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) error("Attachment upload failed ($code): ${response.take(160)}")
+            } finally { connection.disconnect() }
+            ""
+        }
+        val payload = JSONObject()
+            .put("conversation_id", conversationId)
+            .put("sender_id", uid)
+            .put("body", displayName.ifBlank { "Attachment" })
+            .put("attachment_path", objectPath)
+            .put("attachment_mime_type", mimeType.ifBlank { "application/octet-stream" })
+            .put("attachment_name", safeName)
+        val response = runRequest { request("POST", "messages", payload, "return=representation") }
+        val row = JSONArray(response).getJSONObject(0)
+        val saved = MessageRecord(
+            row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"),
+            row.optString("body"), row.getString("created_at"), row.optString("attachment_path"),
+            row.optString("attachment_mime_type"), row.optString("attachment_name")
+        )
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { request("POST", "functions/v1/send-message-push", JSONObject().put("conversation_id", saved.conversationId).put("message_id", saved.id)) }
+        }
+        return saved
+    }
+
+    suspend fun createSignedAttachmentUrl(objectPath: String): String = runRequest {
+        val token = SupabaseAuthRepository.currentAccessToken() ?: error("Sign in again to open attachments.")
+        val encodedPath = objectPath.split("/").joinToString("/") { enc(it) }
+        val connection = (URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/sign/chat-attachments/" + encodedPath).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15000
+            readTimeout = 20000
+            doOutput = true
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "application/json")
+        }
+        try {
+            connection.outputStream.use { it.write(JSONObject().put("expiresIn", 3600).toString().toByteArray(StandardCharsets.UTF_8)) }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) error("Could not open attachment ($code).")
+            val signed = JSONObject(response).optString("signedURL")
+            if (signed.startsWith("http")) signed else BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1" + if (signed.startsWith("/")) signed else "/$signed"
+        } finally { connection.disconnect() }
     }
 
     fun subscribeToMessages(conversationId: String, onChange: () -> Unit): SupabaseRealtime.Subscription? =
