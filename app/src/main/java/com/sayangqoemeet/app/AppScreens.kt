@@ -124,7 +124,7 @@ private val ReligionOptions = listOf(
 internal enum class AppDestination { HOME, PROFILE, SETTINGS, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
-internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, isDarkTheme: Boolean = true, onThemeChanged: (Boolean) -> Unit = {}, onSignOut: () -> Unit) {
+internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, initialCallId: String? = null, isDarkTheme: Boolean = true, onThemeChanged: (Boolean) -> Unit = {}, onSignOut: () -> Unit) {
     // Heartbeats run only while this screen's Activity is STARTED. When the
     // app goes to the background, stop refreshing and expire this user's row.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -155,6 +155,14 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
             selectedConversation = initialConversationId
             destination = AppDestination.CHAT
         }
+    }
+
+    LaunchedEffect(openChatsOnStart) {
+        if (openChatsOnStart) destination = AppDestination.CHATS
+    }
+
+    LaunchedEffect(initialCallId) {
+        if (!initialCallId.isNullOrBlank()) destination = AppDestination.CALL
     }
     val context = LocalContext.current
 
@@ -250,7 +258,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                     onBack = { destination = AppDestination.CHATS },
                     onCall = { id, type -> selectedCallRecipient = id; selectedCallType = type; destination = AppDestination.CALL }
                 )
-                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, initialCallType = selectedCallType, onBack = { destination = AppDestination.HOME })
+                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, initialCallType = selectedCallType, initialCallId = initialCallId, onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.USERS -> RegisteredUsersScreen(
                     onBack = { destination = AppDestination.HOME },
