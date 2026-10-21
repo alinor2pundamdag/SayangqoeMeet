@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: devices, error: devicesError } = await adminClient
     .from("device_tokens")
-    .select("token")
+    .select("token, user_id")
     .in("user_id", recipientIds);
   if (devicesError) return reply(500, { error: "Could not load recipient devices" });
   if (!devices?.length) return reply(200, { sent: 0, reason: "Recipients have no registered devices" });
@@ -135,8 +135,9 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             message: {
               token: device.token,
-              notification: { title: "SayangqoeMeet", body: "You have a new message." },
-              data: { type: "message", conversation_id: conversationId, message_id: messageId },
+              // Data-only payload lets the Android client verify recipient_id before
+              // displaying anything; notification payloads can bypass onMessageReceived.
+              data: { type: "message", conversation_id: conversationId, message_id: messageId, recipient_id: device.user_id },
               android: { notification: { channel_id: "sayangqoemeet_messages", sound: "default" } },
             },
           }),
