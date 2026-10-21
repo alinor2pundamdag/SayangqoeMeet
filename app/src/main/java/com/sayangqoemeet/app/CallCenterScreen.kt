@@ -55,7 +55,7 @@ private val CallRed = Color(0xFFFF536A)
 
 /** A real call entry point: session signaling and media are backed by Supabase and WebRTC. */
 @Composable
-internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallType: String = "voice", initialCallId: String? = null, onBack: () -> Unit) {
+internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallType: String = "voice", initialCallId: String? = null, onInitialCallHandled: (String) -> Unit = {}, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var targetId by remember(initialTargetUserId) { mutableStateOf(initialTargetUserId.orEmpty()) }
@@ -72,6 +72,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
     var localRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var remoteRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingInitialCallConsumed by remember { mutableStateOf<(() -> Unit)?>(null) }
     val callUiStateStore = remember { CallUiStateStore.shared }
 
     LaunchedEffect(Unit) {
@@ -92,7 +93,13 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
             (activeCall?.type != "video" || result[Manifest.permission.CAMERA] == true)
         val action = pendingAction
         pendingAction = null
-        if (granted) action?.invoke() else error = "Microphone permission is required; camera permission is required for video calls."
+        if (granted) {
+            action?.invoke()
+        } else {
+            pendingInitialCallConsumed?.invoke()
+            pendingInitialCallConsumed = null
+            error = "Microphone permission is required; camera permission is required for video calls."
+        }
     }
 
     fun withPermissions(video: Boolean, action: () -> Unit) {
@@ -110,13 +117,16 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         }
     }
 
-    fun startMedia(call: CallSession, caller: Boolean) {
-        CallForegroundService.stop(context.applicationContext)
+    fun startMedia(call: CallSession, caller: Boolean, onCallIdConsumed: (() -> Unit)? = null) {
+        if (onCallIdConsumed != null) pendingInitialCallConsumed = onCallIdConsumed
+        CallForegroundService.stop(context.applicationContext, call.id)
         withPermissions(call.type == "video") {
             scope.launch {
                 try {
                     error = null
                     activeCall = call
+                    pendingInitialCallConsumed?.invoke()
+                    pendingInitialCallConsumed = null
                     callType = call.type
                     val instance = WebRtcCallManager(
                         context.applicationContext, scope, call.id, call.type == "video",
@@ -181,10 +191,11 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
             check(incomingCall.calleeId == SupabaseAuthRepository.currentUserId() && incomingCall.status == "ringing") {
                 "This incoming call is no longer available."
             }
-            startMedia(incomingCall, caller = false)
+            startMedia(incomingCall, caller = false) { onInitialCallHandled(id) }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
+            onInitialCallHandled(id)
             error = failure.message ?: "Could not accept incoming call."
         }
     }
