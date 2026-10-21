@@ -110,8 +110,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
             runCatching { CallForegroundService.stop(this) }
             return
         }
-        val intendedRecipientId = message.data["recipient_id"]
-        if (intendedRecipientId.isNullOrBlank() || intendedRecipientId != currentUserId) {
+        if (!shouldAcceptPushForUser(currentUserId, message.data["recipient_id"])) {
             return
         }
         // Ringing is independent of notification permission; Android may suppress
