@@ -103,10 +103,15 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        // Never reveal caller/message details on a signed-out shared device. This
-        // also makes a failed best-effort token deletion safe for the local user.
-        if (SupabaseAuthRepository.currentUserId() == null) {
+        // FCM tokens can outlive a failed offline sign-out. Require both an
+        // active session and an explicit recipient match before showing or ringing.
+        val currentUserId = SupabaseAuthRepository.currentUserId()
+        if (currentUserId == null) {
             runCatching { CallForegroundService.stop(this) }
+            return
+        }
+        val intendedRecipientId = message.data["recipient_id"]
+        if (intendedRecipientId.isNullOrBlank() || intendedRecipientId != currentUserId) {
             return
         }
         // Ringing is independent of notification permission; Android may suppress
