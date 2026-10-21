@@ -31,7 +31,7 @@ jobs:
           deno-version: v2.x
 
       - name: Type-check push Edge Functions
-        run: deno check --no-lock supabase/functions/notify-incoming-call/index.ts supabase/functions/send-message-push/index.ts
+        run: deno check --no-lock supabase/functions/notify-incoming-call/index.ts supabase/functions/send-message-push/index.ts supabase/functions/get-turn-credentials/index.ts
 
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
