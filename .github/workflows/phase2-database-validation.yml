@@ -25,6 +25,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check push Edge Functions
+        run: deno check --no-lock supabase/functions/notify-incoming-call/index.ts supabase/functions/send-message-push/index.ts
+
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
