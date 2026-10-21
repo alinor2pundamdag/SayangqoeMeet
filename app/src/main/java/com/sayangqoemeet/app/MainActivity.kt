@@ -1,5 +1,6 @@
 package com.sayangqoemeet.app
 
+import android.Manifest
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -19,16 +20,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private companion object { const val NOTIFICATION_PERMISSION_REQUEST = 1401 }
 
     private var isAuthReady by mutableStateOf(false)
     private var isAuthenticated by mutableStateOf(false)
     private var openChatsOnStart by mutableStateOf(false)
     private var incomingCallId by mutableStateOf<String?>(null)
+    private var notificationPermissionRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,17 +57,19 @@ class MainActivity : ComponentActivity() {
                             onSignOut = {
                                 lifecycleScope.launch {
                                     try {
-                                        // Remove this installation's token while the old
-                                        // session is still valid. If cleanup fails, keep the
-                                        // session active rather than leaving a stale token.
-                                        FcmTokenRegistrar.unregisterCurrentToken(this@MainActivity)
+                                        // Remote token cleanup is best-effort. Always clear the
+                                        // local session even when offline; FCM handling is gated
+                                        // on an authenticated session to protect shared devices.
+                                        runCatching {
+                                            FcmTokenRegistrar.unregisterCurrentToken(this@MainActivity)
+                                        }
                                         SupabaseAuthRepository.signOut()
                                         isAuthenticated = false
                                         incomingCallId = null
                                     } catch (error: Exception) {
                                         Toast.makeText(
                                             this@MainActivity,
-                                            error.message ?: "Could not safely sign out. Please try again.",
+                                            error.message ?: "Could not sign out. Please try again.",
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
@@ -76,6 +82,7 @@ class MainActivity : ComponentActivity() {
                                 isAuthenticated = true
                                 isAuthReady = true
                                 FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+                                requestNotificationPermissionIfNeeded()
                             }
                         )
                     }
@@ -89,6 +96,7 @@ class MainActivity : ComponentActivity() {
             }.getOrDefault(false)
             if (isAuthenticated) {
                 FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+                requestNotificationPermissionIfNeeded()
             }
             isAuthReady = true
         }
@@ -109,7 +117,10 @@ class MainActivity : ComponentActivity() {
             val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
             isAuthenticated = restored
             isAuthReady = true
-            if (restored) FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+            if (restored) {
+                FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+                requestNotificationPermissionIfNeeded()
+            }
         }
     }
 
@@ -144,9 +155,18 @@ class MainActivity : ComponentActivity() {
             }.getOrDefault(false)
             if (isAuthenticated) {
                 FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+                requestNotificationPermissionIfNeeded()
             }
             isAuthReady = true
         }
+    }
+
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || notificationPermissionRequested) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        notificationPermissionRequested = true
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST)
     }
 
     override fun onUserLeaveHint() {
