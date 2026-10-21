@@ -34,9 +34,10 @@ jobs:
         run: deno check --no-lock supabase/functions/notify-incoming-call/index.ts supabase/functions/send-message-push/index.ts supabase/functions/get-turn-credentials/index.ts
 
       - name: Set up Supabase CLI
+        id: setup-supabase-cli
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.120.0
 
       - name: Start disposable local Supabase stack
         run: supabase start -x studio,mailpit,edge-runtime,logflare,vector
@@ -53,5 +54,5 @@ jobs:
             -f supabase/tests/phase2_two_user_rls.sql
 
       - name: Stop disposable local Supabase stack
-        if: always()
+        if: always() && steps.setup-supabase-cli.outcome == 'success'
         run: supabase stop --no-backup
