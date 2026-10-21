@@ -81,6 +81,19 @@ BEGIN
   ) <> 4 THEN
     RAISE EXCEPTION 'Messages, calls, presence, and pinned messages must be in supabase_realtime';
   END IF;
+  IF (
+    SELECT count(*) FROM pg_policies
+    WHERE schemaname='storage' AND tablename='objects'
+      AND policyname IN (
+        'Conversation members can read chat attachments',
+        'Conversation members can upload own chat attachments',
+        'Conversation members can delete own chat attachments'
+      )
+      AND (coalesce(qual,'') || coalesce(with_check,'')) LIKE '%CASE WHEN%'
+      AND (coalesce(qual,'') || coalesce(with_check,'')) LIKE '%[0-9a-f]{8}%'
+  ) <> 3 THEN
+    RAISE EXCEPTION 'Chat attachment storage policies must guard malformed UUID paths before casting';
+  END IF;
 END $$;
 
 -- Verify authenticated device-token registration atomically transfers a reused
