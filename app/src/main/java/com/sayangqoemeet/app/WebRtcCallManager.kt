@@ -136,7 +136,7 @@ internal class WebRtcCallManager(
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .createPeerConnectionFactory()
-        val iceServers = fetchIceServersOrFallback()
+        val iceServers = fetchIceServersOrFallback(callId)
         val config = PeerConnection.RTCConfiguration(iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
@@ -220,7 +220,7 @@ internal class WebRtcCallManager(
      * If the function is unavailable, retain STUN-only connectivity rather than failing
      * call initialization; restrictive NATs may still require TURN and can fail to connect.
      */
-    private suspend fun fetchIceServersOrFallback(): List<PeerConnection.IceServer> =
+    private suspend fun fetchIceServersOrFallback(callId: String): List<PeerConnection.IceServer> =
         withContext(Dispatchers.IO) {
             val fallback = listOf(
                 PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
@@ -240,7 +240,7 @@ internal class WebRtcCallManager(
                     setRequestProperty("Content-Type", "application/json")
                 }
                 try {
-                    connection.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
+                    connection.outputStream.use { it.write(org.json.JSONObject().put("call_id", callId).toString().toByteArray(Charsets.UTF_8)) }
                     val code = connection.responseCode
                     val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                     val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
