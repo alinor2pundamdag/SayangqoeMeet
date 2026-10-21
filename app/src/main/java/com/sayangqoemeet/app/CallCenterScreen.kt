@@ -167,10 +167,10 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
 
     LaunchedEffect(incoming.firstOrNull()?.id, activeCall?.id) {
         if (activeCall == null && incoming.isNotEmpty()) {
-            runCatching { CallForegroundService.start(context.applicationContext) }
+            runCatching { CallForegroundService.start(context.applicationContext, incoming.firstOrNull()?.id) }
                 .onFailure { error = "Incoming call alert could not start: ${it.message}" }
         } else {
-            runCatching { CallForegroundService.stop(context.applicationContext) }
+            runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id ?: incoming.firstOrNull()?.id) }
         }
     }
 
