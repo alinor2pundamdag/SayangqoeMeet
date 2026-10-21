@@ -28,6 +28,7 @@ The live Supabase migration ledger was read before any DDL changes. It contains 
 - `20261021155023_phase2_pinned_messages_authenticated_access`
 - `20261021160316_phase2_harden_profile_rpc_search_path`
 - `20261022074000_register_device_token_securely`
+- `20261022074000_register_device_token_securely`
 
 Six already-applied historical migrations were missing from `main` under the versions recorded by Supabase. This branch restores them using the previously committed SQL sources, renaming them to match the live ledger versions. The recovered definitions were checked against live table columns, constraints, policies, indexes, and triggers. These historical migrations were **not re-applied**.
 
