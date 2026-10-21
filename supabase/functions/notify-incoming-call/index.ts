@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
 
   const [{ data: profile }, { data: devices, error: devicesError }] = await Promise.all([
     admin.from("profiles").select("display_name, username").eq("id", auth.user.id).maybeSingle(),
-    admin.from("device_tokens").select("token").eq("user_id", call.callee_id),
+    admin.from("device_tokens").select("token, user_id").eq("user_id", call.callee_id),
   ]);
   if (devicesError) return reply(500, { error: "Could not load recipient devices" });
   if (!devices?.length) return reply(200, { sent: 0, reason: "Recipient has no registered push token" });
@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
         headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
         body: JSON.stringify({ message: {
           token: device.token,
-          data: { type: "incoming_call", call_id: call.id, caller_name: callerName, call_type: call.call_type },
+          data: { type: "incoming_call", call_id: call.id, caller_name: callerName, call_type: call.call_type, recipient_id: call.callee_id },
           android: { priority: "high", ttl: "45s" },
         } }),
       });
