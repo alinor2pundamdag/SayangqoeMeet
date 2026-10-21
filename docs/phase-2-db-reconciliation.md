@@ -58,6 +58,10 @@ Post-change verification:
 - Ten indexes are flagged as unused by the advisor after adding the three indexes. They were retained because usage history is short and index removal is not justified by the advisory alone.
 - PostgreSQL logs in the inspected 24-hour window contained no duration-log lines; `pg_stat_statements` was reviewed. The highest mean times were dominated by platform/catalog metadata queries, not a verified application hot query.
 
+### Pinned-message schema recovery
+
+Fresh replay exposed that `pinned_messages` existed in the hosted schema but had no creation statement in the repository migration chain. The historical `20261020061237_finalize_chat_attachments_pinned_realtime.sql` now creates the table before its realtime publication, indexes, and RLS policies are configured. This fresh-database reconstruction was not reapplied to production. The live table's missing client DML grants were fixed by forward migration `20261021155023_phase2_pinned_messages_authenticated_access`, granting only SELECT/INSERT/DELETE to `authenticated` while retaining RLS and denying `anon` and UPDATE.
+
 ## Applied migration summary
 
 ### `20261021135034_phase2_database_security_performance`
@@ -71,6 +75,9 @@ Revokes client hard DELETE on profiles/messages and makes the membership-scoped 
 - Migration ledger reconciled in the branch: **done**.
 - Verified database security/performance fixes applied and catalog-verified: **done**.
 - Security/Performance Advisor re-run: **done**; only the documented intentional/configuration findings remain.
-- Fresh-database replay and authenticated two-user RLS isolation test: **pending CI execution**.
+- Fresh-database migration replay: **passed** on commit `bfe579893420e6148bf32f38253bb77f473e0978`.
+- `supabase db lint --local --fail-on error`: **passed** on the same CI run.
+- Authenticated two-user message RLS isolation test: **passed** on the same CI run, using the actual `authenticated` role and distinct JWT subject identities for users A and B.
+- Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
 - Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
 - This work is submitted as an open PR; no merge performed.
