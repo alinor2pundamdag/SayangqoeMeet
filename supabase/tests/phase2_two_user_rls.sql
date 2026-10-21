@@ -66,6 +66,37 @@ BEGIN
   END IF;
 END $$;
 
+-- Verify authenticated device-token registration atomically transfers a reused
+-- installation token to the currently authenticated account after account switch.
+DO $
+BEGIN
+  IF NOT has_function_privilege('authenticated', 'public.register_device_token(text,text)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.register_device_token(text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Device-token registration RPC grants are not least-privilege';
+  END IF;
+END $;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+SELECT public.register_device_token('phase2-shared-device-token', 'android');
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+SELECT public.register_device_token('phase2-shared-device-token', 'android');
+RESET ROLE;
+
+DO $
+BEGIN
+  IF (SELECT count(*) FROM public.device_tokens WHERE token = 'phase2-shared-device-token') <> 1
+     OR (SELECT user_id FROM public.device_tokens WHERE token = 'phase2-shared-device-token')
+        <> 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid THEN
+    RAISE EXCEPTION 'Device token was not atomically reassigned to the active account';
+  END IF;
+END $;
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
