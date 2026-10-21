@@ -26,6 +26,7 @@ The live Supabase migration ledger was read before any DDL changes. It contains 
 - `20261021135034_phase2_database_security_performance`
 - `20261021135259_phase2_enforce_soft_delete_boundaries`
 - `20261021155023_phase2_pinned_messages_authenticated_access`
+- `20261021160316_phase2_harden_profile_rpc_search_path`
 
 Six already-applied historical migrations were missing from `main` under the versions recorded by Supabase. This branch restores them using the previously committed SQL sources, renaming them to match the live ledger versions. The recovered definitions were checked against live table columns, constraints, policies, indexes, and triggers. These historical migrations were **not re-applied**.
 
@@ -73,6 +74,9 @@ Revokes client hard DELETE on profiles/messages and makes the membership-scoped 
 
 ### `20261021155023_phase2_pinned_messages_authenticated_access`
 Grants only SELECT/INSERT/DELETE to authenticated users for RLS-scoped pinned messages; anon access and authenticated UPDATE remain denied.
+
+### `20261021160316_phase2_harden_profile_rpc_search_path`
+Sets `get_my_profile()` to `search_path = public, pg_temp`, matching the already-hardened conversation-list RPC while preserving its caller filter and authenticated EXECUTE grant.
 
 ## Completion status
 
