@@ -126,6 +126,7 @@ internal object SupabaseDataRepository {
         withContext(Dispatchers.IO) { block() }
 
     suspend fun saveDeviceToken(token: String) {
+        require(token.isNotBlank()) { "FCM token is empty." }
         val payload = JSONObject()
             .put("user_id", userId())
             .put("token", token)
@@ -133,6 +134,24 @@ internal object SupabaseDataRepository {
             .put("updated_at", java.time.Instant.now().toString())
         runRequest {
             request("POST", "device_tokens?on_conflict=token", payload, "resolution=merge-duplicates,return=minimal")
+        }
+    }
+
+    /**
+     * Remove only this installation's token while the user's session is still
+     * valid. The authenticated user filter limits cleanup to this user's row;
+     * RLS remains the final authorization boundary.
+     */
+    suspend fun removeDeviceToken(token: String) {
+        require(token.isNotBlank()) { "FCM token is empty." }
+        val encodedToken = URLEncoder.encode(token, "UTF-8")
+        val encodedUserId = URLEncoder.encode(userId(), "UTF-8")
+        runRequest {
+            request(
+                "DELETE",
+                "device_tokens?user_id=eq.$encodedUserId&token=eq.$encodedToken",
+                prefer = "return=minimal"
+            )
         }
     }
 
