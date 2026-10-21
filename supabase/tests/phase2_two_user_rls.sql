@@ -64,6 +64,23 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'RLS must remain enabled on pinned_messages';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id='profile-avatars' AND public IS TRUE
+  ) THEN
+    RAISE EXCEPTION 'Profile avatar bucket must exist and remain public for avatar reads';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id='chat-attachments' AND public IS FALSE
+  ) THEN
+    RAISE EXCEPTION 'Chat attachments bucket must remain private';
+  END IF;
+  IF (
+    SELECT count(*) FROM pg_publication_tables
+    WHERE pubname='supabase_realtime' AND schemaname='public'
+      AND tablename IN ('messages','call_sessions','user_presence','pinned_messages')
+  ) <> 4 THEN
+    RAISE EXCEPTION 'Messages, calls, presence, and pinned messages must be in supabase_realtime';
+  END IF;
 END $$;
 
 -- Verify authenticated device-token registration atomically transfers a reused

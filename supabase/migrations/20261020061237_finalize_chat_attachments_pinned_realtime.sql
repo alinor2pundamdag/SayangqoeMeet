@@ -24,6 +24,38 @@ using (bucket_id='chat-attachments' and (storage.foldername(name))[1] ~* '^[0-9a
 and (storage.foldername(name))[2]=(select auth.uid())::text
 and exists (select 1 from public.conversation_members cm where cm.conversation_id=((storage.foldername(name))[1])::uuid and cm.user_id=(select auth.uid())));
 
+-- Reconstruct profile-avatar storage and ownership policies. This was present
+-- in the hosted schema but its standalone migration version is absent from the
+-- hosted migration ledger, so keep it in this exact-version reconstruction.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('profile-avatars', 'profile-avatars', true, 8388608,
+  array['image/jpeg','image/png','image/webp']::text[])
+on conflict (id) do update
+set public=excluded.public,
+    file_size_limit=excluded.file_size_limit,
+    allowed_mime_types=excluded.allowed_mime_types;
+
+drop policy if exists "Avatar images are publicly accessible" on storage.objects;
+create policy "Avatar images are publicly accessible"
+on storage.objects for select to public
+using (bucket_id='profile-avatars');
+
+drop policy if exists "Users can upload their own avatar" on storage.objects;
+create policy "Users can upload their own avatar"
+on storage.objects for insert to authenticated
+with check (bucket_id='profile-avatars' and (storage.foldername(name))[1]=auth.uid()::text);
+
+drop policy if exists "Users can update their own avatar" on storage.objects;
+create policy "Users can update their own avatar"
+on storage.objects for update to authenticated
+using (bucket_id='profile-avatars' and (storage.foldername(name))[1]=auth.uid()::text)
+with check (bucket_id='profile-avatars' and (storage.foldername(name))[1]=auth.uid()::text);
+
+drop policy if exists "Users can delete their own avatar" on storage.objects;
+create policy "Users can delete their own avatar"
+on storage.objects for delete to authenticated
+using (bucket_id='profile-avatars' and (storage.foldername(name))[1]=auth.uid()::text);
+
 -- Reconstruct the pinned-message table in a clean database. The hosted
 -- project already had this table, but its creation was absent from migration history.
 create table if not exists public.pinned_messages (
@@ -39,12 +71,22 @@ alter table public.pinned_messages enable row level security;
 revoke all on public.pinned_messages from anon, authenticated;
 grant select, insert, delete on public.pinned_messages to authenticated;
 
-do $$
-begin
-  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='pinned_messages') then
-    alter publication supabase_realtime add table public.pinned_messages;
-  end if;
-end $$;
+DO $realtime$
+DECLARE
+  v_table text;
+BEGIN
+  FOREACH v_table IN ARRAY ARRAY['messages','call_sessions','user_presence','pinned_messages'] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname='supabase_realtime'
+        AND schemaname='public'
+        AND tablename=v_table
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', v_table);
+    END IF;
+  END LOOP;
+END
+$realtime$;
 
 create index if not exists call_ice_candidates_sender_id_idx on public.call_ice_candidates(sender_id);
 create index if not exists pinned_messages_pinned_by_idx on public.pinned_messages(pinned_by);

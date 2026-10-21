@@ -64,7 +64,7 @@ Post-change verification:
 
 ### Pinned-message schema recovery
 
-Fresh replay exposed that `pinned_messages` existed in the hosted schema but had no creation statement in the repository migration chain. The historical `20261020061237_finalize_chat_attachments_pinned_realtime.sql` now creates the table before its realtime publication, indexes, and RLS policies are configured. This fresh-database reconstruction was not reapplied to production. The live table's missing client DML grants were fixed by forward migration `20261021155023_phase2_pinned_messages_authenticated_access`, granting only SELECT/INSERT/DELETE to `authenticated` while retaining RLS and denying `anon` and UPDATE.
+Fresh replay exposed that `pinned_messages` existed in the hosted schema but had no creation statement in the repository migration chain. The historical `20261020061237_finalize_chat_attachments_pinned_realtime.sql` now creates the table before its realtime publication, indexes, and RLS policies are configured. This fresh-database reconstruction was not reapplied to production. The same reconstruction now restores the live profile-avatar bucket/policies and the four Realtime publication tables. Eleven repository-only migration files whose versions are absent from the live ledger were removed after their duplicate or unique effects were reconciled into the exact ledger-version files; the fresh replay no longer runs duplicate historical schema changes. The live table's missing client DML grants were fixed by forward migration `20261021155023_phase2_pinned_messages_authenticated_access`, granting only SELECT/INSERT/DELETE to `authenticated` while retaining RLS and denying `anon` and UPDATE.
 
 ## Applied migration summary
 
@@ -88,10 +88,11 @@ Adds authenticated-only `register_device_token(text,text)`. It derives the owner
 - Migration ledger reconciled in the branch: **done**.
 - Verified database security/performance fixes applied and catalog-verified: **done**.
 - Security/Performance Advisor re-run: **done**; only the documented intentional/configuration findings remain.
-- Fresh-database migration replay: **passed** on the final stacked-branch CI run for commit `a16ec7350b00cb704edef819c32c673bd1a03183`.
-- `supabase db lint --local --fail-on error`: **passed** on the same final CI run.
-- Authenticated two-user message RLS isolation test: **passed** on the same final CI run, using the actual `authenticated` role and distinct JWT subject identities for users A and B.
+- Fresh-database migration replay: **pending final CI** after removal of unledgered duplicate migrations and restoration of the hosted avatar/Realtime schema into the exact-version reconstruction.
+- `supabase db lint --local --fail-on error`: **pending final CI** for the normalized migration chain.
+- Authenticated two-user message RLS isolation test: **pending final CI** for the normalized migration chain; it uses the actual `authenticated` role and distinct JWT subject identities for users A and B.
 - FCM account-switch regression: **added**; the test reuses one installation token as two authenticated users and asserts the token is assigned only to the second user. It also verifies anonymous EXECUTE is denied.
+- Fresh-schema regression assertions now verify the profile-avatar bucket is public, chat attachments remain private, and messages/calls/presence/pinned messages are all in the Realtime publication.
 - Push delivery regression: FCM payloads now include `recipient_id`; Android drops payloads that do not explicitly target the active user. Message push payloads are data-only so Android can validate identity before showing a notification.
 - TURN credential requests now include `call_id`; the Edge Function verifies the authenticated user is a participant in an active call before asking Cloudflare to mint temporary ICE credentials.
 - Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
