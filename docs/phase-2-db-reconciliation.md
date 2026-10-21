@@ -83,9 +83,10 @@ Sets `get_my_profile()` to `search_path = public, pg_temp`, matching the already
 - Migration ledger reconciled in the branch: **done**.
 - Verified database security/performance fixes applied and catalog-verified: **done**.
 - Security/Performance Advisor re-run: **done**; only the documented intentional/configuration findings remain.
-- Fresh-database migration replay: **passed** on commit `bfe579893420e6148bf32f38253bb77f473e0978`.
-- `supabase db lint --local --fail-on error`: **passed** on the same CI run.
-- Authenticated two-user message RLS isolation test: **passed** on the same CI run, using the actual `authenticated` role and distinct JWT subject identities for users A and B.
+- Fresh-database migration replay: **passed** on the final stacked-branch CI run for commit `a16ec7350b00cb704edef819c32c673bd1a03183`.
+- `supabase db lint --local --fail-on error`: **passed** on the same final CI run.
+- Authenticated two-user message RLS isolation test: **passed** on the same final CI run, using the actual `authenticated` role and distinct JWT subject identities for users A and B.
 - Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
+- Live SECURITY DEFINER RPC review confirmed caller-scoped bodies, no anon EXECUTE, and `search_path = public, pg_temp` for both authenticated RPCs.
 - Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
 - This work is submitted as an open PR; no merge performed.
