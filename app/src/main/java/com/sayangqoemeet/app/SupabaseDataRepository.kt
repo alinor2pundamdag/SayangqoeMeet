@@ -127,14 +127,14 @@ internal object SupabaseDataRepository {
 
     suspend fun saveDeviceToken(token: String) {
         require(token.isNotBlank()) { "FCM token is empty." }
+        // The SECURITY DEFINER RPC derives user_id from auth.uid() and atomically
+        // reassigns this installation token after an account switch. A direct
+        // PostgREST upsert is blocked by RLS when the token still belongs to the
+        // previous account after an offline sign-out.
         val payload = JSONObject()
-            .put("user_id", userId())
-            .put("token", token)
-            .put("platform", "android")
-            .put("updated_at", java.time.Instant.now().toString())
-        runRequest {
-            request("POST", "device_tokens?on_conflict=token", payload, "resolution=merge-duplicates,return=minimal")
-        }
+            .put("p_token", token)
+            .put("p_platform", "android")
+        runRequest { request("POST", "rpc/register_device_token", payload) }
     }
 
     /**
