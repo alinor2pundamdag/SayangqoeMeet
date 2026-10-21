@@ -253,6 +253,7 @@ class CallActionReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                runCatching { CallForegroundService.stop(context) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
             } finally {
                 pending.finish()
