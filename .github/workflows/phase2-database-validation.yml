@@ -33,7 +33,7 @@ jobs:
           version: latest
 
       - name: Start disposable local Supabase stack
-        run: supabase start -x studio,inbucket,edge-runtime,logflare,vector
+        run: supabase start -x studio,mailpit,edge-runtime,logflare,vector
 
       - name: Replay the complete migration chain from an empty database
         run: supabase db reset --local --debug
