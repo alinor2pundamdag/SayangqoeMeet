@@ -24,6 +24,21 @@ using (bucket_id='chat-attachments' and (storage.foldername(name))[1] ~* '^[0-9a
 and (storage.foldername(name))[2]=(select auth.uid())::text
 and exists (select 1 from public.conversation_members cm where cm.conversation_id=((storage.foldername(name))[1])::uuid and cm.user_id=(select auth.uid())));
 
+-- Reconstruct the pinned-message table in a clean database. The hosted
+-- project already had this table, but its creation was absent from migration history.
+create table if not exists public.pinned_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  message_id uuid not null references public.messages(id) on delete cascade,
+  pinned_by uuid not null references auth.users(id),
+  pinned_at timestamptz default now(),
+  constraint unique_pinned_message unique (conversation_id, message_id)
+);
+
+alter table public.pinned_messages enable row level security;
+revoke all on public.pinned_messages from anon, authenticated;
+grant select, insert, delete on public.pinned_messages to authenticated;
+
 do $$
 begin
   if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='pinned_messages') then
