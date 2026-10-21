@@ -41,7 +41,7 @@ Verified and retained:
 - Sensitive profile columns (`address`, `birthday`, `religion`, `phone_number`, and `bio`) have no authenticated SELECT column grants; only the directory fields are selectable directly.
 - Client hard DELETE on `profiles` and `messages` is revoked. Message SELECT policy now requires conversation membership and `deleted_at IS NULL`.
 
-Supabase Security Advisor still reports two intentional SECURITY DEFINER RPCs above, two RLS-enabled service-only tables with no client policies, and leaked-password protection disabled. The first two categories were manually checked against grants and function bodies. Enabling leaked-password protection requires dashboard/Auth configuration approval and remains outstanding.
+Supabase Security Advisor reports two SECURITY DEFINER RPCs and two RLS-enabled service-only tables without client policies. The RPCs are intentionally callable by authenticated users and are scoped to `auth.uid()`; the media bookkeeping tables remain inaccessible to anon/authenticated roles. Leaked-password protection is not part of this implementation because the Supabase Free plan does not support the HaveIBeenPwned.org configuration.
 
 ## A56–A62 — Indexes, RLS performance, triggers, and plans
 
@@ -71,7 +71,6 @@ Revokes client hard DELETE on profiles/messages and makes the membership-scoped 
 - Migration ledger reconciled in the branch: **done**.
 - Verified database security/performance fixes applied and catalog-verified: **done**.
 - Security/Performance Advisor re-run: **done**; only the documented intentional/configuration findings remain.
-- Fresh-database replay/CI validation of the reconstructed migration chain: **pending**.
-- Supabase Auth leaked-password protection dashboard setting: **pending dashboard approval**.
-- Production-like authenticated two-user RLS behavior tests: **pending**.
+- Fresh-database replay and authenticated two-user RLS isolation test: **pending CI execution**.
+- Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
 - This work is submitted as an open PR; no merge performed.
