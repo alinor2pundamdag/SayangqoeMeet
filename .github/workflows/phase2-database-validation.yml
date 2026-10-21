@@ -7,16 +7,14 @@ on:
     paths:
       - "supabase/**"
       - ".github/workflows/phase2-database-validation.yml"
-  push:
-    branches:
-      - fix/phase-2-db-reconciliation-on-phase-1
-    paths:
-      - "supabase/**"
-      - ".github/workflows/phase2-database-validation.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: phase2-db-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   fresh-migration-replay:
