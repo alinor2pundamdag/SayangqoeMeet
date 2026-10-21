@@ -103,10 +103,17 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        // Never reveal caller/message details on a signed-out shared device. This
+        // also makes a failed best-effort token deletion safe for the local user.
+        if (SupabaseAuthRepository.currentUserId() == null) {
+            runCatching { CallForegroundService.stop(this) }
+            return
+        }
         // Ringing is independent of notification permission; Android may suppress
         // the notification while the high-priority FCM data event still arrives.
         if (message.data["type"] == "incoming_call") {
-            runCatching { CallForegroundService.start(this) }
+            val callId = message.data["call_id"]?.takeIf { it.isNotBlank() }
+            runCatching { CallForegroundService.start(this, callId) }
             showIncomingCallNotification(message)
             return
         }
@@ -252,9 +259,10 @@ class CallActionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                // Stop local ringing immediately; network signaling is best-effort.
                 runCatching { CallForegroundService.stop(context) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
+                runCatching { CallSignalingRepository.setStatus(callId, "declined") }
             } finally {
                 pending.finish()
             }
