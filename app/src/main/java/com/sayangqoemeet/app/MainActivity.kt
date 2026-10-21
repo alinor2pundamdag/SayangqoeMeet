@@ -27,11 +27,14 @@ class MainActivity : ComponentActivity() {
 
     private var isAuthReady by mutableStateOf(false)
     private var isAuthenticated by mutableStateOf(false)
+    private var openChatsOnStart by mutableStateOf(false)
+    private var incomingCallId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         handleAuthIntent(intent)
+        handleNavigationIntent(intent)
 
         setContent {
             MaterialTheme {
@@ -45,17 +48,25 @@ class MainActivity : ComponentActivity() {
                         }
 
                         isAuthenticated -> SignedInShell(
+                            openChatsOnStart = openChatsOnStart,
+                            initialCallId = incomingCallId,
                             onSignOut = {
                                 lifecycleScope.launch {
-                                    runCatching { SupabaseAuthRepository.signOut() }
-                                        .onSuccess { isAuthenticated = false }
-                                        .onFailure { error ->
-                                            Toast.makeText(
-                                                this@MainActivity,
-                                                error.message ?: "Could not sign out. Please try again.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
+                                    try {
+                                        // Remove this installation's token while the old
+                                        // session is still valid. If cleanup fails, keep the
+                                        // session active rather than leaving a stale token.
+                                        FcmTokenRegistrar.unregisterCurrentToken(this@MainActivity)
+                                        SupabaseAuthRepository.signOut()
+                                        isAuthenticated = false
+                                        incomingCallId = null
+                                    } catch (error: Exception) {
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            error.message ?: "Could not safely sign out. Please try again.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             }
                         )
@@ -64,6 +75,7 @@ class MainActivity : ComponentActivity() {
                             onAuthenticated = {
                                 isAuthenticated = true
                                 isAuthReady = true
+                                FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
                             }
                         )
                     }
@@ -75,6 +87,9 @@ class MainActivity : ComponentActivity() {
             isAuthenticated = runCatching {
                 SupabaseAuthRepository.restoreSession()
             }.getOrDefault(false)
+            if (isAuthenticated) {
+                FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+            }
             isAuthReady = true
         }
     }
@@ -83,6 +98,28 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleAuthIntent(intent)
+        handleNavigationIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // OAuth confirmation may return to a new Activity instance depending on
+        // browser/task behavior; refresh session whenever the app resumes.
+        lifecycleScope.launch {
+            val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+            isAuthenticated = restored
+            isAuthReady = true
+            if (restored) FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+        }
+    }
+
+    private fun handleNavigationIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("open_chats", false) == true) {
+            openChatsOnStart = true
+        }
+        if (intent?.getBooleanExtra("open_calls", false) == true) {
+            incomingCallId = intent.getStringExtra("incoming_call_id")?.takeIf { it.isNotBlank() }
+        }
     }
 
     private fun handleAuthIntent(intent: Intent?) {
@@ -105,6 +142,9 @@ class MainActivity : ComponentActivity() {
             isAuthenticated = runCatching {
                 SupabaseAuthRepository.restoreSession()
             }.getOrDefault(false)
+            if (isAuthenticated) {
+                FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+            }
             isAuthReady = true
         }
     }
