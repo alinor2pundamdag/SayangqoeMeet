@@ -260,7 +260,7 @@ class CallActionReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 // Stop local ringing immediately; network signaling is best-effort.
-                runCatching { CallForegroundService.stop(context) }
+                runCatching { CallForegroundService.stop(context, callId) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
                 runCatching { CallSignalingRepository.setStatus(callId, "declined") }
             } finally {
