@@ -92,6 +92,7 @@ Adds authenticated-only `register_device_token(text,text)`. It derives the owner
 - Authenticated two-user message RLS isolation test: **passed** on the same final CI run, using the actual `authenticated` role and distinct JWT subject identities for users A and B.
 - FCM account-switch regression: **added**; the test reuses one installation token as two authenticated users and asserts the token is assigned only to the second user. It also verifies anonymous EXECUTE is denied.
 - Push delivery regression: FCM payloads now include `recipient_id`; Android drops payloads that do not explicitly target the active user. Message push payloads are data-only so Android can validate identity before showing a notification.
+- TURN credential requests now include `call_id`; the Edge Function verifies the authenticated user is a participant in an active call before asking Cloudflare to mint temporary ICE credentials.
 - Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
 - Live SECURITY DEFINER RPC review confirmed caller-scoped bodies, no anon EXECUTE, and `search_path = public, pg_temp` for both authenticated RPCs.
 - Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
