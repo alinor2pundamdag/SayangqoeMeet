@@ -41,6 +41,31 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 END $$;
 
+-- Guard the grant/RLS boundaries fixed during Phase 2 as regression assertions.
+DO $$
+BEGIN
+  IF NOT has_table_privilege('authenticated', 'public.pinned_messages', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.pinned_messages', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.pinned_messages', 'DELETE') THEN
+    RAISE EXCEPTION 'Authenticated pinned-message SELECT/INSERT/DELETE grants are missing';
+  END IF;
+  IF has_table_privilege('authenticated', 'public.pinned_messages', 'UPDATE')
+     OR has_table_privilege('anon', 'public.pinned_messages', 'SELECT') THEN
+    RAISE EXCEPTION 'Pinned-message grants exceed the intended minimum privileges';
+  END IF;
+  IF has_table_privilege('authenticated', 'public.messages', 'DELETE')
+     OR has_table_privilege('authenticated', 'public.profiles', 'DELETE') THEN
+    RAISE EXCEPTION 'Client hard DELETE on messages/profiles must remain revoked';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'pinned_messages' AND c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'RLS must remain enabled on pinned_messages';
+  END IF;
+END $$;
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
