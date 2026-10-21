@@ -26,15 +26,39 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 internal object FcmTokenRegistrar {
     fun registerCurrentToken(context: Context, scope: CoroutineScope) {
-        // Firebase is deliberately optional until the project-specific app config is supplied.
-        if (FirebaseApp.getApps(context).isEmpty()) return
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            scope.launch(Dispatchers.IO) {
-                runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+        // Call only after a valid Supabase session exists.
+        if (FirebaseApp.getApps(context).isEmpty() ||
+            SupabaseAuthRepository.currentUserId() == null
+        ) return
+
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                if (token.isNullOrBlank()) return@addOnSuccessListener
+                scope.launch(Dispatchers.IO) {
+                    runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+                }
             }
+    }
+
+    suspend fun unregisterCurrentToken(context: Context) {
+        if (FirebaseApp.getApps(context).isEmpty()) return
+        val token = suspendCancellableCoroutine<String> { continuation ->
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { value ->
+                    if (continuation.isActive) continuation.resume(value)
+                }
+                .addOnFailureListener { error ->
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                }
+        }
+        if (token.isNotBlank() && SupabaseAuthRepository.currentUserId() != null) {
+            SupabaseDataRepository.removeDeviceToken(token)
         }
     }
 }
@@ -69,6 +93,9 @@ internal object MessageNotificationChannels {
 class SayangqoeMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
+        // Tokens can rotate before login. MainActivity retries the current token
+        // after session restoration or successful authentication.
+        if (SupabaseAuthRepository.currentUserId() == null) return
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { SupabaseDataRepository.saveDeviceToken(token) }
         }
