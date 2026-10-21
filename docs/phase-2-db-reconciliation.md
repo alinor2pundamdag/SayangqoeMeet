@@ -27,6 +27,7 @@ The live Supabase migration ledger was read before any DDL changes. It contains 
 - `20261021135259_phase2_enforce_soft_delete_boundaries`
 - `20261021155023_phase2_pinned_messages_authenticated_access`
 - `20261021160316_phase2_harden_profile_rpc_search_path`
+- `20261022074000_register_device_token_securely`
 
 Six already-applied historical migrations were missing from `main` under the versions recorded by Supabase. This branch restores them using the previously committed SQL sources, renaming them to match the live ledger versions. The recovered definitions were checked against live table columns, constraints, policies, indexes, and triggers. These historical migrations were **not re-applied**.
 
@@ -78,6 +79,9 @@ Grants only SELECT/INSERT/DELETE to authenticated users for RLS-scoped pinned me
 ### `20261021160316_phase2_harden_profile_rpc_search_path`
 Sets `get_my_profile()` to `search_path = public, pg_temp`, matching the already-hardened conversation-list RPC while preserving its caller filter and authenticated EXECUTE grant.
 
+### `20261022074000_register_device_token_securely`
+Adds authenticated-only `register_device_token(text,text)`. It derives the owner from `auth.uid()` and atomically reassigns an installation's unique FCM token to the currently signed-in account. This fixes the RLS-blocked upsert that could leave a token attached to the previous account after offline sign-out. Anonymous execution is revoked.
+
 ## Completion status
 
 - Migration ledger reconciled in the branch: **done**.
@@ -86,6 +90,8 @@ Sets `get_my_profile()` to `search_path = public, pg_temp`, matching the already
 - Fresh-database migration replay: **passed** on the final stacked-branch CI run for commit `a16ec7350b00cb704edef819c32c673bd1a03183`.
 - `supabase db lint --local --fail-on error`: **passed** on the same final CI run.
 - Authenticated two-user message RLS isolation test: **passed** on the same final CI run, using the actual `authenticated` role and distinct JWT subject identities for users A and B.
+- FCM account-switch regression: **added**; the test reuses one installation token as two authenticated users and asserts the token is assigned only to the second user. It also verifies anonymous EXECUTE is denied.
+- Push delivery regression: FCM payloads now include `recipient_id`; Android drops payloads that do not explicitly target the active user. Message push payloads are data-only so Android can validate identity before showing a notification.
 - Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
 - Live SECURITY DEFINER RPC review confirmed caller-scoped bodies, no anon EXECUTE, and `search_path = public, pg_temp` for both authenticated RPCs.
 - Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
