@@ -32,6 +32,8 @@ class MainActivity : ComponentActivity() {
     private var isAuthenticated by mutableStateOf(false)
     private var openChatsOnStart by mutableStateOf(false)
     private var incomingCallId by mutableStateOf<String?>(null)
+    private var callRecipientId by mutableStateOf<String?>(null)
+    private var callType by mutableStateOf("voice")
     private var notificationPermissionRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +56,11 @@ class MainActivity : ComponentActivity() {
                         isAuthenticated -> SignedInShell(
                             openChatsOnStart = openChatsOnStart,
                             initialCallId = incomingCallId,
+                            initialCallRecipientId = callRecipientId,
+                            initialCallType = callType,
+                            onIncomingCallHandled = { handledId ->
+                                if (incomingCallId == handledId) incomingCallId = null
+                            },
                             onSignOut = {
                                 lifecycleScope.launch {
                                     try {
@@ -130,6 +137,8 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.getBooleanExtra("open_calls", false) == true) {
             incomingCallId = intent.getStringExtra("incoming_call_id")?.takeIf { it.isNotBlank() }
+            callRecipientId = intent.getStringExtra("call_recipient_id")?.takeIf { it.isNotBlank() }
+            callType = intent.getStringExtra("call_type")?.takeIf { it == "video" } ?: "voice"
         }
     }
 
