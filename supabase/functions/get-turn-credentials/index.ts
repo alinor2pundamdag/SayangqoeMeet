@@ -69,6 +69,35 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(401, { error: "Invalid or expired session" });
     }
 
+    let body: { call_id?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse(400, { error: "Expected a JSON body" });
+    }
+    const callId = typeof body.call_id === "string" ? body.call_id : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+      return jsonResponse(400, { error: "call_id must be a UUID" });
+    }
+
+    // RLS restricts this query to calls where the authenticated user is a
+    // participant. Do not mint TURN credentials for arbitrary signed-in users.
+    const { data: call, error: callError } = await supabase
+      .from("call_sessions")
+      .select("id, status")
+      .eq("id", callId)
+      .maybeSingle();
+    if (callError) {
+      console.error("Call authorization lookup failed:", callError.message);
+      return jsonResponse(500, { error: "Could not authorize TURN credentials" });
+    }
+    if (!call) {
+      return jsonResponse(403, { error: "Only call participants may request TURN credentials" });
+    }
+    if (!["ringing", "accepted", "connecting", "connected"].includes(call.status)) {
+      return jsonResponse(409, { error: "Call is no longer active" });
+    }
+
     const cloudflareResponse = await fetch(
       `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(turnKeyId)}/credentials/generate-ice-servers`,
       {
