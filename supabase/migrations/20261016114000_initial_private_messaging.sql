@@ -5,13 +5,13 @@ begin;
 -- Some hosted Supabase projects provide this helper through platform setup,
 -- while a clean local Supabase stack may not. Harden it when present without
 -- making fresh local migration replay depend on a hosted-only helper.
-do $
+do $$
 begin
     if to_regprocedure('public.rls_auto_enable()') is not null then
         execute 'revoke execute on function public.rls_auto_enable() from public, anon, authenticated';
     end if;
 end
-$;
+$$;
 
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
