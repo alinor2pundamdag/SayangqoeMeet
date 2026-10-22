@@ -38,4 +38,11 @@ $$;
 REVOKE ALL ON FUNCTION public.register_device_token(text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.register_device_token(text, text) TO authenticated;
 
+-- Registration must go through the identity-derived RPC. Leaving direct INSERT
+-- or UPDATE grants would let older clients bypass atomic reassignment semantics.
+REVOKE INSERT, UPDATE ON TABLE public.device_tokens FROM PUBLIC, anon, authenticated;
+GRANT SELECT, DELETE ON TABLE public.device_tokens TO authenticated;
+DROP POLICY IF EXISTS "users register own device tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "users update own device tokens" ON public.device_tokens;
+
 COMMIT;
