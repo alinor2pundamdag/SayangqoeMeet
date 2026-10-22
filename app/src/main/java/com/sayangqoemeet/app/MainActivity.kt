@@ -69,21 +69,28 @@ class MainActivity : ComponentActivity() {
                                 isAuthReady = false
                                 lifecycleScope.launch {
                                     try {
-                                        // Remote token cleanup is best-effort. Always clear the
-                                        // local session even when offline; FCM handling is gated
-                                        // on an authenticated session to protect shared devices.
+                                        // Token deletion is best-effort; local logout must still
+                                        // complete if the device is offline or the server is down.
                                         runCatching {
                                             FcmTokenRegistrar.unregisterCurrentToken(this@MainActivity)
                                         }
-                                        SupabaseAuthRepository.signOut()
+                                        var remoteSignOutFailure: Exception? = null
+                                        try {
+                                            SupabaseAuthRepository.signOut()
+                                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            throw cancelled
+                                        } catch (error: Exception) {
+                                            remoteSignOutFailure = error
+                                        }
                                         isAuthenticated = false
                                         incomingCallId = null
-                                    } catch (error: Exception) {
-                                        Toast.makeText(
-                                            this@MainActivity,
-                                            error.message ?: "Could not sign out. Please try again.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        if (remoteSignOutFailure != null) {
+                                            Toast.makeText(
+                                                this@MainActivity,
+                                                "Signed out on this device. Server revocation could not be confirmed; reconnect to sync.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
                                     } finally {
                                         authCallbackPending = false
                                         isAuthReady = true
