@@ -242,7 +242,30 @@ ON CONFLICT (id) DO NOTHING;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $$
+
+-- Legitimate client call creation starts in ringing state.
+INSERT INTO public.call_sessions (id, caller_id, callee_id, call_type, status)
+VALUES ('55555555-5555-4555-8555-555555555555',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'voice', 'ringing');
+
+-- Direct authenticated INSERT must not bypass lifecycle by forging a later state.
+DO $
+BEGIN
+  BEGIN
+    INSERT INTO public.call_sessions (id, caller_id, callee_id, call_type, status, answered_at)
+    VALUES ('66666666-6666-4666-8666-666666666666',
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'voice', 'connected', now());
+    RAISE EXCEPTION 'Authenticated caller incorrectly inserted a connected call' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END $;
+
+DO $
 BEGIN
   BEGIN
     UPDATE public.call_sessions
@@ -258,8 +281,22 @@ SET status = 'cancelled', ended_at = now()
 WHERE id = '11111111-1111-4111-8111-111111111111';
 RESET ROLE;
 
-DO $$
+DO $
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.call_sessions
+    WHERE id = '55555555-5555-4555-8555-555555555555'
+      AND status = 'ringing'
+      AND answer_sdp IS NULL AND answered_at IS NULL AND ended_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Legitimate client-created call must start ringing';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.call_sessions
+    WHERE id = '66666666-6666-4666-8666-666666666666'
+  ) THEN
+    RAISE EXCEPTION 'Forged initial call state unexpectedly persisted';
+  END IF;
   IF (SELECT status FROM public.call_sessions
       WHERE id = '11111111-1111-4111-8111-111111111111') <> 'cancelled' THEN
     RAISE EXCEPTION 'Caller cancellation from ringing must be persisted';
