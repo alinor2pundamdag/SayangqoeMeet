@@ -56,8 +56,11 @@ Deno.serve(async (req: Request) => {
   if (authError || !auth.user) return reply(401, { error: "Session is invalid" });
   let body: { call_id?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Expected JSON body" }); }
-  const callId = typeof body.call_id === "string" ? body.call_id : "";
+  const callId = typeof body.call_id === "string" ? body.call_id.trim() : "";
   if (!callId) return reply(400, { error: "call_id is required" });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    return reply(400, { error: "call_id must be a UUID" });
+  }
 
   const { data: call, error: callError } = await admin.from("call_sessions")
     .select("id, caller_id, callee_id, call_type, status")
