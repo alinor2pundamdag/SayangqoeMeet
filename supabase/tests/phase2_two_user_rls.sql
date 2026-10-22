@@ -283,7 +283,7 @@ VALUES ('55555555-5555-4555-8555-555555555555',
         'voice', 'ringing');
 
 -- Direct authenticated INSERT must not bypass lifecycle by forging a later state.
-DO $
+DO $$
 BEGIN
   BEGIN
     INSERT INTO public.call_sessions (id, caller_id, callee_id, call_type, status, answered_at)
@@ -295,9 +295,9 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
-END $;
+END $$;
 
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE public.call_sessions
@@ -313,7 +313,7 @@ SET status = 'cancelled', ended_at = now()
 WHERE id = '11111111-1111-4111-8111-111111111111';
 RESET ROLE;
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.call_sessions
