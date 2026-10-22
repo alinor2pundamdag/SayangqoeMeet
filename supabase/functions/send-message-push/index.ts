@@ -148,9 +148,8 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             message: {
               token: device.token,
-              // Data-only payload lets the Android client verify recipient_id before
-              // displaying anything; notification payloads can bypass onMessageReceived.
-              // Data-only keeps recipient validation in Android before any UI is shown.
+              // Data-only keeps recipient validation in Android before any UI is shown;
+              // notification payloads can bypass onMessageReceived.
               // Do not include message text in push payloads; keep lock-screen previews private.
               data: {
                 type: "message",
