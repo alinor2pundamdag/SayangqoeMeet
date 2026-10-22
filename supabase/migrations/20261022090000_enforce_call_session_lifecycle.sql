@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION public.guard_call_session_updates()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public, pg_temp
-AS $
+AS $guard$ 
 DECLARE
   v_uid uuid := auth.uid();
   v_role text := coalesce(auth.role(), '');
@@ -39,7 +39,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$guard$;
 
 REVOKE ALL ON FUNCTION public.guard_call_session_updates() FROM PUBLIC, anon, authenticated;
 
