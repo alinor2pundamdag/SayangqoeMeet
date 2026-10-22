@@ -100,7 +100,109 @@ BEGIN
   ) <> 3 THEN
     RAISE EXCEPTION 'Chat attachment storage policies must guard malformed UUID paths before casting';
   END IF;
-END $$;
+END $;
+
+-- No exposed public table may be left without RLS. Service-only media tables
+-- deliberately have no client grants or client policies.
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'Every public table must have RLS enabled';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM (VALUES
+      ('public.message_media_cleanup_queue'::text),
+      ('public.message_media_download_confirmations'::text)
+    ) AS service_tables(table_name)
+    WHERE has_table_privilege('anon', service_tables.table_name, 'SELECT')
+       OR has_table_privilege('anon', service_tables.table_name, 'INSERT')
+       OR has_table_privilege('anon', service_tables.table_name, 'UPDATE')
+       OR has_table_privilege('anon', service_tables.table_name, 'DELETE')
+       OR has_table_privilege('authenticated', service_tables.table_name, 'SELECT')
+       OR has_table_privilege('authenticated', service_tables.table_name, 'INSERT')
+       OR has_table_privilege('authenticated', service_tables.table_name, 'UPDATE')
+       OR has_table_privilege('authenticated', service_tables.table_name, 'DELETE')
+  ) THEN
+    RAISE EXCEPTION 'Service-only media tables must not be accessible to anon/authenticated';
+  END IF;
+
+  IF has_column_privilege('authenticated', 'public.profiles', 'address', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'bio', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'birthday', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'religion', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'phone_number', 'SELECT') THEN
+    RAISE EXCEPTION 'Sensitive profile columns must remain inaccessible to ordinary authenticated clients';
+  END IF;
+
+  IF has_column_privilege('authenticated', 'public.messages', 'id', 'UPDATE')
+     OR has_column_privilege('authenticated', 'public.messages', 'conversation_id', 'UPDATE')
+     OR has_column_privilege('authenticated', 'public.messages', 'sender_id', 'UPDATE')
+     OR has_column_privilege('authenticated', 'public.messages', 'created_at', 'UPDATE')
+     OR has_column_privilege('authenticated', 'public.messages', 'attachment_purged_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Authenticated clients must not update message identity or server-owned cleanup fields';
+  END IF;
+  IF NOT has_column_privilege('authenticated', 'public.messages', 'body', 'UPDATE')
+     OR NOT has_column_privilege('authenticated', 'public.messages', 'deleted_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Supported message edit and soft-delete columns must remain writable';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'messages'
+      AND t.tgname = 'messages_update_integrity_guard' AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Message identity/soft-delete guard trigger is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'call_sessions' AND cmd = 'UPDATE'
+      AND qual IS NOT NULL AND with_check IS NOT NULL
+      AND qual LIKE '%caller_id%' AND with_check LIKE '%callee_id%'
+  ) THEN
+    RAISE EXCEPTION 'Call participant UPDATE policy must enforce both USING and WITH CHECK';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'call_ice_candidates'
+      AND policyname = 'call_ice_participant_insert' AND cmd = 'INSERT'
+      AND with_check LIKE '%ringing%' AND with_check LIKE '%connected%'
+  ) THEN
+    RAISE EXCEPTION 'ICE candidate inserts must be limited to active call states';
+  END IF;
+END $;
+
+-- Database triggers must prevent moving a message to a different conversation
+-- even when the caller bypasses ordinary PostgREST/RLS checks.
+DO $
+BEGIN
+  BEGIN
+    UPDATE public.messages
+    SET conversation_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    WHERE id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    RAISE EXCEPTION 'Message was incorrectly moved across conversations' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  BEGIN
+    UPDATE public.messages
+    SET deleted_at = NULL
+    WHERE id = '99999999-9999-4999-8999-999999999999';
+    RAISE EXCEPTION 'Soft-deleted message was incorrectly restored' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END $;
 
 
 -- Call lifecycle regression fixtures and participant transition tests.
