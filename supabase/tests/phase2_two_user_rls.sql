@@ -263,6 +263,17 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Device-token registration RPC must be SECURITY DEFINER with a hardened search_path';
   END IF;
+
+  IF has_table_privilege('authenticated', 'public.device_tokens', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.device_tokens', 'UPDATE')
+     OR has_table_privilege('anon', 'public.device_tokens', 'INSERT')
+     OR has_table_privilege('anon', 'public.device_tokens', 'UPDATE') THEN
+    RAISE EXCEPTION 'Direct device-token INSERT/UPDATE must be denied; clients must use the authenticated RPC';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.device_tokens', 'DELETE')
+     OR NOT has_table_privilege('authenticated', 'public.device_tokens', 'SELECT') THEN
+    RAISE EXCEPTION 'Authenticated device-token cleanup/read privileges are missing';
+  END IF;
 END $$;
 
 SET LOCAL ROLE authenticated;
