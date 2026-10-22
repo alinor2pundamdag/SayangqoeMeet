@@ -61,6 +61,12 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF NEW.ended_at IS DISTINCT FROM OLD.ended_at
+     AND NEW.status NOT IN ('declined', 'cancelled', 'ended', 'missed', 'failed') THEN
+    RAISE EXCEPTION 'ended_at may only be set for a terminal call'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF NEW.status IS DISTINCT FROM OLD.status THEN
     IF OLD.status IN ('declined', 'cancelled', 'ended', 'missed', 'failed') THEN
       RAISE EXCEPTION 'A terminal call cannot be reopened'
@@ -70,8 +76,10 @@ BEGIN
     IF v_role <> 'service_role' THEN
       CASE OLD.status
         WHEN 'ringing' THEN
-          IF NEW.status = 'accepted' AND NOT v_is_callee THEN
-            RAISE EXCEPTION 'Only the callee may accept a ringing call' USING ERRCODE = '42501';
+          IF NEW.status = 'accepted'
+             AND (NOT v_is_callee OR NEW.answer_sdp IS NULL OR NEW.answered_at IS NULL) THEN
+            RAISE EXCEPTION 'Only the callee may accept with an SDP answer and answer timestamp'
+              USING ERRCODE = '42501';
           ELSIF NEW.status = 'declined' AND NOT v_is_callee THEN
             RAISE EXCEPTION 'Only the callee may decline a ringing call' USING ERRCODE = '42501';
           ELSIF NEW.status = 'cancelled' AND NOT v_is_caller THEN
