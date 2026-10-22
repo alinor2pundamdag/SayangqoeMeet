@@ -95,6 +95,7 @@ Adds authenticated-only `register_device_token(text,text)`. It derives the owner
 - Fresh-schema regression assertions now verify the profile-avatar bucket is public, chat attachments remain private, messages/calls/presence/pinned messages are all in the Realtime publication, and all three chat-attachment policies guard UUID casts.
 - Push delivery regression: FCM payloads now include `recipient_id`; Android drops payloads that do not explicitly target the active user. Message push payloads are data-only so Android can validate identity before showing a notification.
 - TURN credential requests now include `call_id`; the Edge Function verifies the authenticated user is a participant in an active call before asking Cloudflare to mint temporary ICE credentials.
+- Message-push authorization now rejects soft-deleted messages and callers who are no longer members of the conversation. Android app backup is disabled to avoid restoring authentication/session state onto another device.
 - Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
 - Live SECURITY DEFINER RPC review confirmed caller-scoped bodies, no anon EXECUTE, and `search_path = public, pg_temp` for both authenticated RPCs.
 - Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.

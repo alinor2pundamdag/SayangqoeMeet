@@ -92,10 +92,11 @@ Deno.serve(async (req: Request) => {
 
   const { data: message, error: messageError } = await adminClient
     .from("messages")
-    .select("id, conversation_id, sender_id")
+    .select("id, conversation_id, sender_id, deleted_at")
     .eq("id", messageId)
     .eq("conversation_id", conversationId)
     .eq("sender_id", authData.user.id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (messageError) return reply(500, { error: "Could not verify message" });
   if (!message) return reply(403, { error: "Message does not belong to this caller" });
@@ -103,10 +104,13 @@ Deno.serve(async (req: Request) => {
   const { data: memberships, error: membersError } = await adminClient
     .from("conversation_members")
     .select("user_id")
-    .eq("conversation_id", conversationId)
-    .neq("user_id", authData.user.id);
-  if (membersError) return reply(500, { error: "Could not resolve recipients" });
-  const recipientIds = [...new Set((memberships ?? []).map((row) => row.user_id as string))];
+    .eq("conversation_id", conversationId);
+  if (membersError) return reply(500, { error: "Could not resolve conversation members" });
+  const memberIds = [...new Set((memberships ?? []).map((row) => row.user_id as string))];
+  if (!memberIds.includes(authData.user.id)) {
+    return reply(403, { error: "Caller is no longer a conversation member" });
+  }
+  const recipientIds = memberIds.filter((id) => id !== authData.user.id);
   if (recipientIds.length === 0) return reply(200, { sent: 0, reason: "No other conversation members" });
 
   const { data: devices, error: devicesError } = await adminClient
