@@ -100,11 +100,11 @@ BEGIN
   ) <> 3 THEN
     RAISE EXCEPTION 'Chat attachment storage policies must guard malformed UUID paths before casting';
   END IF;
-END $;
+END $$;
 
 -- No exposed public table may be left without RLS. Service-only media tables
 -- deliberately have no client grants or client policies.
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_class c
@@ -195,11 +195,11 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ICE candidate inserts must be limited to active call states';
   END IF;
-END $;
+END $$;
 
 -- Database triggers must prevent moving a message to a different conversation
 -- even when the caller bypasses ordinary PostgREST/RLS checks.
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE public.messages
@@ -218,7 +218,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
-END $;
+END $$;
 
 
 -- Call lifecycle regression fixtures and participant transition tests.
