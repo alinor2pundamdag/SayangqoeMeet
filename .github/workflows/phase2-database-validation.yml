@@ -4,6 +4,12 @@ name: Phase 2 Database Validation
 # A green result is valid only for the exact head SHA that was actually tested.
 
 on:
+  push:
+    branches:
+      - fix/phase-2-db-reconciliation-on-phase-1
+    paths:
+      - "supabase/**"
+      - ".github/workflows/phase2-database-validation.yml"
   pull_request:
     branches:
       - fix/phase-1-auth-manifest-ci
@@ -22,7 +28,7 @@ concurrency:
 jobs:
   fresh-migration-replay:
     name: Fresh Supabase migration replay and RLS isolation
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out repository
