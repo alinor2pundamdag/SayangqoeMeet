@@ -128,12 +128,17 @@ class MainActivity : ComponentActivity() {
         // not race startup or a deep-link callback's authoritative restore.
         if (!isAuthReady || authCallbackPending) return
         lifecycleScope.launch {
-            val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+            val restoreResult = runCatching { SupabaseAuthRepository.restoreSession() }
             if (authCallbackPending) return@launch
-            isAuthenticated = restored
-            if (restored) {
-                FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
-                requestNotificationPermissionIfNeeded()
+            // A transient refresh/network failure is not proof that the user is
+            // signed out. Preserve the current UI state unless the session check
+            // completed successfully.
+            restoreResult.onSuccess { restored ->
+                isAuthenticated = restored
+                if (restored) {
+                    FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+                    requestNotificationPermissionIfNeeded()
+                }
             }
         }
     }
