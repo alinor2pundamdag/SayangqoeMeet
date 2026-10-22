@@ -56,8 +56,11 @@ Deno.serve(async (req: Request) => {
   if (authError || !auth.user) return reply(401, { error: "Session is invalid" });
   let body: { call_id?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Expected JSON body" }); }
-  const callId = typeof body.call_id === "string" ? body.call_id : "";
+  const callId = typeof body.call_id === "string" ? body.call_id.trim() : "";
   if (!callId) return reply(400, { error: "call_id is required" });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    return reply(400, { error: "call_id must be a UUID" });
+  }
 
   const { data: call, error: callError } = await admin.from("call_sessions")
     .select("id, caller_id, callee_id, call_type, status")
@@ -69,7 +72,7 @@ Deno.serve(async (req: Request) => {
 
   const [{ data: profile }, { data: devices, error: devicesError }] = await Promise.all([
     admin.from("profiles").select("display_name, username").eq("id", auth.user.id).maybeSingle(),
-    admin.from("device_tokens").select("token").eq("user_id", call.callee_id),
+    admin.from("device_tokens").select("token, user_id").eq("user_id", call.callee_id),
   ]);
   if (devicesError) return reply(500, { error: "Could not load recipient devices" });
   if (!devices?.length) return reply(200, { sent: 0, reason: "Recipient has no registered push token" });
@@ -88,8 +91,8 @@ Deno.serve(async (req: Request) => {
         headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
         body: JSON.stringify({ message: {
           token: device.token,
-          data: { type: "incoming_call", call_id: call.id, caller_name: callerName, call_type: call.call_type },
-          android: { priority: "high", ttl: "45s" },
+          data: { type: "incoming_call", call_id: call.id, caller_name: callerName, call_type: call.call_type, recipient_id: call.callee_id },
+          android: { priority: "HIGH", ttl: "45s" },
         } }),
       });
       return response.ok;
