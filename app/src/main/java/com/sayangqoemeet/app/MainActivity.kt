@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private var callRecipientId by mutableStateOf<String?>(null)
     private var callType by mutableStateOf("voice")
     private var notificationPermissionRequested = false
+    private var authCallbackPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,10 +99,15 @@ class MainActivity : ComponentActivity() {
         }
 
         lifecycleScope.launch {
-            isAuthenticated = runCatching {
+            // A deep-link callback owns session restoration when present. Do not
+            // race it with a second startup restore that could render the auth gate.
+            if (authCallbackPending) return@launch
+            val restored = runCatching {
                 SupabaseAuthRepository.restoreSession()
             }.getOrDefault(false)
-            if (isAuthenticated) {
+            if (authCallbackPending) return@launch
+            isAuthenticated = restored
+            if (restored) {
                 FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
                 requestNotificationPermissionIfNeeded()
             }
@@ -118,12 +124,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // OAuth confirmation may return to a new Activity instance depending on
-        // browser/task behavior; refresh session whenever the app resumes.
+        // Reconcile an existing session after returning from background, but do
+        // not race startup or a deep-link callback's authoritative restore.
+        if (!isAuthReady || authCallbackPending) return
         lifecycleScope.launch {
             val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+            if (authCallbackPending) return@launch
             isAuthenticated = restored
-            isAuthReady = true
             if (restored) {
                 FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
                 requestNotificationPermissionIfNeeded()
@@ -149,6 +156,8 @@ class MainActivity : ComponentActivity() {
             uri.host != "login-callback"
         ) return
 
+        authCallbackPending = true
+        isAuthReady = false
         runCatching { SupabaseAuthRepository.handleDeepLink(intent) }
             .onFailure { error ->
                 Toast.makeText(
@@ -159,14 +168,19 @@ class MainActivity : ComponentActivity() {
             }
 
         lifecycleScope.launch {
-            isAuthenticated = runCatching {
-                SupabaseAuthRepository.restoreSession()
-            }.getOrDefault(false)
-            if (isAuthenticated) {
-                FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
-                requestNotificationPermissionIfNeeded()
+            try {
+                val restored = runCatching {
+                    SupabaseAuthRepository.restoreSession()
+                }.getOrDefault(false)
+                isAuthenticated = restored
+                if (restored) {
+                    FcmTokenRegistrar.registerCurrentToken(this@MainActivity, lifecycleScope)
+                    requestNotificationPermissionIfNeeded()
+                }
+            } finally {
+                authCallbackPending = false
+                isAuthReady = true
             }
-            isAuthReady = true
         }
     }
 
