@@ -1,4 +1,5 @@
 name: Phase 2 Database Validation
+# Keep the validation environment pinned; runner startup failures must not be mistaken for code failures.
 
 on:
   pull_request:
