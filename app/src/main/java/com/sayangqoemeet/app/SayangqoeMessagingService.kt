@@ -103,9 +103,19 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        // Firebase can start this service after process death. Restore the persisted
+        // Supabase session before reading currentUserId(), otherwise a legitimate
+        // data-only push can be dropped during cold start.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            processPushMessage(message)
+        }
+    }
+
+    private suspend fun processPushMessage(message: RemoteMessage) {
+        val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
         // FCM tokens can outlive a failed offline sign-out. Require both an
-        // active session and an explicit recipient match before showing or ringing.
-        val currentUserId = SupabaseAuthRepository.currentUserId()
+        // active restored session and an explicit recipient match before showing or ringing.
+        val currentUserId = if (restored) SupabaseAuthRepository.currentUserId() else null
         if (currentUserId == null) {
             runCatching { CallForegroundService.stop(this) }
             return
@@ -258,7 +268,9 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
 
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val callId = intent.getStringExtra("call_id") ?: return
+        val callId = intent.getStringExtra("call_id")?.takeIf {
+            it.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"))
+        } ?: return
         if (intent.action != ACTION_DECLINE) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -266,7 +278,10 @@ class CallActionReceiver : BroadcastReceiver() {
                 // Stop local ringing immediately; network signaling is best-effort.
                 runCatching { CallForegroundService.stop(context, callId) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
-                runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+                if (restored && SupabaseAuthRepository.currentUserId() != null) {
+                    runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                }
             } finally {
                 pending.finish()
             }
