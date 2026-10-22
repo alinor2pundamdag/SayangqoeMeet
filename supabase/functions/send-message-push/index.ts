@@ -89,13 +89,19 @@ Deno.serve(async (req: Request) => {
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id : "";
   const messageId = typeof body.message_id === "string" ? body.message_id : "";
   if (!conversationId || !messageId) return reply(400, { error: "conversation_id and message_id are required" });
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  if (!isUuid(conversationId) || !isUuid(messageId)) {
+    return reply(400, { error: "conversation_id and message_id must be UUIDs" });
+  }
 
   const { data: message, error: messageError } = await adminClient
     .from("messages")
-    .select("id, conversation_id, sender_id")
+    .select("id, conversation_id, sender_id, deleted_at")
     .eq("id", messageId)
     .eq("conversation_id", conversationId)
     .eq("sender_id", authData.user.id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (messageError) return reply(500, { error: "Could not verify message" });
   if (!message) return reply(403, { error: "Message does not belong to this caller" });
@@ -103,15 +109,27 @@ Deno.serve(async (req: Request) => {
   const { data: memberships, error: membersError } = await adminClient
     .from("conversation_members")
     .select("user_id")
-    .eq("conversation_id", conversationId)
-    .neq("user_id", authData.user.id);
-  if (membersError) return reply(500, { error: "Could not resolve recipients" });
-  const recipientIds = [...new Set((memberships ?? []).map((row) => row.user_id as string))];
+    .eq("conversation_id", conversationId);
+  if (membersError) return reply(500, { error: "Could not resolve conversation members" });
+  const memberIds = [...new Set((memberships ?? []).map((row) => row.user_id as string))];
+  if (!memberIds.includes(authData.user.id)) {
+    return reply(403, { error: "Caller is no longer a conversation member" });
+  }
+  const recipientIds = memberIds.filter((id) => id !== authData.user.id);
   if (recipientIds.length === 0) return reply(200, { sent: 0, reason: "No other conversation members" });
+
+  const { data: senderProfile, error: senderProfileError } = await adminClient
+    .from("profiles")
+    .select("display_name, username")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+  if (senderProfileError) return reply(500, { error: "Could not load sender profile" });
+  const senderName = senderProfile?.display_name ||
+    (senderProfile?.username ? "@" + senderProfile.username : "SayangqoeMeet");
 
   const { data: devices, error: devicesError } = await adminClient
     .from("device_tokens")
-    .select("token")
+    .select("token, user_id")
     .in("user_id", recipientIds);
   if (devicesError) return reply(500, { error: "Could not load recipient devices" });
   if (!devices?.length) return reply(200, { sent: 0, reason: "Recipients have no registered devices" });
@@ -135,9 +153,18 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             message: {
               token: device.token,
-              notification: { title: "SayangqoeMeet", body: "You have a new message." },
-              data: { type: "message", conversation_id: conversationId, message_id: messageId },
-              android: { notification: { channel_id: "sayangqoemeet_messages", sound: "default" } },
+              // Data-only keeps recipient validation in Android before any UI is shown;
+              // notification payloads can bypass onMessageReceived.
+              // Do not include message text in push payloads; keep lock-screen previews private.
+              data: {
+                type: "message",
+                conversation_id: conversationId,
+                message_id: messageId,
+                recipient_id: device.user_id,
+                sender_name: senderName,
+                message_preview: "You have a new message.",
+              },
+              android: { priority: "HIGH" },
             },
           }),
         },
