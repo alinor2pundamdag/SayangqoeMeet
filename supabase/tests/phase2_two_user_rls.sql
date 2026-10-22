@@ -168,6 +168,31 @@ BEGIN
     RAISE EXCEPTION 'Supported message edit and soft-delete columns must remain writable';
   END IF;
 
+  IF has_column_privilege('authenticated', 'public.messages', 'id', 'INSERT')
+     OR has_column_privilege('authenticated', 'public.messages', 'created_at', 'INSERT')
+     OR has_column_privilege('authenticated', 'public.messages', 'deleted_at', 'INSERT')
+     OR has_column_privilege('authenticated', 'public.messages', 'edited_at', 'INSERT')
+     OR has_column_privilege('authenticated', 'public.messages', 'attachment_purged_at', 'INSERT') THEN
+    RAISE EXCEPTION 'Authenticated clients must not forge message identity or server-owned state on INSERT';
+  END IF;
+  IF NOT has_column_privilege('authenticated', 'public.messages', 'conversation_id', 'INSERT')
+     OR NOT has_column_privilege('authenticated', 'public.messages', 'sender_id', 'INSERT')
+     OR NOT has_column_privilege('authenticated', 'public.messages', 'body', 'INSERT')
+     OR NOT has_column_privilege('authenticated', 'public.messages', 'attachment_path', 'INSERT')
+     OR NOT has_column_privilege('authenticated', 'public.messages', 'attachment_mime_type', 'INSERT')
+     OR NOT has_column_privilege('authenticated', 'public.messages', 'attachment_name', 'INSERT') THEN
+    RAISE EXCEPTION 'Supported text/attachment message INSERT columns must remain writable';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'messages'
+      AND t.tgname = 'messages_insert_integrity_guard' AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Message INSERT integrity guard trigger is missing';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger t
     JOIN pg_class c ON c.oid = t.tgrelid
@@ -252,6 +277,31 @@ BEGIN
   END;
 END $$;
 
+
+-- Authenticated clients must not forge soft-delete or cleanup state when inserting.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $
+BEGIN
+  BEGIN
+    INSERT INTO public.messages (conversation_id, sender_id, body, attachment_purged_at)
+    VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'forged cleanup state', now());
+    RAISE EXCEPTION 'Authenticated client incorrectly inserted server-owned cleanup state' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO public.messages (conversation_id, sender_id, body, deleted_at)
+    VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'pre-deleted message', now());
+    RAISE EXCEPTION 'Authenticated client incorrectly inserted a pre-deleted message' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END $;
+RESET ROLE;
 
 -- Call lifecycle regression fixtures and participant transition tests.
 INSERT INTO public.call_sessions (id, caller_id, callee_id, call_type, status)
