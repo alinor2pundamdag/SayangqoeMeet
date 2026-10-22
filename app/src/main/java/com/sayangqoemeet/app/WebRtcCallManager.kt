@@ -240,7 +240,7 @@ internal class WebRtcCallManager(
                     setRequestProperty("Content-Type", "application/json")
                 }
                 try {
-                    connection.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
+                    connection.outputStream.use { it.write(org.json.JSONObject().put("call_id", callId).toString().toByteArray(Charsets.UTF_8)) }
                     val code = connection.responseCode
                     val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                     val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
