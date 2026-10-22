@@ -121,7 +121,7 @@ ON CONFLICT (id) DO NOTHING;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE public.call_sessions
@@ -137,7 +137,7 @@ SET status = 'cancelled', ended_at = now()
 WHERE id = '11111111-1111-4111-8111-111111111111';
 RESET ROLE;
 
-DO $
+DO $$
 BEGIN
   IF (SELECT status FROM public.call_sessions
       WHERE id = '11111111-1111-4111-8111-111111111111') <> 'cancelled' THEN
@@ -149,7 +149,7 @@ END $;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE public.call_sessions
@@ -181,7 +181,7 @@ WHERE id = '22222222-2222-4222-8222-222222222222';
 UPDATE public.call_sessions
 SET status = 'ended', ended_at = now()
 WHERE id = '22222222-2222-4222-8222-222222222222';
-DO $
+DO $$
 BEGIN
   BEGIN
     UPDATE public.call_sessions
@@ -199,7 +199,7 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $
+DO $$
 DECLARE visible_count integer;
 BEGIN
   SELECT count(*) INTO visible_count
@@ -218,7 +218,7 @@ SET status = 'cancelled'
 WHERE id = '33333333-3333-4333-8333-333333333333';
 RESET ROLE;
 
-DO $
+DO $$
 BEGIN
   IF (SELECT status FROM public.call_sessions
       WHERE id = '33333333-3333-4333-8333-333333333333') <> 'ringing' THEN
