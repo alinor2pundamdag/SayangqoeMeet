@@ -75,26 +75,35 @@ Deno.serve(async (req: Request) => {
     } catch {
       return jsonResponse(400, { error: "Expected a JSON body" });
     }
+    if (body.call_id !== undefined && typeof body.call_id !== "string") {
+      return jsonResponse(400, { error: "call_id must be a UUID" });
+    }
     const callId = typeof body.call_id === "string" ? body.call_id : "";
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    if (callId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
       return jsonResponse(400, { error: "call_id must be a UUID" });
     }
 
-    // RLS restricts this query to calls where the authenticated user is a
-    // participant. Do not mint TURN credentials for arbitrary signed-in users.
-    const { data: call, error: callError } = await supabase
-      .from("call_sessions")
-      .select("id, status")
-      .eq("id", callId)
-      .maybeSingle();
+    const activeStatuses = ["ringing", "accepted", "connecting", "connected"];
+    // Current clients identify the exact call. During rollout, older clients
+    // that send an empty body are limited to an active call visible under RLS.
+    let callQuery = supabase.from("call_sessions").select("id, status");
+    if (callId) {
+      callQuery = callQuery.eq("id", callId);
+    } else {
+      callQuery = callQuery
+        .or(`caller_id.eq.${authData.user.id},callee_id.eq.${authData.user.id}`)
+        .in("status", activeStatuses)
+        .limit(1);
+    }
+    const { data: call, error: callError } = await callQuery.maybeSingle();
     if (callError) {
       console.error("Call authorization lookup failed:", callError.message);
       return jsonResponse(500, { error: "Could not authorize TURN credentials" });
     }
     if (!call) {
-      return jsonResponse(403, { error: "Only call participants may request TURN credentials" });
+      return jsonResponse(403, { error: "An active call participant session is required" });
     }
-    if (!["ringing", "accepted", "connecting", "connected"].includes(call.status)) {
+    if (!activeStatuses.includes(call.status)) {
       return jsonResponse(409, { error: "Call is no longer active" });
     }
 
