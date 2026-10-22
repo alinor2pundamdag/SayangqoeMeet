@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -111,7 +112,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         // Firebase callback returns; otherwise the process may stop before the
         // coroutine posts the notification or starts the incoming-call service.
         runCatching {
-            runBlocking(Dispatchers.IO) { processPushMessage(message) }
+            runBlocking(Dispatchers.IO) { withTimeout(15_000) { processPushMessage(message) } }
         }.onFailure { failure ->
             android.util.Log.w("SayangqoeFCM", "Push processing failed", failure)
         }
