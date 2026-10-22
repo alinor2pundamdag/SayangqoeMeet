@@ -6,7 +6,7 @@ DO $$
 DECLARE
   user_a constant uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   user_b constant uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-  user_c constant uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  user_c constant uuid := '77777777-7777-4777-8777-777777777777';
   conversation_a constant uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   conversation_b constant uuid := 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   message_a constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
@@ -197,7 +197,7 @@ RESET ROLE;
 -- A third authenticated user who is not a call participant cannot read messages
 -- or mutate a call even if the UUID is known.
 SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', true);
+SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 DO $
 DECLARE visible_count integer;
