@@ -217,6 +217,16 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Call initial-state INSERT guard trigger is missing';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'guard_call_session_insert'
+      AND p.proconfig @> ARRAY['search_path=public, pg_temp']
+  ) OR has_function_privilege('anon', 'public.guard_call_session_insert()', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.guard_call_session_insert()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Call initial-state trigger function must have hardened search_path and no client EXECUTE grants';
+  END IF;
 END $$;
 
 -- Database triggers must prevent moving a message to a different conversation
