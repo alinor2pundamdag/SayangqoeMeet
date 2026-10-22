@@ -113,6 +113,15 @@ Deno.serve(async (req: Request) => {
   const recipientIds = memberIds.filter((id) => id !== authData.user.id);
   if (recipientIds.length === 0) return reply(200, { sent: 0, reason: "No other conversation members" });
 
+  const { data: senderProfile, error: senderProfileError } = await adminClient
+    .from("profiles")
+    .select("display_name, username")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+  if (senderProfileError) return reply(500, { error: "Could not load sender profile" });
+  const senderName = senderProfile?.display_name ||
+    (senderProfile?.username ? "@" + senderProfile.username : "SayangqoeMeet");
+
   const { data: devices, error: devicesError } = await adminClient
     .from("device_tokens")
     .select("token, user_id")
@@ -141,7 +150,16 @@ Deno.serve(async (req: Request) => {
               token: device.token,
               // Data-only payload lets the Android client verify recipient_id before
               // displaying anything; notification payloads can bypass onMessageReceived.
-              data: { type: "message", conversation_id: conversationId, message_id: messageId, recipient_id: device.user_id },
+              // Data-only keeps recipient validation in Android before any UI is shown.
+              // Do not include message text in push payloads; keep lock-screen previews private.
+              data: {
+                type: "message",
+                conversation_id: conversationId,
+                message_id: messageId,
+                recipient_id: device.user_id,
+                sender_name: senderName,
+                message_preview: "You have a new message.",
+              },
               android: { notification: { channel_id: "sayangqoemeet_messages", sound: "default" } },
             },
           }),
