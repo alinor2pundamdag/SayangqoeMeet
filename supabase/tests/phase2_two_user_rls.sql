@@ -35,9 +35,11 @@ BEGIN
   VALUES (conversation_a, user_a), (conversation_b, user_b)
   ON CONFLICT DO NOTHING;
 
-  INSERT INTO public.messages (id, conversation_id, sender_id, body)
-  VALUES (message_a, conversation_a, user_a, 'visible only to user A'),
-         (message_b, conversation_b, user_b, 'visible only to user B')
+  INSERT INTO public.messages (id, conversation_id, sender_id, body, deleted_at)
+  VALUES (message_a, conversation_a, user_a, 'visible only to user A', NULL),
+         (message_b, conversation_b, user_b, 'visible only to user B', NULL),
+         ('99999999-9999-4999-8999-999999999999', conversation_a, user_a,
+          'soft-deleted and must never be selected', now())
   ON CONFLICT (id) DO NOTHING;
 END $$;
 
@@ -220,17 +222,21 @@ BEGIN
   FROM public.messages
   WHERE id IN (
     'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-    'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    '99999999-9999-4999-8999-999999999999'
   );
   IF visible_count <> 1 THEN
-    RAISE EXCEPTION 'RLS isolation failed for user A: expected 1 visible message, got %', visible_count;
+    RAISE EXCEPTION 'RLS/soft-delete isolation failed for user A: expected 1 visible message, got %', visible_count;
   END IF;
 
   IF EXISTS (
     SELECT 1 FROM public.messages
-    WHERE id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    WHERE id IN (
+      'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      '99999999-9999-4999-8999-999999999999'
+    )
   ) THEN
-    RAISE EXCEPTION 'RLS isolation failed: user A can read user B message';
+    RAISE EXCEPTION 'RLS/soft-delete isolation failed: user A can read another conversation or soft-deleted message';
   END IF;
 END $$;
 
@@ -246,17 +252,21 @@ BEGIN
   FROM public.messages
   WHERE id IN (
     'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-    'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    '99999999-9999-4999-8999-999999999999'
   );
   IF visible_count <> 1 THEN
-    RAISE EXCEPTION 'RLS isolation failed for user B: expected 1 visible message, got %', visible_count;
+    RAISE EXCEPTION 'RLS/soft-delete isolation failed for user B: expected 1 visible message, got %', visible_count;
   END IF;
 
   IF EXISTS (
     SELECT 1 FROM public.messages
-    WHERE id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    WHERE id IN (
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      '99999999-9999-4999-8999-999999999999'
+    )
   ) THEN
-    RAISE EXCEPTION 'RLS isolation failed: user B can read user A message';
+    RAISE EXCEPTION 'RLS/soft-delete isolation failed: user B can read another conversation or soft-deleted message';
   END IF;
 END $$;
 
