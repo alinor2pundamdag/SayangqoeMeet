@@ -114,6 +114,9 @@ VALUES
    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'video', 'ringing'),
   ('33333333-3333-4333-8333-333333333333',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'voice', 'ringing'),
+  ('44444444-4444-4444-8444-444444444444',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'voice', 'ringing')
 ON CONFLICT (id) DO NOTHING;
 
@@ -142,6 +145,22 @@ BEGIN
   IF (SELECT status FROM public.call_sessions
       WHERE id = '11111111-1111-4111-8111-111111111111') <> 'cancelled' THEN
     RAISE EXCEPTION 'Caller cancellation from ringing must be persisted';
+  END IF;
+END $$;
+
+-- Callee may decline a ringing call.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+UPDATE public.call_sessions
+SET status = 'declined', ended_at = now()
+WHERE id = '44444444-4444-4444-8444-444444444444';
+RESET ROLE;
+DO $$
+BEGIN
+  IF (SELECT status FROM public.call_sessions
+      WHERE id = '44444444-4444-4444-8444-444444444444') <> 'declined' THEN
+    RAISE EXCEPTION 'Callee decline from ringing must be persisted';
   END IF;
 END $$;
 
