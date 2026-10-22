@@ -6,6 +6,7 @@ DO $$
 DECLARE
   user_a constant uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   user_b constant uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  user_c constant uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   conversation_a constant uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   conversation_b constant uuid := 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   message_a constant uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
@@ -18,12 +19,15 @@ BEGIN
     (user_a, 'authenticated', 'authenticated', 'phase2-a@example.test', '', now(),
      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()),
     (user_b, 'authenticated', 'authenticated', 'phase2-b@example.test', '', now(),
+     '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()),
+    (user_c, 'authenticated', 'authenticated', 'phase2-c@example.test', '', now(),
      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now())
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.profiles (id, username, display_name)
   VALUES (user_a, 'phase2usera', 'Phase 2 User A'),
-         (user_b, 'phase2userb', 'Phase 2 User B')
+         (user_b, 'phase2userb', 'Phase 2 User B'),
+         (user_c, 'phase2userc', 'Phase 2 User C')
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.conversations (id, created_by, is_group, title)
@@ -189,6 +193,38 @@ BEGIN
   END;
 END $;
 RESET ROLE;
+
+-- A third authenticated user who is not a call participant cannot read messages
+-- or mutate a call even if the UUID is known.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM public.messages
+  WHERE id IN (
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    '99999999-9999-4999-8999-999999999999'
+  );
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'Unauthorized third party can read conversation messages';
+  END IF;
+END $;
+UPDATE public.call_sessions
+SET status = 'cancelled'
+WHERE id = '33333333-3333-4333-8333-333333333333';
+RESET ROLE;
+
+DO $
+BEGIN
+  IF (SELECT status FROM public.call_sessions
+      WHERE id = '33333333-3333-4333-8333-333333333333') <> 'ringing' THEN
+    RAISE EXCEPTION 'Unauthorized third party changed a call lifecycle state';
+  END IF;
+END $;
 
 -- Verify authenticated device-token registration atomically transfers a reused
 -- installation token to the currently authenticated account after account switch.
