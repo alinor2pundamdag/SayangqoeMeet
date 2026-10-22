@@ -95,7 +95,7 @@ BEGIN
         'Conversation members can upload own chat attachments',
         'Conversation members can delete own chat attachments'
       )
-      AND (coalesce(qual,'') || coalesce(with_check,'')) LIKE '%CASE WHEN%'
+      AND regexp_replace(upper(coalesce(qual,'') || coalesce(with_check,'')), '[[:space:]]+', ' ', 'g') LIKE '%CASE WHEN%'
       AND (coalesce(qual,'') || coalesce(with_check,'')) LIKE '%[0-9a-f]{8}%'
   ) <> 3 THEN
     RAISE EXCEPTION 'Chat attachment storage policies must guard malformed UUID paths before casting';
