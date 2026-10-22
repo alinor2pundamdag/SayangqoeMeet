@@ -2,7 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - fix/phase-2-db-reconciliation-on-phase-1
   pull_request:
   workflow_dispatch:
 
