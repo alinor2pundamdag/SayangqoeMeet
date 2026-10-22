@@ -9,20 +9,50 @@ on conflict (id) do update set public=false, file_size_limit=excluded.file_size_
 
 drop policy if exists "Conversation members can read chat attachments" on storage.objects;
 create policy "Conversation members can read chat attachments" on storage.objects for select to authenticated
-using (bucket_id='chat-attachments' and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-and exists (select 1 from public.conversation_members cm where cm.conversation_id=CASE WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}));
+using (
+  bucket_id='chat-attachments'
+  and exists (
+    select 1 from public.conversation_members cm
+    where cm.conversation_id = CASE
+      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      THEN ((storage.foldername(name))[1])::uuid
+      ELSE NULL
+    END
+    and cm.user_id=(select auth.uid())
+  )
+);
 
 drop policy if exists "Conversation members can upload own chat attachments" on storage.objects;
 create policy "Conversation members can upload own chat attachments" on storage.objects for insert to authenticated
-with check (bucket_id='chat-attachments' and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-and (storage.foldername(name))[2]=(select auth.uid())::text
-and exists (select 1 from public.conversation_members cm where cm.conversation_id=((storage.foldername(name))[1])::uuid and cm.user_id=(select auth.uid())));
+with check (
+  bucket_id='chat-attachments'
+  and (storage.foldername(name))[2]=(select auth.uid())::text
+  and exists (
+    select 1 from public.conversation_members cm
+    where cm.conversation_id = CASE
+      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      THEN ((storage.foldername(name))[1])::uuid
+      ELSE NULL
+    END
+    and cm.user_id=(select auth.uid())
+  )
+);
 
 drop policy if exists "Conversation members can delete own chat attachments" on storage.objects;
 create policy "Conversation members can delete own chat attachments" on storage.objects for delete to authenticated
-using (bucket_id='chat-attachments' and (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-and (storage.foldername(name))[2]=(select auth.uid())::text
-and exists (select 1 from public.conversation_members cm where cm.conversation_id=((storage.foldername(name))[1])::uuid and cm.user_id=(select auth.uid())));
+using (
+  bucket_id='chat-attachments'
+  and (storage.foldername(name))[2]=(select auth.uid())::text
+  and exists (
+    select 1 from public.conversation_members cm
+    where cm.conversation_id = CASE
+      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      THEN ((storage.foldername(name))[1])::uuid
+      ELSE NULL
+    END
+    and cm.user_id=(select auth.uid())
+  )
+);
 
 -- Reconstruct profile-avatar storage and ownership policies. This was present
 -- in the hosted schema but its standalone migration version is absent from the
