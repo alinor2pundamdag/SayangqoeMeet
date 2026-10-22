@@ -195,6 +195,28 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ICE candidate inserts must be limited to active call states';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'call_sessions'
+      AND policyname = 'call_sessions_caller_insert' AND cmd = 'INSERT'
+      AND with_check LIKE '%ringing%'
+      AND with_check LIKE '%answer_sdp IS NULL%'
+      AND with_check LIKE '%answered_at IS NULL%'
+      AND with_check LIKE '%ended_at IS NULL%'
+  ) THEN
+    RAISE EXCEPTION 'Call INSERT policy must permit only a clean initial ringing state';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'call_sessions'
+      AND t.tgname = 'call_sessions_initial_state_guard' AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Call initial-state INSERT guard trigger is missing';
+  END IF;
 END $$;
 
 -- Database triggers must prevent moving a message to a different conversation
