@@ -107,7 +107,10 @@ VALUES
    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'voice', 'ringing'),
   ('22222222-2222-4222-8222-222222222222',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'video', 'ringing')
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'video', 'ringing'),
+  ('33333333-3333-4333-8333-333333333333',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'voice', 'ringing')
 ON CONFLICT (id) DO NOTHING;
 
 -- Caller must not accept its own call; caller cancellation from ringing is valid.
@@ -137,6 +140,23 @@ BEGIN
     RAISE EXCEPTION 'Caller cancellation from ringing must be persisted';
   END IF;
 END $;
+
+-- Callee cannot mark a call accepted without publishing an SDP answer.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $
+BEGIN
+  BEGIN
+    UPDATE public.call_sessions
+    SET status = 'accepted', answered_at = now()
+    WHERE id = '33333333-3333-4333-8333-333333333333';
+    RAISE EXCEPTION 'Callee incorrectly accepted without an SDP answer' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END $;
+RESET ROLE;
 
 -- Callee may accept with an answer, a participant may connect, and a terminal
 -- call must not be reopened by either participant.
