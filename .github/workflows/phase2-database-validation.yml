@@ -19,7 +19,7 @@ concurrency:
 jobs:
   fresh-migration-replay:
     name: Fresh Supabase migration replay and RLS isolation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out repository
@@ -31,7 +31,7 @@ jobs:
           deno-version: v2.x
 
       - name: Type-check push Edge Functions
-        run: deno check --no-lock supabase/functions/notify-incoming-call/index.ts supabase/functions/send-message-push/index.ts supabase/functions/get-turn-credentials/index.ts
+        run: find supabase/functions -name index.ts -print0 | xargs -0 deno check --no-lock
 
       - name: Set up Supabase CLI
         id: setup-supabase-cli
