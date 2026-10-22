@@ -1,5 +1,6 @@
 name: Phase 2 Database Validation
 # Keep the validation environment pinned; runner startup failures must not be mistaken for code failures.
+# Always replay every timestamped migration and run the negative RLS suite before merge.
 
 on:
   pull_request:
