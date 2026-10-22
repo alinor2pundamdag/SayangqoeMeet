@@ -132,6 +132,22 @@ BEGIN
     RAISE EXCEPTION 'Service-only media tables must not be accessible to anon/authenticated';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'message_media_cleanup_queue'
+      AND policyname = 'message_media_cleanup_queue_deny_clients'
+      AND cmd = 'ALL' AND qual = 'false' AND with_check = 'false'
+      AND roles @> ARRAY['anon', 'authenticated']::name[]
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'message_media_download_confirmations'
+      AND policyname = 'message_media_download_confirmations_deny_clients'
+      AND cmd = 'ALL' AND qual = 'false' AND with_check = 'false'
+      AND roles @> ARRAY['anon', 'authenticated']::name[]
+  ) THEN
+    RAISE EXCEPTION 'Explicit deny policies must protect service-only media tables';
+  END IF;
+
   IF has_column_privilege('authenticated', 'public.profiles', 'address', 'SELECT')
      OR has_column_privilege('authenticated', 'public.profiles', 'bio', 'SELECT')
      OR has_column_privilege('authenticated', 'public.profiles', 'birthday', 'SELECT')
