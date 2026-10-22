@@ -1,6 +1,7 @@
 name: Phase 2 Database Validation
 # Keep the validation environment pinned; runner startup failures must not be mistaken for code failures.
 # Always replay every timestamped migration and run the negative RLS suite before merge.
+# A green result is valid only for the exact head SHA that was actually tested.
 
 on:
   pull_request:
