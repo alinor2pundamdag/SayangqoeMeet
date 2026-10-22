@@ -131,11 +131,10 @@ internal class WebRtcCallManager(
             }
             attempt++
         }
-        check(!offerSdp.isNullOrBlank()) {
-            "The caller did not publish a connection offer in time. Please call again."
-        }
+        val finalOfferSdp = offerSdp?.takeIf { it.isNotBlank() }
+            ?: error("The caller did not publish a connection offer in time. Please call again.")
 
-        setRemoteDescription(SessionDescription(SessionDescription.Type.OFFER, offerSdp))
+        setRemoteDescription(SessionDescription(SessionDescription.Type.OFFER, finalOfferSdp))
         val answer = createDescription(offer = false)
         CallSignalingRepository.setAnswer(callId, answer.description)
         onStatus("Connecting securely")
