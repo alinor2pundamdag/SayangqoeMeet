@@ -63,6 +63,10 @@ class MainActivity : ComponentActivity() {
                                 if (incomingCallId == handledId) incomingCallId = null
                             },
                             onSignOut = {
+                                // Serialize logout against onResume/session restoration so a
+                                // late restore cannot put the signed-out account back on screen.
+                                authCallbackPending = true
+                                isAuthReady = false
                                 lifecycleScope.launch {
                                     try {
                                         // Remote token cleanup is best-effort. Always clear the
@@ -80,6 +84,9 @@ class MainActivity : ComponentActivity() {
                                             error.message ?: "Could not sign out. Please try again.",
                                             Toast.LENGTH_LONG
                                         ).show()
+                                    } finally {
+                                        authCallbackPending = false
+                                        isAuthReady = true
                                     }
                                 }
                             }
