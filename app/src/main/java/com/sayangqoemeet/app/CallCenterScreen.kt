@@ -326,7 +326,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                         onClick = {
                             val current = manager
                             scope.launch {
-                                runCatching { current?.hangUp("ended") }
+                                runCatching { current?.hangUp() }
                                 activeCall?.id?.let(CallPipController::unregister)
                                 callUiStateStore.clear()
                                 manager = null
