@@ -115,8 +115,26 @@ internal class WebRtcCallManager(
 
     suspend fun acceptAsCallee() {
         initializePeer()
-        val call = CallSignalingRepository.getCall(callId)
-        val offerSdp = call.offerSdp ?: error("The caller's offer has not arrived yet.")
+
+        // The caller sends the push immediately after creating the session, before
+        // WebRTC has necessarily finished creating and uploading its SDP offer.
+        // Wait briefly for that offer instead of failing a legitimate fast answer.
+        var attempt = 0
+        var offerSdp: String? = null
+        while (attempt < 40 && offerSdp.isNullOrBlank()) {
+            val call = CallSignalingRepository.getCall(callId)
+            check(call.status == "ringing") { "This incoming call is no longer ringing." }
+            offerSdp = call.offerSdp
+            if (offerSdp.isNullOrBlank()) {
+                onStatus("Waiting for the caller's secure connection")
+                delay(250)
+            }
+            attempt++
+        }
+        check(!offerSdp.isNullOrBlank()) {
+            "The caller did not publish a connection offer in time. Please call again."
+        }
+
         setRemoteDescription(SessionDescription(SessionDescription.Type.OFFER, offerSdp))
         val answer = createDescription(offer = false)
         CallSignalingRepository.setAnswer(callId, answer.description)
