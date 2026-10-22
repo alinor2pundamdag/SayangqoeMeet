@@ -68,6 +68,7 @@ internal class WebRtcCallManager(
     private var speakerOn = true
     private var ringbackTone: ToneGenerator? = null
     private var isCaller = false
+    private var callAccepted = false
     private val connectionEstablished = AtomicBoolean(false)
 
     val isVideoCall: Boolean get() = videoEnabled
@@ -137,6 +138,7 @@ internal class WebRtcCallManager(
         setRemoteDescription(SessionDescription(SessionDescription.Type.OFFER, finalOfferSdp))
         val answer = createDescription(offer = false)
         CallSignalingRepository.setAnswer(callId, answer.description)
+        callAccepted = true
         onStatus("Connecting securely")
         startSignalPolling(caller = false)
     }
@@ -428,7 +430,11 @@ internal class WebRtcCallManager(
 
     suspend fun hangUp(status: String? = null) {
         if (disposed.getAndSet(true)) return
-        val terminalStatus = status ?: if (isCaller && !connectionEstablished.get()) "cancelled" else "ended"
+        val terminalStatus = status ?: when {
+            isCaller && !connectionEstablished.get() -> "cancelled"
+            !isCaller && !callAccepted -> "declined"
+            else -> "ended"
+        }
         stopRingbackTone()
         signalJob?.cancel()
         callStatusSubscription?.close()
