@@ -12,6 +12,37 @@ ALTER TABLE public.call_sessions
     'declined', 'cancelled', 'ended', 'missed', 'failed'
   ));
 
+-- Preserve immutable identity checks while allowing trusted server-side
+-- cleanup jobs to update lifecycle state without a user JWT.
+CREATE OR REPLACE FUNCTION public.guard_call_session_updates()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $
+DECLARE
+  v_uid uuid := auth.uid();
+  v_role text := coalesce(auth.role(), '');
+BEGIN
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.caller_id IS DISTINCT FROM OLD.caller_id
+     OR NEW.callee_id IS DISTINCT FROM OLD.callee_id
+     OR NEW.call_type IS DISTINCT FROM OLD.call_type
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'Call identity fields are immutable'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF v_role <> 'service_role'
+     AND (v_uid IS NULL OR v_uid NOT IN (OLD.caller_id, OLD.callee_id)) THEN
+    RAISE EXCEPTION 'Only call participants may update signaling'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.guard_call_session_updates() FROM PUBLIC, anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.enforce_call_session_lifecycle()
 RETURNS trigger
 LANGUAGE plpgsql
