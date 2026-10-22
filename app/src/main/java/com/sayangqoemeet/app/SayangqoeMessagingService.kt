@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -93,21 +94,26 @@ internal object MessageNotificationChannels {
 class SayangqoeMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Tokens can rotate before login. MainActivity retries the current token
-        // after session restoration or successful authentication.
-        if (SupabaseAuthRepository.currentUserId() == null) return
+        if (token.isBlank()) return
+        // Token rotation may start this service before Supabase Auth has finished
+        // restoring persisted state. Await initialization instead of dropping the token.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+            val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+            if (restored && SupabaseAuthRepository.currentUserId() != null) {
+                runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+            }
         }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        // Firebase can start this service after process death. Restore the persisted
-        // Supabase session before reading currentUserId(), otherwise a legitimate
-        // data-only push can be dropped during cold start.
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            processPushMessage(message)
+        // Complete the short local-session restore and recipient check before this
+        // Firebase callback returns; otherwise the process may stop before the
+        // coroutine posts the notification or starts the incoming-call service.
+        runCatching {
+            runBlocking(Dispatchers.IO) { processPushMessage(message) }
+        }.onFailure { failure ->
+            android.util.Log.w("SayangqoeFCM", "Push processing failed", failure)
         }
     }
 
