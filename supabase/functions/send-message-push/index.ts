@@ -89,6 +89,11 @@ Deno.serve(async (req: Request) => {
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id : "";
   const messageId = typeof body.message_id === "string" ? body.message_id : "";
   if (!conversationId || !messageId) return reply(400, { error: "conversation_id and message_id are required" });
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  if (!isUuid(conversationId) || !isUuid(messageId)) {
+    return reply(400, { error: "conversation_id and message_id must be UUIDs" });
+  }
 
   const { data: message, error: messageError } = await adminClient
     .from("messages")
@@ -159,7 +164,7 @@ Deno.serve(async (req: Request) => {
                 sender_name: senderName,
                 message_preview: "You have a new message.",
               },
-              android: { notification: { channel_id: "sayangqoemeet_messages", sound: "default" } },
+              android: { priority: "HIGH" },
             },
           }),
         },
