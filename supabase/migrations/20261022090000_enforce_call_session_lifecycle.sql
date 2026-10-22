@@ -67,6 +67,13 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
+  IF OLD.status IN ('declined', 'cancelled', 'ended', 'missed', 'failed')
+     AND NEW.ended_at IS DISTINCT FROM OLD.ended_at
+     AND v_role <> 'service_role' THEN
+    RAISE EXCEPTION 'A terminal call end time is immutable'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF NEW.status IS DISTINCT FROM OLD.status THEN
     IF OLD.status IN ('declined', 'cancelled', 'ended', 'missed', 'failed') THEN
       RAISE EXCEPTION 'A terminal call cannot be reopened'
@@ -91,12 +98,16 @@ BEGIN
               USING ERRCODE = '23514';
           END IF;
         WHEN 'accepted' THEN
-          IF NEW.status NOT IN ('connecting', 'connected', 'cancelled', 'ended', 'failed') THEN
+          IF NEW.status = 'cancelled' AND NOT v_is_caller THEN
+            RAISE EXCEPTION 'Only the caller may cancel before media connects' USING ERRCODE = '42501';
+          ELSIF NEW.status NOT IN ('connecting', 'connected', 'cancelled', 'ended', 'failed') THEN
             RAISE EXCEPTION 'Invalid call transition from accepted to %', NEW.status
               USING ERRCODE = '23514';
           END IF;
         WHEN 'connecting' THEN
-          IF NEW.status NOT IN ('connected', 'cancelled', 'ended', 'failed') THEN
+          IF NEW.status = 'cancelled' AND NOT v_is_caller THEN
+            RAISE EXCEPTION 'Only the caller may cancel before media connects' USING ERRCODE = '42501';
+          ELSIF NEW.status NOT IN ('connected', 'cancelled', 'ended', 'failed') THEN
             RAISE EXCEPTION 'Invalid call transition from connecting to %', NEW.status
               USING ERRCODE = '23514';
           END IF;
