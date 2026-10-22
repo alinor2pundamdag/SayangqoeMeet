@@ -131,7 +131,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
-END $;
+END $$;
 UPDATE public.call_sessions
 SET status = 'cancelled', ended_at = now()
 WHERE id = '11111111-1111-4111-8111-111111111111';
@@ -143,7 +143,7 @@ BEGIN
       WHERE id = '11111111-1111-4111-8111-111111111111') <> 'cancelled' THEN
     RAISE EXCEPTION 'Caller cancellation from ringing must be persisted';
   END IF;
-END $;
+END $$;
 
 -- Callee cannot mark a call accepted without publishing an SDP answer.
 SET LOCAL ROLE authenticated;
@@ -159,7 +159,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
-END $;
+END $$;
 RESET ROLE;
 
 -- Callee may accept with an answer, a participant may connect, and a terminal
@@ -191,7 +191,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '23514' THEN
     NULL;
   END;
-END $;
+END $$;
 RESET ROLE;
 
 -- A third authenticated user who is not a call participant cannot read messages
@@ -212,7 +212,7 @@ BEGIN
   IF visible_count <> 0 THEN
     RAISE EXCEPTION 'Unauthorized third party can read conversation messages';
   END IF;
-END $;
+END $$;
 UPDATE public.call_sessions
 SET status = 'cancelled'
 WHERE id = '33333333-3333-4333-8333-333333333333';
@@ -224,7 +224,7 @@ BEGIN
       WHERE id = '33333333-3333-4333-8333-333333333333') <> 'ringing' THEN
     RAISE EXCEPTION 'Unauthorized third party changed a call lifecycle state';
   END IF;
-END $;
+END $$;
 
 -- Verify authenticated device-token registration atomically transfers a reused
 -- installation token to the currently authenticated account after account switch.
