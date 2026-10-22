@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({ message: {
           token: device.token,
           data: { type: "incoming_call", call_id: call.id, caller_name: callerName, call_type: call.call_type, recipient_id: call.callee_id },
-          android: { priority: "high", ttl: "45s" },
+          android: { priority: "HIGH", ttl: "45s" },
         } }),
       });
       return response.ok;
