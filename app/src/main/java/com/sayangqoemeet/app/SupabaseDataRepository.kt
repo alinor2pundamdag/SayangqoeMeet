@@ -59,7 +59,8 @@ internal data class MessageRecord(
     val createdAt: String,
     val attachmentPath: String? = null,
     val attachmentMimeType: String? = null,
-    val attachmentName: String? = null
+    val attachmentName: String? = null,
+    val attachmentPurgedAt: String? = null
 )
 
 internal data class InvitationRecord(
@@ -398,7 +399,8 @@ internal object SupabaseDataRepository {
         createdAt = row.getString("created_at"),
         attachmentPath = row.optString("attachment_path").takeIf { it.isNotBlank() && it != "null" },
         attachmentMimeType = row.optString("attachment_mime_type").takeIf { it.isNotBlank() && it != "null" },
-        attachmentName = row.optString("attachment_name").takeIf { it.isNotBlank() && it != "null" }
+        attachmentName = row.optString("attachment_name").takeIf { it.isNotBlank() && it != "null" },
+        attachmentPurgedAt = row.optString("attachment_purged_at").takeIf { it.isNotBlank() && it != "null" }
     )
 
     /**
@@ -408,7 +410,7 @@ internal object SupabaseDataRepository {
      */
     suspend fun loadMessages(conversationId: String): List<MessageRecord> {
         require(conversationId.isNotBlank()) { "Select a valid conversation." }
-        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.desc,id.desc&limit=100"
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at&order=created_at.desc,id.desc&limit=100"
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { messageFromRow(rows.getJSONObject(it)) }.asReversed()
     }
@@ -418,7 +420,7 @@ internal object SupabaseDataRepository {
         require(conversationId.isNotBlank()) { "Select a valid conversation." }
         require(pageSize in 1..100) { "Page size must be between 1 and 100." }
         val cursor = "(created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id}))"
-        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&or=${enc(cursor)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.desc,id.desc&limit=$pageSize"
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&or=${enc(cursor)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at&order=created_at.desc,id.desc&limit=$pageSize"
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { messageFromRow(rows.getJSONObject(it)) }.asReversed()
     }
@@ -456,9 +458,9 @@ internal object SupabaseDataRepository {
         if (clientRequestId != null) payload.put("client_request_id", clientRequestId)
 
         val path = if (clientRequestId == null) {
-            "messages?select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+            "messages?select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at"
         } else {
-            "messages?on_conflict=sender_id,client_request_id&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+            "messages?on_conflict=sender_id,client_request_id&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at"
         }
         val prefer = if (clientRequestId == null) {
             "return=representation"
@@ -473,7 +475,7 @@ internal object SupabaseDataRepository {
             // A duplicate idempotency key returns no inserted row. Resolve the
             // original row so a retry after a lost HTTP response is still success.
             val key = clientRequestId ?: error("Message insert returned no row.")
-            val lookup = "messages?sender_id=eq.${enc(senderId)}&client_request_id=eq.${enc(key)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&limit=1"
+            val lookup = "messages?sender_id=eq.${enc(senderId)}&client_request_id=eq.${enc(key)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at&limit=1"
             val existingRows = JSONArray(runRequest { request("GET", lookup) })
             check(existingRows.length() == 1) {
                 "Message retry could not be reconciled. Refresh the conversation before retrying."
@@ -610,7 +612,7 @@ internal object SupabaseDataRepository {
             setRequestProperty("Content-Type", "application/json")
         }
         try {
-            connection.outputStream.use { it.write(JSONObject().put("expiresIn", 3600).toString().toByteArray(StandardCharsets.UTF_8)) }
+            connection.outputStream.use { it.write(JSONObject().put("expiresIn", 300).toString().toByteArray(StandardCharsets.UTF_8)) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
