@@ -8,6 +8,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -415,15 +416,56 @@ internal object SupabaseDataRepository {
         }
     }
 
-    suspend fun sendMessage(conversationId: String, body: String): MessageRecord {
+    suspend fun sendMessage(
+        conversationId: String,
+        body: String,
+        clientRequestId: String? = null
+    ): MessageRecord {
+        val senderId = userId()
+        val cleanBody = body.trim()
+        require(conversationId.isNotBlank()) { "Select a valid conversation." }
+        require(cleanBody.isNotEmpty()) { "Message cannot be empty." }
+        require(cleanBody.length <= 10_000) { "Messages must be 10,000 characters or fewer." }
+        clientRequestId?.let { java.util.UUID.fromString(it) }
+
         val payload = JSONObject()
             .put("conversation_id", conversationId)
-            .put("sender_id", userId())
-            .put("body", body.trim())
-        val response = runRequest { request("POST", "messages", payload, "return=representation") }
-        val row = JSONArray(response).getJSONObject(0)
-        val saved = MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.getString("body"), row.getString("created_at"))
-        // Push delivery is best-effort: message persistence must not fail if Firebase is not configured.
+            .put("sender_id", senderId)
+            .put("body", cleanBody)
+        if (clientRequestId != null) payload.put("client_request_id", clientRequestId)
+
+        val path = if (clientRequestId == null) {
+            "messages?select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+        } else {
+            "messages?on_conflict=sender_id,client_request_id&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+        }
+        val prefer = if (clientRequestId == null) {
+            "return=representation"
+        } else {
+            "resolution=ignore-duplicates,return=representation"
+        }
+        val response = runRequest { request("POST", path, payload, prefer) }
+        val rows = JSONArray(response)
+        val saved = if (rows.length() > 0) {
+            messageFromRow(rows.getJSONObject(0))
+        } else {
+            // A duplicate idempotency key returns no inserted row. Resolve the
+            // original row so a retry after a lost HTTP response is still success.
+            val key = clientRequestId ?: error("Message insert returned no row.")
+            val lookup = "messages?sender_id=eq.${enc(senderId)}&client_request_id=eq.${enc(key)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&limit=1"
+            val existingRows = JSONArray(runRequest { request("GET", lookup) })
+            check(existingRows.length() == 1) {
+                "Message retry could not be reconciled. Refresh the conversation before retrying."
+            }
+            val existing = messageFromRow(existingRows.getJSONObject(0))
+            check(existing.conversationId == conversationId && existing.body == cleanBody) {
+                "This retry key is already associated with a different message. Start a new send operation."
+            }
+            existing
+        }
+
+        // Retry push after resolving an idempotent request: the original request
+        // may have committed the row but lost its response before push was queued.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching {
                 request(
@@ -475,7 +517,29 @@ internal object SupabaseDataRepository {
             .put("attachment_path", objectPath)
             .put("attachment_mime_type", mimeType.ifBlank { "application/octet-stream" })
             .put("attachment_name", safeName)
-        val response = runRequest { request("POST", "messages", payload, "return=representation") }
+        val response = try {
+            runRequest { request("POST", "messages", payload, "return=representation") }
+        } catch (insertError: Exception) {
+            // Roll back only on a definite client-side HTTP rejection. A timeout,
+            // connection reset, or server error can occur after the row committed;
+            // deleting the object then would leave a valid message with broken media.
+            val rejectedByServer = insertError.message?.startsWith("Request failed (4") == true
+            if (rejectedByServer) {
+                val rollbackError = runCatching {
+                    withContext(NonCancellable) { deleteUploadedChatAttachment(objectPath) }
+                }.exceptionOrNull()
+                if (rollbackError != null) {
+                    insertError.addSuppressed(rollbackError)
+                    if (insertError !is kotlinx.coroutines.CancellationException) {
+                        throw IllegalStateException(
+                            "Message was rejected and uploaded-file cleanup could not be confirmed. Refresh before retrying.",
+                            insertError
+                        )
+                    }
+                }
+            }
+            throw insertError
+        }
         val row = JSONArray(response).getJSONObject(0)
         val saved = MessageRecord(
             row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"),
@@ -486,6 +550,30 @@ internal object SupabaseDataRepository {
             runCatching { request("POST", "functions/v1/send-message-push", JSONObject().put("conversation_id", saved.conversationId).put("message_id", saved.id)) }
         }
         return saved
+    }
+
+    /** Best-effort rollback using the same user's JWT and existing Storage DELETE policy. */
+    private suspend fun deleteUploadedChatAttachment(objectPath: String) = runRequest {
+        val token = SupabaseAuthRepository.currentAccessToken()
+            ?: error("Sign in again to clean up the uploaded attachment.")
+        val encodedPath = objectPath.split("/").joinToString("/") { enc(it) }
+        val connection = (URL(
+            BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/chat-attachments/" + encodedPath
+        ).openConnection() as HttpURLConnection).apply {
+            requestMethod = "DELETE"
+            connectTimeout = 15000
+            readTimeout = 20000
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299) error("Storage rollback failed (HTTP $code).")
+            ""
+        } finally {
+            connection.disconnect()
+        }
     }
 
     suspend fun createSignedAttachmentUrl(objectPath: String): String = runRequest {
