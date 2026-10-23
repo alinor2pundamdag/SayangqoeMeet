@@ -870,6 +870,8 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                     }
                 }
             }
+        }, onFailure = { reason ->
+            scope.launch { status = reason }
         })
         onDispose { subscription?.close() }
     }
