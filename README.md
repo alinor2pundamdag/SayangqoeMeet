@@ -9,10 +9,11 @@ A privacy-conscious Android communication app guided by [masterplan.md](masterpl
 - Profile loading/saving uses the authenticated Supabase session and PostgREST.
 - Conversation list and message history/sending use authenticated PostgREST requests protected by RLS.
 - Private chat invitations use the deployed `create-conversation` and `respond-conversation-invite` Supabase Edge Functions. The creator becomes a member and the recipient remains outside the conversation until accepting the invitation; both functions verify the caller's JWT and use server-side credentials for privileged changes.
-- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The current live schema has 12 inspected public application tables; all have RLS enabled and at least one policy.
-- The 25 executable SQL migrations under `supabase/migrations/` match the 25 versions recorded in the live Supabase migration ledger. Eleven old timestamp variants are preserved under `docs/legacy-migrations/` and are not replayed.
-- Eight Supabase Edge Functions are active in the project. The repository sources for `notify-incoming-call`, `get-turn-credentials`, `send-message-push`, and `cleanup-chat-media` were compared with their deployed versions and matched exactly. The first three require JWT verification; `cleanup-chat-media` uses its custom cleanup-secret header instead.
+- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The live schema has 14 public application tables; all 14 have RLS enabled and at least one policy.
+- The 31 executable SQL migrations under `supabase/migrations/` match all 31 versions recorded in the live Supabase migration ledger. Eleven old timestamp variants are preserved under `docs/legacy-migrations/` and are not replayed.
+- Ten Supabase Edge Functions are active. All ten deployed `index.ts` sources were compared byte-for-byte with the corresponding `main` source and matched. JWT verification is enabled for user-facing functions; cleanup workers use a server-only cleanup-secret header.
 - WebRTC signaling, SDP/ICE exchange, call-session lifecycle guards, and temporary TURN credential retrieval are implemented in source. Real voice/video connectivity across two physical devices remains unverified.
+- PR #52 restored least-privilege server-side column grants needed by conversation, push, call/TURN, media-verification, and admin Edge Functions without changing client grants or RLS policies. The production migration is applied; the scheduled dry-run returned HTTP 200 for both cleanup workers with `failed: 0` and `marked_missed: 0`. No media or call rows were changed.
 
 ## Supabase client configuration
 
@@ -35,7 +36,7 @@ Requirements: JDK 17, Android SDK platform 36/build-tools 36.0.0, Gradle 8.11.1.
 gradle assembleDebug
 ```
 
-If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The combined Phase 1/2 source passed lint, unit tests, debug APK assembly, and artifact upload on tested commit [d3814a9](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672216). Fresh local migration replay and two-user RLS tests also passed on that commit [in this run](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672196). Current `main` commit `60a734072bf7aa852f26d65d770a1ee385329260` has all three required GitHub Actions gates green: [Android CI](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927349144), [fresh Supabase migration replay and two-user RLS tests](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927349041), and [full-history secret scan](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927348989). The current debug APK artifact expires 2026-10-30. These CI results do not replace physical-device tests.
+If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The combined Phase 1/2 source passed Android CI, fresh migration replay, SQL lint, two-user RLS isolation, Deno type-check, and full-history secret scan on exact PR #55 head [`8ef223d`](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39952579933). PR #55 merged as `55ba1119833e45939cce25e023cb9176c873e7a4`; the live migration ledger and `main` each contain 31 matching migration versions. Post-merge validation is tracked on the [main Actions page](https://github.com/alinor2pundamdag/SayangqoeMeet/actions?query=branch%3Amain). The debug APK artifact from [Android CI](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39952363841) expires 2026-10-30. CI results do not replace physical-device tests.
 
 ## Firebase / push notifications
 
@@ -45,7 +46,7 @@ A JWT-protected `send-message-push` Edge Function is deployed and its source is 
 
 ## Admin console
 
-The master plan now explicitly requires a separate web-based admin console with server-verified roles, user/report management, operational health, and audit history. The current Android entry is only a locked navigation placeholder, and `admin-console/index.html` is a static locked UI shell—not a functional admin dashboard. Privileged operations must run through trusted backend endpoints; never expose service-role credentials to Android or a browser.
+The Android app has a server-authorized, read-only admin overview and audit feed backed by the `admin-console` Edge Function. No admin account is provisioned automatically; the owner must explicitly assign the intended Supabase Auth UUID in `admin_memberships`. Moderation/destructive actions remain disabled. `admin-console/index.html` is still a static web UI prototype, not a live web admin dashboard. Never expose service-role credentials to Android or a browser.
 
 ## Remaining release gates
 
