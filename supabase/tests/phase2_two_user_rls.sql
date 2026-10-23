@@ -1056,6 +1056,15 @@ BEGIN
     RAISE EXCEPTION 'Private conversation Edge Function grants are missing';
   END IF;
 
+  IF NOT has_column_privilege('service_role', 'public.messages', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'conversation_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'sender_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'deleted_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'attachment_path', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'attachment_purged_at', 'SELECT') THEN
+    RAISE EXCEPTION 'Message push/media Edge Function grants are missing';
+  END IF;
+
   IF NOT has_column_privilege('service_role', 'public.device_tokens', 'token', 'SELECT')
      OR NOT has_column_privilege('service_role', 'public.device_tokens', 'user_id', 'SELECT')
      OR NOT has_column_privilege('service_role', 'public.user_presence', 'user_id', 'SELECT')
