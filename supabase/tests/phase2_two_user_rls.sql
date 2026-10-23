@@ -1031,9 +1031,9 @@ RESET ROLE;
 
 -- The stale-call maintenance worker needs narrow service_role privileges to
 -- inspect ringing calls and mark stale calls missed. It must not gain access
--- to SDP or participant identity columns, and clients must not inherit these
--- service-only privileges.
-DO $
+-- to SDP or participant identity columns, and existing authenticated call
+-- signaling grants are intentionally preserved.
+DO $stale_call_worker_grants$
 BEGIN
   IF NOT has_column_privilege('service_role', 'public.call_sessions', 'id', 'SELECT')
      OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'SELECT')
@@ -1051,6 +1051,6 @@ BEGIN
   IF has_column_privilege('anon', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
     RAISE EXCEPTION 'Anonymous clients must not update call session state';
   END IF;
-END $;
+END $stale_call_worker_grants$;
 
 ROLLBACK;
