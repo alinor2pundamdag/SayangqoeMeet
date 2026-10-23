@@ -12,7 +12,7 @@ on:
       - ".github/workflows/phase2-database-validation.yml"
   pull_request:
     branches:
-      - fix/phase-1-auth-manifest-ci
+      - main
     paths:
       - "supabase/**"
       - ".github/workflows/phase2-database-validation.yml"
