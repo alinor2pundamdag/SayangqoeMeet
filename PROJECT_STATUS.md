@@ -1,8 +1,8 @@
 # SayangqoeMeet — Project Status
 
-**Status date:** 2026-10-16  
+**Status date:** 2026-10-23  
 **Repository:** `alinor2pundamdag/SayangqoeMeet`  
-**Visibility:** Private  
+**Visibility:** Public (confirmed in the current audit context)  
 **Default branch:** `main`
 
 ## Verified completed items
@@ -19,7 +19,7 @@
 - [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.
 - [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
 - [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; six application tables exist with RLS enabled.
-- [x] All three live migrations—initial messaging schema, foreign-key indexes, device tokens, and conversation invitations—are recorded in Supabase and matched by repository filenames.
+- [ ] Migration parity is not complete: the live Supabase ledger currently contains 25 versions; `main` and the live ledger need reconciliation. PR #13 carries the migration reconciliation but remains unmergeable and requires review/replay validation.
 - [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
 - [x] README, handoff, and changelog are being aligned with current implementation status.
 - [x] Added an explicit admin-console requirement to `masterplan.md`.
@@ -32,7 +32,7 @@
 - **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
 - **Messaging:** REST history/send are implemented, but Realtime subscriptions, pagination UI, retry/deduplication, offline queueing, and comprehensive failure handling are not complete.
 - **Invitations:** The deployed Edge Functions create a pending invitation and allow only the recipient to accept/decline; the recipient receives conversation membership only after acceptance. This still needs end-to-end two-account testing and abuse/rate-limit review before production use.
-- **Firebase/FCM:** Client/token code and server sender function are present, but no `app/google-services.json` or Firebase service-account secret has been configured. Google Services plugin application is conditional on the app config file existing, so it does not block the clean-start build. The sender function cannot deliver push until `FIREBASE_SERVICE_ACCOUNT_JSON` is set in Supabase Edge Function secrets. No push delivery test has passed.
+- **Firebase/FCM:** `app/google-services.json` is tracked and is client configuration, not a service-account private key. Restriction of its API key in Google Cloud Console and the presence of the server-side `FIREBASE_SERVICE_ACCOUNT_JSON` secret must be verified by the owner. No end-to-end push delivery test is confirmed.
 - **Calls:** The Hang Up / Cancel UI exists, but WebRTC signaling/media, STUN/TURN, call invitations, and two-device tests are not implemented.
 - **Admin console UI:** The web command-center and Android access-entry UIs are implemented as static UI. No secure login or live operations are active yet; server-verified admin roles, presence/call feeds, moderation workflows, audit storage, and privileged endpoints remain to be built.
 - **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
@@ -80,3 +80,25 @@ Never claim a successful build, live Auth test, push delivery, or call unless ev
 - Edge Function confirm-message-media-download is ACTIVE v1 with JWT verification enabled. cleanup-chat-media is ACTIVE v1 with platform JWT verification disabled because it validates x-cleanup-secret; it will not run until MEDIA_CLEANUP_CRON_SECRET is configured and a trusted scheduler is installed.
 - Migration history still has older filename/version drift. The atomic RPC migration filename is aligned to live version 20261017175440, but do not run blanket supabase db push until all remaining entries are reconciled.
 - Not yet release-ready: Android must call confirmation only after a full successful download; cleanup secret/scheduler, controlled worker test, two-account media test, and two-device WebRTC/TURN matrix remain pending.
+
+
+## Audit status — 2026-10-23 (supersedes conflicting older status statements)
+
+### Phase 1 — NOT COMPLETE
+- PR #11 (`fix/phase-1-auth-manifest-ci`) remains open and unmerged. Its current head is `53c02be1feabdcd65381778dd9cb8ff8c5f0310a`; the current head's Android CI run failed. A prior successful run mentioned in the PR body does not prove the current head passes.
+- Main still has the old `MainActivity.kt` entry path and the manifest does not yet declare all components/auth callback handling present in PR #11.
+- Required completion evidence: current lint + unit tests + debug APK build; review Application initialization and manifest compatibility; device tests for auth/session restoration, email callback, notification permissions/FCM, incoming call and two-device call behavior.
+
+### Phase 2 — NOT COMPLETE
+- Live Supabase migration ledger contains 25 versions. PR #13 is open, currently unmergeable, and stacked on PR #11. Do not run a blanket production migration push until the branch is reconciled and a fresh database replay passes.
+- Live security advisor currently flags three authenticated-callable `SECURITY DEFINER` RPCs: `get_my_conversation_list()`, `get_my_profile()`, and `register_device_token(text,text)`. Inspect grants, full definitions and app call paths; preserve intended functionality while adding tests for unauthenticated access, cross-user access, and invalid inputs. Do not silence warnings without proving behavior.
+- Live performance advisor flags 10 unused indexes. Do not drop them based on the advisor alone; compare FK coverage, index definitions, representative query plans and production workload first.
+- Current catalog inspection found 23 foreign-key constraints and seven non-internal triggers across call-session and message-media integrity paths. Their existence is verified; complete semantic and negative-path tests remain pending.
+- Public-repository secret review is not a full Git-history scan. Scan all refs/history with an approved secret scanner; rotate any confirmed exposed credential. Restrict the Firebase Android API key in Google Cloud Console and verify server-side secrets without sharing their values.
+- Verify `MEDIA_CLEANUP_CRON_SECRET` matches between GitHub Actions and the `cleanup-chat-media` Edge Function; connector access cannot reveal secret values.
+
+### Merge and release gate
+1. Review and validate PR #11; fix CI or device-test defects, then merge only when checks pass.
+2. Rebase/reconcile PR #13 on the updated main, resolve conflicts, replay all migrations against a disposable fresh database, and run RLS/RPC negative tests before merging.
+3. Re-run Supabase security/performance advisors and query-plan checks after remediation.
+4. Do not declare release-ready until evidence is recorded for each gate. No production schema changes were made by this audit.
