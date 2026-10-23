@@ -30,10 +30,46 @@ internal fun supabaseRequestUrl(baseUrl: String, path: String): String {
     }
 }
 
+/** Shape-check PostgREST's representation without relying on Android's JVM JSON stubs. */
+internal fun hasExactlyOneJsonArrayObject(response: String): Boolean {
+    val value = response.trim()
+    if (value.length < 4 || value.first() != '[' || value.last() != ']') return false
+
+    var depth = 0
+    var objectCount = 0
+    var inString = false
+    var escaped = false
+    for (index in 1 until value.lastIndex) {
+        val ch = value[index]
+        if (inString) {
+            when {
+                escaped -> escaped = false
+                ch == '\\\\' -> escaped = true
+                ch == '"' -> inString = false
+            }
+            continue
+        }
+        when (ch) {
+            '"' -> inString = true
+            '{' -> {
+                if (depth == 0) objectCount++
+                depth++
+            }
+            '}' -> {
+                depth--
+                if (depth < 0) return false
+            }
+            ',' -> if (depth == 0) return false
+            '[' -> if (depth == 0) return false
+        }
+        if (objectCount > 1) return false
+    }
+    return !inString && !escaped && depth == 0 && objectCount == 1
+}
+
 /** Reject PostgREST's empty successful response when RLS matched no call row. */
 internal fun requireSingleCallSessionUpdate(response: String) {
-    val rows = JSONArray(response)
-    check(rows.length() == 1) {
+    check(hasExactlyOneJsonArrayObject(response)) {
         "Call session was not updated; it may have ended or access was denied."
     }
 }
