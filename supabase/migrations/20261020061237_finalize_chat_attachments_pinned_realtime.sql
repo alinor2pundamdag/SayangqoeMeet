@@ -13,11 +13,7 @@ using (
   bucket_id='chat-attachments'
   and exists (
     select 1 from public.conversation_members cm
-    where cm.conversation_id = CASE
-      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      THEN ((storage.foldername(name))[1])::uuid
-      ELSE NULL
-    END
+    where cm.conversation_id::text = (storage.foldername(name))[1]
     and cm.user_id=(select auth.uid())
   )
 );
@@ -29,11 +25,7 @@ with check (
   and (storage.foldername(name))[2]=(select auth.uid())::text
   and exists (
     select 1 from public.conversation_members cm
-    where cm.conversation_id = CASE
-      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      THEN ((storage.foldername(name))[1])::uuid
-      ELSE NULL
-    END
+    where cm.conversation_id::text = (storage.foldername(name))[1]
     and cm.user_id=(select auth.uid())
   )
 );
@@ -45,11 +37,7 @@ using (
   and (storage.foldername(name))[2]=(select auth.uid())::text
   and exists (
     select 1 from public.conversation_members cm
-    where cm.conversation_id = CASE
-      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      THEN ((storage.foldername(name))[1])::uuid
-      ELSE NULL
-    END
+    where cm.conversation_id::text = (storage.foldername(name))[1]
     and cm.user_id=(select auth.uid())
   )
 );
