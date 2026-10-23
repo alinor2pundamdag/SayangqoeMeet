@@ -776,6 +776,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var draft by remember { mutableStateOf("") }
+    var pendingSendRequestId by remember { mutableStateOf<String?>(null) }
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading message history…") }
     var loading by remember { mutableStateOf(false) }
@@ -851,6 +852,8 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     }
 
     LaunchedEffect(conversationId) {
+        draft = ""
+        pendingSendRequestId = null
         currentUserId = SupabaseAuthRepository.currentUserId()
         otherUserId = null
         otherDisplayName = null
@@ -998,7 +1001,10 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             ) { Icon(Icons.Default.Add, contentDescription = "Add attachment", tint = ShellCyan) }
             OutlinedTextField(
                 value = draft,
-                onValueChange = { draft = it },
+                onValueChange = { value ->
+                    if (value != draft) pendingSendRequestId = null
+                    draft = value
+                },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Write a message…", color = ShellMuted) },
                 shape = RoundedCornerShape(16.dp),
@@ -1013,9 +1019,11 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                         loading = true
                         scope.launch {
                             try {
-                                val sent = SupabaseDataRepository.sendMessage(conversationId, content)
+                                val requestId = pendingSendRequestId ?: java.util.UUID.randomUUID().toString().also { pendingSendRequestId = it }
+                                val sent = SupabaseDataRepository.sendMessage(conversationId, content, requestId)
                                 messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                                 draft = ""
+                                pendingSendRequestId = null
                                 status = ""
                             } catch (error: Exception) { status = error.message ?: "Message could not be sent." }
                             finally { loading = false }
