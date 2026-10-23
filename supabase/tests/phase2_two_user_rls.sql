@@ -1028,4 +1028,34 @@ BEGIN
 END $$;
 RESET ROLE;
 
+
+-- Phase 3 scheduled stale-call cleanup must have only the columns it needs.
+-- This is intentionally a narrow server-role grant, not client access.
+DO $
+BEGIN
+  IF NOT has_column_privilege('service_role', 'public.call_sessions', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'created_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'UPDATE')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Service-role stale-call cleanup is missing a required narrow column grant';
+  END IF;
+  IF has_column_privilege('service_role', 'public.call_sessions', 'caller_id', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'callee_id', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'offer_sdp', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'answer_sdp', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'caller_id', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'callee_id', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'offer_sdp', 'UPDATE')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'answer_sdp', 'UPDATE') THEN
+    RAISE EXCEPTION 'Service-role stale-call cleanup has broader call signaling access than required';
+  END IF;
+  IF has_column_privilege('authenticated', 'public.call_sessions', 'ended_at', 'UPDATE') IS FALSE THEN
+    -- Authenticated may have table-level UPDATE but triggers constrain the
+    -- allowed terminal-state transitions; this check is intentionally not
+    -- used as the authorization boundary.
+    NULL;
+  END IF;
+END $;
+
 ROLLBACK;
