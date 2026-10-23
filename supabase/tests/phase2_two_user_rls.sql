@@ -1029,6 +1029,46 @@ END $$;
 RESET ROLE;
 
 
+-- Exercise the exact stale-call worker SELECT/UPDATE path in the disposable
+-- database. This fixture is old enough to be eligible, and the transaction
+-- rollback below ensures no test data persists.
+INSERT INTO public.call_sessions (id, caller_id, callee_id, call_type, status, created_at)
+VALUES (
+  '77777777-7777-4777-8777-777777777778',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'voice', 'ringing', now() - interval '2 minutes'
+);
+
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+DO $stale_call_worker_execution$
+DECLARE changed_id uuid;
+BEGIN
+  UPDATE public.call_sessions
+  SET status = 'missed', ended_at = now()
+  WHERE id = '77777777-7777-4777-8777-777777777778'
+    AND status = 'ringing'
+    AND created_at < now() - interval '60 seconds'
+  RETURNING id INTO changed_id;
+  IF NOT FOUND OR changed_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777778'::uuid THEN
+    RAISE EXCEPTION 'Stale-call worker could not close an eligible ringing call';
+  END IF;
+END $stale_call_worker_execution$;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+
+DO $stale_call_worker_result$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.call_sessions
+    WHERE id = '77777777-7777-4777-8777-777777777778'
+      AND status = 'missed' AND ended_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Stale-call worker did not persist the missed-call state';
+  END IF;
+END $stale_call_worker_result$;
+
 -- Server-side Edge Functions use a service_role client for validated cross-user
 -- workflows. Assert required privileges exist and anonymous access stays denied;
 -- do not revoke existing grants or change client/RLS policies.
