@@ -9,10 +9,10 @@ A privacy-conscious Android communication app guided by [masterplan.md](masterpl
 - Profile loading/saving uses the authenticated Supabase session and PostgREST.
 - Conversation list and message history/sending use authenticated PostgREST requests protected by RLS.
 - Private chat invitations use the deployed `create-conversation` and `respond-conversation-invite` Supabase Edge Functions. The creator becomes a member and the recipient remains outside the conversation until accepting the invitation; both functions verify the caller's JWT and use server-side credentials for privileged changes.
-- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The live schema contains `profiles`, `conversations`, `conversation_members`, `messages`, `device_tokens`, and `conversation_invites`, all with RLS enabled.
-- Migrations are committed under `supabase/migrations/`, including `20261016134617_add_foreign_key_indexes.sql`, `20261016140058_add_device_tokens.sql`, and `20261016140546_add_conversation_invites.sql`.
-- Edge Function sources are committed at `supabase/functions/create-conversation/index.ts`, `supabase/functions/respond-conversation-invite/index.ts`, and `supabase/functions/send-message-push/index.ts`; all are deployed to the active project with JWT verification enabled.
-- A Hang Up / Cancel control is present in the call screen, but it does not end a real call because WebRTC is not implemented yet.
+- Supabase project is active at `https://phjwzrrsaemgcedwpyyp.supabase.co`. The current live schema has 12 inspected public application tables; all have RLS enabled and at least one policy.
+- The 25 executable SQL migrations under `supabase/migrations/` match the 25 versions recorded in the live Supabase migration ledger. Eleven old timestamp variants are preserved under `docs/legacy-migrations/` and are not replayed.
+- Eight Supabase Edge Functions are active in the project. The repository sources for `notify-incoming-call`, `get-turn-credentials`, `send-message-push`, and `cleanup-chat-media` were compared with their deployed versions and matched exactly. The first three require JWT verification; `cleanup-chat-media` uses its custom cleanup-secret header instead.
+- WebRTC signaling, SDP/ICE exchange, call-session lifecycle guards, and temporary TURN credential retrieval are implemented in source. Real voice/video connectivity across two physical devices remains unverified.
 
 ## Supabase client configuration
 
@@ -29,34 +29,33 @@ The current Gradle configuration has defaults for the active project and its pub
 
 ## Build and verification
 
-Requirements: JDK 17, Android SDK platform 35/build-tools 35.0.0, Gradle 8.11.1.
+Requirements: JDK 17, Android SDK platform 36/build-tools 36.0.0, Gradle 8.11.1.
 
 ```sh
 gradle assembleDebug
 ```
 
-If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The GitHub Actions workflow attempts this build on pushes and pull requests. A successful build and device test have not yet been confirmed in this development session. Check [GitHub Actions](https://github.com/alinor2pundamdag/SayangqoeMeet/actions) for actual workflow results.
+If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The combined Phase 1/2 source passed lint, unit tests, debug APK assembly, and artifact upload on tested commit [d3814a9](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672216). Fresh local migration replay and two-user RLS tests also passed on that commit [in this run](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672196). These CI results do not replace physical-device tests.
 
 ## Firebase / push notifications
 
 FCM client code is now present: Firebase Messaging dependency, notification service/channel, Android notification permission request, and device-token registration after sign-in when Firebase is initialized. The live `public.device_tokens` table has RLS enabled; its migration is `supabase/migrations/20261016140058_add_device_tokens.sql`.
 
-A JWT-protected `send-message-push` Edge Function is deployed and its source is committed at `supabase/functions/send-message-push/index.ts`. It verifies that the caller owns the message and targets only other conversation members' registered device tokens. It cannot deliver pushes yet because there is no `app/google-services.json` and the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret is not configured. The Google Services Gradle plugin is declared but applied only when the matching app config file exists, so the clean-start build does not require that file. Push delivery has not been tested. Never commit Firebase service-account credentials or FCM server secrets.
+A JWT-protected `send-message-push` Edge Function is deployed and its source is committed at `supabase/functions/send-message-push/index.ts`. It verifies that the caller owns the message and targets only other conversation members' registered device tokens. The repository contains `app/google-services.json`, which is Firebase Android client configuration—not a service-account private key. Restrict its API key in Google Cloud Console to package `com.sayangqoemeet.app`, correct signing-certificate fingerprints, and required APIs. The sender requires the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret; its presence cannot be proven through source inspection, and physical-device push delivery has not been verified. Never commit Firebase service-account credentials or FCM server secrets.
 
 ## Admin console
 
 The master plan now explicitly requires a separate web-based admin console with server-verified roles, user/report management, operational health, and audit history. The current Android entry is only a locked navigation placeholder, and `admin-console/index.html` is a static locked UI shell—not a functional admin dashboard. Privileged operations must run through trusted backend endpoints; never expose service-role credentials to Android or a browser.
 
-## Not yet implemented / verified
+## Remaining release gates
 
-- Successful Android CI/debug build and runtime layout verification.
-- End-to-end authentication/session restoration and device tests.
-- Supabase Realtime subscriptions, pagination, message retry/deduplication, and robust offline behavior.
-- Automated RLS authorization tests for allowed and denied user paths.
-- Firebase Android project config, Google Services plugin configuration, service-account secret setup, trusted push delivery, and device notification tests.
-- WebRTC signaling/media, STUN/TURN configuration, and two-device voice/video tests.
-- Separate web admin console, server-verified admin role assignment, audit log, and privileged endpoints.
-- Production release hardening and responsive UI test matrix.
+- Run real-device tests with two accounts: sign-up/sign-in/session restoration, invite acceptance, message send/history, and denied cross-user access.
+- Verify FCM push delivery on devices after the owner confirms `FIREBASE_SERVICE_ACCOUNT_JSON` is configured in Supabase secrets.
+- Verify voice/video calls on two physical devices, including TURN relay behavior on restrictive networks.
+- Restrict the Firebase Android API key in Google Cloud Console and confirm required GitHub/Supabase secret names are present/matched without exposing their values.
+- Complete a full Git-history scan for credentials/private data and rotate any confirmed exposed credential.
+- Secure admin-console authentication, server-verified roles, privileged endpoints, and audit history remain separate implementation work.
+- Complete responsive layout, orientation, keyboard, and production-release checks.
 
 ## Project records
 
