@@ -612,7 +612,7 @@ internal object SupabaseDataRepository {
             setRequestProperty("Content-Type", "application/json")
         }
         try {
-            connection.outputStream.use { it.write(JSONObject().put("expiresIn", 3600).toString().toByteArray(StandardCharsets.UTF_8)) }
+            connection.outputStream.use { it.write(JSONObject().put("expiresIn", 300).toString().toByteArray(StandardCharsets.UTF_8)) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
