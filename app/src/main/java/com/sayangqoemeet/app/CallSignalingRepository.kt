@@ -20,6 +20,17 @@ internal data class CallSession(
     val answerSdp: String?
 )
 
+internal fun supabaseRequestUrl(baseUrl: String, path: String): String {
+    val base = baseUrl.trimEnd('/')
+    val normalizedPath = path.trimStart('/')
+    return if (normalizedPath.startsWith("functions/v1/")) {
+        "$base/$normalizedPath"
+    } else {
+        "$base/rest/v1/$normalizedPath"
+    }
+}
+
+
 internal data class CallIceCandidate(
     val id: Long,
     val senderId: String,
@@ -39,7 +50,7 @@ internal object CallSignalingRepository {
     private fun request(method: String, path: String, body: JSONObject? = null, prefer: String? = null): String {
         val token = SupabaseAuthRepository.currentAccessToken()
             ?: error("Your session expired. Sign in again.")
-        val connection = (URL("${BuildConfig.SUPABASE_URL.trimEnd('/')}/rest/v1/$path")
+        val connection = (URL(supabaseRequestUrl(BuildConfig.SUPABASE_URL, path))
             .openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 12000
