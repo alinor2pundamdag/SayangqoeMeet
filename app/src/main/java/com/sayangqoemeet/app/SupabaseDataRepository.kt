@@ -69,6 +69,27 @@ internal data class InvitationRecord(
     val createdAt: String
 )
 
+internal data class AdminDashboardOverview(
+    val role: String,
+    val generatedAt: String,
+    val registeredProfiles: Int,
+    val conversations: Int,
+    val messages: Int,
+    val activeCalls: Int,
+    val activeUsersLast90Seconds: Int
+)
+
+internal data class AdminAuditEvent(
+    val id: String,
+    val actorId: String,
+    val action: String,
+    val targetType: String?,
+    val targetId: String?,
+    val details: String,
+    val createdAt: String
+)
+
+
 /**
  * Small authenticated PostgREST/Edge Function adapter.
  * The access token comes from the active Supabase Auth session; only the
@@ -702,6 +723,43 @@ internal object SupabaseDataRepository {
             if (tempFile.exists()) tempFile.delete()
         }
     }
+    /** Server-authorized read-only admin overview; never trusts client-supplied roles. */
+    suspend fun loadAdminDashboardOverview(): AdminDashboardOverview {
+        val root = JSONObject(runRequest {
+            request("POST", "functions/v1/admin-console", JSONObject().put("action", "overview"))
+        })
+        val overview = root.getJSONObject("overview")
+        return AdminDashboardOverview(
+            role = root.optString("role", "read_only"),
+            generatedAt = root.optString("generated_at"),
+            registeredProfiles = overview.optInt("registered_profiles"),
+            conversations = overview.optInt("conversations"),
+            messages = overview.optInt("messages"),
+            activeCalls = overview.optInt("active_calls"),
+            activeUsersLast90Seconds = overview.optInt("active_users_last_90_seconds")
+        )
+    }
+
+    /** Audit rows are returned only after the Edge Function validates admin membership. */
+    suspend fun loadAdminAuditLog(): List<AdminAuditEvent> {
+        val root = JSONObject(runRequest {
+            request("POST", "functions/v1/admin-console", JSONObject().put("action", "audit_log"))
+        })
+        val rows = root.optJSONArray("events") ?: JSONArray()
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            AdminAuditEvent(
+                id = row.optString("id"),
+                actorId = row.optString("actor_id"),
+                action = row.optString("action"),
+                targetType = row.optString("target_type").takeIf { it.isNotBlank() && it != "null" },
+                targetId = row.optString("target_id").takeIf { it.isNotBlank() && it != "null" },
+                details = row.optJSONObject("details")?.toString().orEmpty(),
+                createdAt = row.optString("created_at")
+            )
+        }
+    }
+
     fun subscribeToMessages(conversationId: String, onChange: () -> Unit): SupabaseRealtime.Subscription? =
         SupabaseRealtime.subscribe("messages", "conversation_id=eq.$conversationId", { onChange() })
 

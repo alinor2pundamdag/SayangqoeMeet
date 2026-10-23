@@ -1294,85 +1294,121 @@ private fun android.content.ContentResolver.getDisplayName(uri: Uri): String? {
 
 @Composable
 private fun AdminConsoleScreen(onBack: () -> Unit) {
-    var adminPassword by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var overview by remember { mutableStateOf<AdminDashboardOverview?>(null) }
+    var auditEvents by remember { mutableStateOf<List<AdminAuditEvent>>(emptyList()) }
+    var status by remember { mutableStateOf("Checking server-side admin authorization…") }
+    var loading by remember { mutableStateOf(false) }
+
+    suspend fun refresh() {
+        loading = true
+        try {
+            val verifiedOverview = SupabaseDataRepository.loadAdminDashboardOverview()
+            val verifiedAudit = SupabaseDataRepository.loadAdminAuditLog()
+            overview = verifiedOverview
+            auditEvents = verifiedAudit
+            status = ""
+        } catch (error: Exception) {
+            overview = null
+            auditEvents = emptyList()
+            status = error.message ?: "Admin service could not be reached."
+        } finally {
+            loading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
     Column(
         Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         BackHeader("SECURE ADMIN ACCESS", onBack)
-        Box(
-            Modifier.fillMaxWidth().border(
-                1.dp,
-                Brush.linearGradient(listOf(Color(0x9955F4FF), Color(0x554F6FFF), Color(0x44B58AFF))),
-                RoundedCornerShape(24.dp)
-            ).background(
-                Brush.verticalGradient(listOf(Color(0xFF14243B), Color(0xFF0C1323))),
-                RoundedCornerShape(24.dp)
-            ).padding(22.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Box(
-                    Modifier.size(54.dp).border(1.dp, Color(0x6655F4FF), RoundedCornerShape(17.dp))
-                        .background(Color(0x222EDFE4), RoundedCornerShape(17.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("SQ", color = ShellCyan, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
                 Text("Command access", color = ShellText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-                Text(
-                    "Administrator-only workspace for trust, safety, and session operations.",
-                    color = ShellMuted, fontSize = 13.sp, lineHeight = 19.sp
-                )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(7.dp).background(Color(0xFFFFCE79), CircleShape))
-                    Text("SECURE VERIFICATION NOT CONNECTED", color = Color(0xFFFFCE79), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                }
-                Spacer(Modifier.height(2.dp))
-                Text("ADMIN PASSWORD", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                OutlinedTextField(
-                    value = adminPassword,
-                    onValueChange = { adminPassword = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Enter admin password", color = ShellMuted) },
-                    singleLine = true,
-                    visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        TextButton(onClick = { showPassword = !showPassword }) {
-                            Text(if (showPassword) "HIDE" else "SHOW", color = ShellCyan, fontSize = 9.sp)
-                        }
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = fieldColorsForShell()
-                )
-                Button(
-                    onClick = { },
-                    enabled = false,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ShellCyan,
-                        disabledContainerColor = Color(0xFF25354A),
-                        disabledContentColor = ShellMuted
-                    ),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("VERIFY ADMIN IDENTITY", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
-                }
-                Text(
-                    "Verification will be performed by the secure backend. This screen does not compare or store the password locally.",
-                    color = ShellMuted, fontSize = 10.sp, lineHeight = 15.sp
-                )
+                Text("Server-verified, read-only operational overview.", color = ShellMuted, fontSize = 12.sp)
+            }
+            TextButton(onClick = { scope.launch { refresh() } }, enabled = !loading) {
+                Text(if (loading) "CHECKING…" else "REFRESH", color = ShellCyan, fontSize = 10.sp)
             }
         }
-        Text("CONSOLE MODULES", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
-        ActionCard("SESSION OPERATIONS", "Presence, grouped chat sessions, video calls, and voice calls", "BACKEND CONNECTION PENDING", {})
-        ActionCard("TRUST & SAFETY", "Case review, evidence references, and documented moderation", "BACKEND CONNECTION PENDING", {})
-        ActionCard("AUDIT & SECURITY", "Admin access history, role checks, and system status", "BACKEND CONNECTION PENDING", {})
+
+        if (status.isNotBlank()) {
+            val notProvisioned = status.contains("403") || status.contains("not provisioned", ignoreCase = true)
+            EmptyState(
+                if (notProvisioned) "ADMIN ACCESS NOT PROVISIONED" else "ADMIN SERVICE UNAVAILABLE",
+                if (notProvisioned) {
+                    "The backend denied admin access for this account. The project owner must explicitly provision the correct Supabase Auth user in admin_memberships. A password typed into the app cannot grant admin privileges.\n\n$status"
+                } else {
+                    "No live admin data is shown because server verification or the audit write failed. Retry after checking the backend.\n\n$status"
+                }
+            )
+        }
+
+        overview?.let { data ->
+            Box(
+                Modifier.fillMaxWidth().border(
+                    1.dp,
+                    Brush.linearGradient(listOf(Color(0x9955F4FF), Color(0x554F6FFF))),
+                    RoundedCornerShape(20.dp)
+                ).background(
+                    Brush.verticalGradient(listOf(Color(0xFF14243B), Color(0xFF0C1323))),
+                    RoundedCornerShape(20.dp)
+                ).padding(18.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("VERIFIED ADMIN SESSION", color = Color(0xFF65E5B0), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    Text("Role: ${data.role}", color = ShellText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Snapshot: ${data.generatedAt}", color = ShellMuted, fontSize = 10.sp)
+                    Text("Read-only mode · privileged writes disabled", color = ShellMuted, fontSize = 11.sp)
+                }
+            }
+
+            Text("LIVE BACKEND OVERVIEW", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
+            listOf(
+                "Registered profiles" to data.registeredProfiles,
+                "Conversations" to data.conversations,
+                "Messages" to data.messages,
+                "Active calls" to data.activeCalls,
+                "Users active in last 90 seconds" to data.activeUsersLast90Seconds
+            ).forEach { (label, count) ->
+                Row(
+                    Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(14.dp))
+                        .background(ShellPanel, RoundedCornerShape(14.dp)).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(label, color = ShellMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text(count.toString(), color = ShellCyan, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        }
+
+        Text("PRIVILEGED OPERATIONS", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
         EmptyState(
-            "ADMIN WORKSPACE LOCKED",
-            "Live user data and privileged actions remain unavailable until server-verified admin authorization and audit logging are implemented."
+            "MODERATION AND ACCOUNT WRITES ARE DISABLED",
+            "No ban, suspension, message inspection, or destructive operation is exposed. These controls remain unavailable until the owner approves the admin scope, authorization rules, audit fields, and retention policy."
         )
+
+        Text("ADMIN AUDIT HISTORY", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
+        if (auditEvents.isEmpty()) {
+            EmptyState("NO VERIFIED AUDIT EVENTS", "Audit entries appear here only after the backend authorizes this account and records the access event.")
+        } else {
+            auditEvents.take(20).forEach { event ->
+                Column(
+                    Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(14.dp))
+                        .background(ShellPanel, RoundedCornerShape(14.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(event.action, color = ShellCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Actor: ${event.actorId}", color = ShellMuted, fontSize = 10.sp)
+                    Text("Time: ${event.createdAt}", color = ShellMuted, fontSize = 10.sp)
+                    if (event.targetType != null || event.targetId != null) {
+                        Text("Target: ${event.targetType.orEmpty()} ${event.targetId.orEmpty()}", color = ShellMuted, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
     }
 }
 

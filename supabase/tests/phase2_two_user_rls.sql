@@ -816,4 +816,63 @@ BEGIN
 END $$;
 RESET ROLE;
 
+-- Admin role/audit tables are service-only; clients cannot self-assign admin or alter audit history.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname='admin_memberships' AND c.relrowsecurity
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname='admin_audit_log' AND c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'Admin membership and audit tables must have RLS enabled';
+  END IF;
+
+  IF has_table_privilege('anon', 'public.admin_memberships', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.admin_memberships', 'SELECT')
+     OR has_table_privilege('anon', 'public.admin_memberships', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.admin_memberships', 'INSERT')
+     OR has_table_privilege('anon', 'public.admin_audit_log', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.admin_audit_log', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.admin_audit_log', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.admin_audit_log', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.admin_audit_log', 'DELETE') THEN
+    RAISE EXCEPTION 'Admin membership/audit tables must not be directly accessible to client roles';
+  END IF;
+
+  IF NOT has_table_privilege('service_role', 'public.admin_memberships', 'SELECT')
+     OR has_table_privilege('service_role', 'public.admin_memberships', 'UPDATE')
+     OR has_table_privilege('service_role', 'public.admin_memberships', 'DELETE')
+     OR NOT has_table_privilege('service_role', 'public.admin_audit_log', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.admin_audit_log', 'INSERT')
+     OR has_table_privilege('service_role', 'public.admin_audit_log', 'UPDATE')
+     OR has_table_privilege('service_role', 'public.admin_audit_log', 'DELETE') THEN
+    RAISE EXCEPTION 'Admin service-role grants must remain least-privilege and audit append-only';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='admin_memberships'
+      AND policyname='admin_memberships_deny_clients' AND cmd='ALL'
+      AND qual='false' AND with_check='false'
+      AND roles @> ARRAY['anon','authenticated']::name[]
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='admin_audit_log'
+      AND policyname='admin_audit_log_deny_clients' AND cmd='ALL'
+      AND qual='false' AND with_check='false'
+      AND roles @> ARRAY['anon','authenticated']::name[]
+  ) THEN
+    RAISE EXCEPTION 'Explicit client-deny RLS policies are required for admin tables';
+  END IF;
+  IF has_sequence_privilege('anon', 'public.admin_audit_log_id_seq', 'USAGE')
+     OR has_sequence_privilege('authenticated', 'public.admin_audit_log_id_seq', 'USAGE')
+     OR NOT has_sequence_privilege('service_role', 'public.admin_audit_log_id_seq', 'USAGE') THEN
+    RAISE EXCEPTION 'Admin audit identity sequence must be service-role only';
+  END IF;
+END $$;
+
 ROLLBACK;
