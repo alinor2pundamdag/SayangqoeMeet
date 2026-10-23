@@ -4,20 +4,29 @@ on:
   push:
     branches:
       - main
+      - fix/phase-2-main-rebased
       - fix/phase-2-db-reconciliation-on-phase-1
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Cancel superseded runs for the same branch to conserve Actions minutes.
 concurrency:
-  group: android-ci-${{ github.event.pull_request.number || github.ref }}
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   debug-build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -42,14 +51,8 @@ jobs:
       - name: Install Android platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Run Android lint
-        run: gradle --no-daemon lintDebug --stacktrace
-
-      - name: Run unit tests
-        run: gradle --no-daemon testDebugUnitTest --stacktrace
-
-      - name: Assemble debug APK
-        run: gradle --no-daemon assembleDebug --stacktrace
+      - name: Run lint, unit tests, and assemble debug APK
+        run: gradle --no-daemon lintDebug testDebugUnitTest assembleDebug --stacktrace
 
       - name: Name APK after project
         run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/SayangqoeMeet.apk
@@ -60,4 +63,4 @@ jobs:
           name: SayangqoeMeet-Android-APK
           path: app/build/outputs/apk/debug/SayangqoeMeet.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7

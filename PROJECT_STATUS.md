@@ -1,11 +1,37 @@
 # SayangqoeMeet — Project Status
 
-**Status date:** 2026-10-16  
+**Status date:** 2026-10-23  
 **Repository:** `alinor2pundamdag/SayangqoeMeet`  
-**Visibility:** Private  
+**Visibility:** Public  
 **Default branch:** `main`
 
-## Verified completed items
+## Current audit status — 2026-10-23 (authoritative)
+
+### Phase 1 — code and CI gate passed
+- PR #11 is merged into `main`.
+- The combined Phase 1/Phase 2 branch passed Android lint, unit tests, debug APK assembly, and artifact upload on commit `d3814a9620dfe4bd06b65144cc58b3f033b0bd20` ([run](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672216)).
+- Auth/session restoration, email callback, FCM delivery, notification permission UX, and real two-device calling still require physical-device/backend smoke tests.
+
+### Phase 2 — code and disposable database gate passed; merge pending
+- PR #16 is open and mergeable; it must be merged only after final review ([PR #16](https://github.com/alinor2pundamdag/SayangqoeMeet/pull/16)).
+- The live ledger has 25 versions; the branch has 25 canonical migration files, with no missing, extra, or duplicate version prefixes.
+- Deno Edge Function type-check, fresh disposable Supabase migration replay, SQL lint, and two-user RLS isolation all passed on the same tested commit ([database run](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672196)).
+- All 12 inspected public application tables have RLS enabled and policies. All 23 foreign-key constraints are covered by valid leading indexes. Representative query plans were reviewed; no index was dropped.
+- Three authenticated-callable SECURITY DEFINER RPC warnings remain documented exceptions: get_my_profile(), get_my_conversation_list(), and register_device_token(text,text). Their search_path is pinned, anon execution is denied, and tests assert caller-scoped behavior. Ten unused-index advisories remain under review; short usage history alone does not justify removal.
+- Eleven repository-only migration files are preserved under `docs/legacy-migrations/` outside the executable migration directory. This preserves source history while avoiding an alternate replay chain.
+
+### Owner/device release checks still required
+1. Restrict the Firebase Android API key in Google Cloud Console to package `com.sayangqoemeet.app`, correct debug/release signing fingerprints, and required APIs.
+2. Verify `FIREBASE_SERVICE_ACCOUNT_JSON`, `SUPABASE_SERVICE_ROLE_KEY`, and `MEDIA_CLEANUP_CRON_SECRET` exist in the correct server-side settings; confirm the GitHub Actions and Supabase cleanup secret match without exposing values.
+3. Scan all branches, tags, PR diffs, and Git history for leaked credentials/private data; rotate any confirmed exposed credential. Current-branch source search found no common high-confidence secret patterns, but it is not a full history scan.
+4. Test registration/sign-in/session restore, email verification callback, push delivery, notification permissions, call accept/decline/hang-up, and voice/video between two authorized physical devices.
+5. The separate web admin console remains a static UI shell; server-verified roles, privileged endpoints, audit storage, and live admin operations are outside the current Phase 1/2 completion gate.
+
+No production database migration/DDL/data rewrite was run. No indexes were dropped. Leaked-password protection was not changed because it is explicitly outside this task's scope. Do not declare the full product production-ready until the owner/device checks above are evidenced.
+
+---
+
+## Historical verified items (initial implementation; current state is summarized above)
 
 - [x] Android Compose foundation and neon sign-in/registration UI are committed.
 - [x] Sign-in success now routes to an app shell; sign-out calls Supabase Auth.
@@ -15,30 +41,30 @@
 - [x] Deployed Supabase Edge Function `create-conversation` is active with JWT verification enabled. It verifies the caller and creates a conversation and pending invitation; the recipient is added as a member only after accepting.
 - [x] Added and committed the matching Edge Function source at `supabase/functions/create-conversation/index.ts`.
 - [x] Added and deployed `respond-conversation-invite`, which permits only the addressed recipient to accept or decline a pending invitation.
-- [x] Added a Hang Up / Cancel control to the call UI; it is only a UI control until real WebRTC call state exists.
+- [x] WebRTC signaling, peer connection setup, dynamic TURN credentials, and call lifecycle integration are implemented in source; two-device media connectivity remains a device-test gate.
 - [x] Added Firebase Messaging client dependency/service, notification permission request, device-token registration code, and the live RLS-protected `device_tokens` table.
 - [x] Deployed JWT-protected `send-message-push` Edge Function; it checks the caller's message ownership and targets other conversation members' tokens.
-- [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; six application tables exist with RLS enabled.
-- [x] All three live migrations—initial messaging schema, foreign-key indexes, device tokens, and conversation invitations—are recorded in Supabase and matched by repository filenames.
-- [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
+- [x] Active Supabase project `phjwzrrsaemgcedwpyyp` is healthy; the current audit found 12 public application tables with RLS enabled and policies.
+- [x] The Phase 2 branch now has 25 canonical migration files matching the 25 live ledger versions exactly; PR #16 remains open and not merged.
+- [x] Current security review documents three authenticated-callable SECURITY DEFINER RPC warnings; all three pin search_path, derive caller identity from auth.uid(), and deny anon execution. The warnings are reviewed, not suppressed.
 - [x] README, handoff, and changelog are being aligned with current implementation status.
 - [x] Added an explicit admin-console requirement to `masterplan.md`.
 - [x] Expanded `admin-console/index.html` into a responsive sci-fi command-center UI with overview metrics, online-user directory, grouped chat sessions, video/voice review layouts, safety case queue, audit trail, settings, responsive navigation, and working UI-level search/navigation. All live values remain explicitly unconnected; no fabricated user activity.
 - [x] Added a mobile admin-access UI with a three-dot overflow menu, password field, locked verification button, and module cards. It does not check or store an admin password locally.
 
-## Incomplete / unverified
+## Historical incomplete list (as of 2026-10-16; superseded by current audit below)
 
-- **Android build/CI:** No confirmed successful GitHub Actions run or local Android build result has been observed for these latest UI/data changes.
+- **Android build/CI:** The combined Phase 1/Phase 2 branch passed lint, unit tests, debug APK assembly, and artifact upload on commit d3814a9620dfe4bd06b65144cc58b3f033b0bd20; device behavior still needs physical testing.
 - **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
 - **Messaging:** REST history/send are implemented, but Realtime subscriptions, pagination UI, retry/deduplication, offline queueing, and comprehensive failure handling are not complete.
 - **Invitations:** The deployed Edge Functions create a pending invitation and allow only the recipient to accept/decline; the recipient receives conversation membership only after acceptance. This still needs end-to-end two-account testing and abuse/rate-limit review before production use.
-- **Firebase/FCM:** Client/token code and server sender function are present, but no `app/google-services.json` or Firebase service-account secret has been configured. Google Services plugin application is conditional on the app config file existing, so it does not block the clean-start build. The sender function cannot deliver push until `FIREBASE_SERVICE_ACCOUNT_JSON` is set in Supabase Edge Function secrets. No push delivery test has passed.
-- **Calls:** The Hang Up / Cancel UI exists, but WebRTC signaling/media, STUN/TURN, call invitations, and two-device tests are not implemented.
+- **Firebase/FCM:** `app/google-services.json` is tracked client configuration. Restrict its API key in Google Cloud Console; verify `FIREBASE_SERVICE_ACCOUNT_JSON` exists as a server-only secret; test end-to-end push delivery. Secret values are not readable through the repository connector.
+- **Calls:** WebRTC signaling/media setup, call invitations, and dynamic TURN credential retrieval are in source; real two-device call quality/connectivity tests remain pending.
 - **Admin console UI:** The web command-center and Android access-entry UIs are implemented as static UI. No secure login or live operations are active yet; server-verified admin roles, presence/call feeds, moderation workflows, audit storage, and privileged endpoints remain to be built.
-- **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
+- **Security tests:** Disposable two-user RLS isolation tests passed in CI; production-account and physical-device integration checks remain pending.
 - **Responsive verification:** Build, emulator screenshots, compact/large layout, orientation, and keyboard test matrix are still pending.
 
-## Next actions
+## Historical next actions (superseded by current audit below)
 
 1. Build the latest Android source in GitHub Actions or AndroidIDE and fix actual compiler errors from logs.
 2. Test registration, sign-in, profile creation, conversation invitation, message send/history, and denied cross-user access with two test accounts.
