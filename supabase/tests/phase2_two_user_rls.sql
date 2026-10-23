@@ -282,7 +282,7 @@ END $$;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $2
+DO $$
 BEGIN
   BEGIN
     INSERT INTO public.messages (conversation_id, sender_id, body, attachment_purged_at)
