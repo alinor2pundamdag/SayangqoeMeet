@@ -1,102 +1,77 @@
 # Phase 2 Database Reconciliation and Security Audit
 
-Date: 2026-10-21
-Supabase project: `phjwzrrsaemgcedwpyyp`
-Target branch: `fix/phase-1-auth-manifest-ci` (stacked on open Phase 1 PR #11)
-Working branch: `fix/phase-2-db-reconciliation-on-phase-1`
+**Audit date:** 2026-10-23  
+**Supabase project:** `phjwzrrsaemgcedwpyyp`  
+**Target branch:** `main` (Phase 1 PR #11 is merged)  
+**Working branch:** `fix/phase-2-db-reconciliation-on-phase-1`  
+**Status:** Validation is in progress; this document is not a release approval.
 
-## A34–A42 — Migration ledger reconciliation
+## Migration ledger reconciliation
 
-The live Supabase migration ledger was read before any DDL changes. It contains the following versions, in order:
+The live `supabase_migrations.schema_migrations` ledger contains 25 versions:
 
-- `20261016114000_initial_private_messaging`
-- `20261016134617_add_foreign_key_indexes`
-- `20261016140058_add_device_tokens`
-- `20261016140546_add_conversation_invites`
-- `20261017175440_atomic_direct_conversation_rpc`
-- `20261018065021_user_presence_heartbeat`
-- `20261018185347_add_profile_details`
-- `20261018185357_webrtc_call_sessions`
-- `20261018185402_protect_call_session_identity`
-- `20261019065501_install_get_my_conversation_list_rpc`
-- `20261020061237_finalize_chat_attachments_pinned_realtime`
-- `20261020085405_backend_integrity_cleanup`
-- `20261020121714_media_download_tracking_and_cleanup`
-- `20261020121824_lock_down_media_trigger_rpc`
-- `20261021135034_phase2_database_security_performance`
-- `20261021135259_phase2_enforce_soft_delete_boundaries`
-- `20261021155023_phase2_pinned_messages_authenticated_access`
-- `20261021160316_phase2_harden_profile_rpc_search_path`
-- `20261022074000_register_device_token_securely`
-- `20261022074000_register_device_token_securely`
+- `20261016114000`
+- `20261016134617`
+- `20261016140058`
+- `20261016140546`
+- `20261017175440`
+- `20261018065021`
+- `20261018185347`
+- `20261018185357`
+- `20261018185402`
+- `20261019065501`
+- `20261020061237`
+- `20261020085405`
+- `20261020121714`
+- `20261020121824`
+- `20261021135034`
+- `20261021135259`
+- `20261021155023`
+- `20261021160316`
+- `20261022025147`
+- `20261022025219`
+- `20261022025251`
+- `20261022025320`
+- `20261022025350`
+- `20261022032347`
+- `20261022041708`
 
-Six already-applied historical migrations were missing from `main` under the versions recorded by Supabase. This branch restores them using the previously committed SQL sources, renaming them to match the live ledger versions. The recovered definitions were checked against live table columns, constraints, policies, indexes, and triggers. These historical migrations were **not re-applied**.
+The Phase 2 branch contains 25 migration files whose version prefixes match this ledger. `main` still has 19 files with historical filenames that do not align with the hosted ledger. The reconciliation retains the SQL effects while normalizing filenames and reconstructing schema pieces needed for a clean replay. The attachment object-path policies compare UUID text safely and do not cast untrusted path segments to UUID.
 
-The two new Phase 2 migrations were applied directly to the live project after read-only inspection. Their filenames match the versions generated in the live migration ledger. No `supabase db push` was run.
+**Safety:** This audit did not execute production DDL, run `supabase db push`, delete live indexes, or change live RLS grants. Fresh replay and test execution happen against a disposable local Supabase stack in CI.
 
-## A43–A55 — Authorization and RLS
+## Current CI evidence
 
-Verified and retained:
-- RLS is enabled on all inspected public application tables.
-- `message_media_cleanup_queue` and `message_media_download_confirmations` have no client policies and no anon/authenticated table privileges; access is service-role-only. This is intentional, not a reason to add broad policies.
-- `get_my_profile()` is SECURITY DEFINER but takes no user argument and filters by `id = auth.uid()`; authenticated users need this RPC to read their own profile fields withheld from public directory column grants.
-- `get_my_conversation_list()` is SECURITY DEFINER, rejects a null caller, and filters memberships by the caller's `auth.uid()`. Its authenticated EXECUTE grant is intentional.
-- Call identity immutability is enforced by existing triggers. The trigger-only `guard_call_session_updates()` function is no longer executable by anon/authenticated roles; the trigger remains installed.
-- Sensitive profile columns (`address`, `birthday`, `religion`, `phone_number`, and `bio`) have no authenticated SELECT column grants; only the directory fields are selectable directly.
-- Client hard DELETE on `profiles` and `messages` is revoked. Message SELECT policy now requires conversation membership and `deleted_at IS NULL`.
+For commit `670c87ba3fcf27b59490a94dd4dc69d40d62e3d7`:
 
-Supabase Security Advisor reports two SECURITY DEFINER RPCs and two RLS-enabled service-only tables without client policies. The RPCs are intentionally callable by authenticated users and are scoped to `auth.uid()`; the media bookkeeping tables remain inaccessible to anon/authenticated roles. Leaked-password protection is not part of this implementation because the Supabase Free plan does not support the HaveIBeenPwned.org configuration.
+- Deno type-checking for push Edge Functions: passed.
+- Disposable Supabase startup: passed.
+- Full migration replay from an empty database: passed.
+- `supabase db lint --local --fail-on error` and the two-user authenticated RLS isolation test: passed.
+- Job cleanup and the separate Android CI run were still in progress at the time of this update. Do not report the full run as complete until GitHub records a final conclusion for this exact SHA.
 
-## A56–A62 — Indexes, RLS performance, triggers, and plans
+Phase 1 PR #11 is merged to `main`. Android CI passed lint, unit tests, debug APK assembly, and artifact upload for its merged head. Physical-device auth, FCM delivery, notification permissions, and two-device calling still require smoke tests.
 
-Fixed live advisor findings:
-- Added index on `message_media_cleanup_queue(conversation_id)`.
-- Added index on `message_media_download_confirmations(recipient_id)`.
-- Added index on `pinned_messages(message_id)`.
-- Rewrote seven presence/call RLS predicates to use scalar `(SELECT auth.uid())` while preserving their authorization conditions.
+## Live database authorization findings
 
-Post-change verification:
-- All three indexes exist in `pg_indexes`.
-- Supabase Performance Advisor no longer reports unindexed foreign keys or RLS initplan warnings.
-- Representative `EXPLAIN (FORMAT JSON)` plans use `messages_conversation_created_idx`, `call_sessions_callee_status_created_idx`, and `message_media_cleanup_due_idx`.
-- Ten indexes are flagged as unused by the advisor after adding the three indexes. They were retained because usage history is short and index removal is not justified by the advisory alone.
-- PostgreSQL logs in the inspected 24-hour window contained no duration-log lines; `pg_stat_statements` was reviewed. The highest mean times were dominated by platform/catalog metadata queries, not a verified application hot query.
+- All 12 inspected public application tables have RLS enabled; 26 policies cover those tables.
+- The live catalog contains 23 foreign-key constraints. A catalog check found a valid leading index covering each FK column.
+- The security advisor flags three authenticated-callable `SECURITY DEFINER` RPCs: `get_my_profile()`, `get_my_conversation_list()`, and `register_device_token(text,text)`. Live ACL inspection found no `anon` EXECUTE privilege on these functions; each has `search_path = public, pg_temp`.
+- `get_my_profile()` filters by `auth.uid()`; `get_my_conversation_list()` rejects a null caller and limits rows to the caller's memberships; `register_device_token()` derives the owner from `auth.uid()`, validates token/platform inputs, and atomically transfers an installation token after account switching. Keep these functions only with authenticated identity/negative-path tests; do not change grants merely to silence an advisor warning.
+- The security advisor also reports RLS/authorization lint findings for service-only media bookkeeping tables in earlier snapshots. Those tables must remain inaccessible to `anon` and `authenticated`; do not add broad client policies.
+- The performance advisor reports 10 unused-index findings. No index was dropped: usage counters alone are insufficient to justify removal. Validate real workload/query plans and foreign-key coverage first.
 
-### Pinned-message schema recovery
+## Backend-to-frontend checks still required
 
-Fresh replay exposed that `pinned_messages` existed in the hosted schema but had no creation statement in the repository migration chain. The historical `20261020061237_finalize_chat_attachments_pinned_realtime.sql` now creates the table before its realtime publication, indexes, and RLS policies are configured. This fresh-database reconstruction was not reapplied to production. The same reconstruction now restores the live profile-avatar bucket/policies and the four Realtime publication tables. Chat-attachment storage policies also guard UUID casts with a strict canonical UUID check inside `CASE`, avoiding errors on malformed object paths. Eleven repository-only migration files whose versions are absent from the live ledger were removed after their duplicate or unique effects were reconciled into the exact ledger-version files; the fresh replay no longer runs duplicate historical schema changes. The live table's missing client DML grants were fixed by forward migration `20261021155023_phase2_pinned_messages_authenticated_access`, granting only SELECT/INSERT/DELETE to `authenticated` while retaining RLS and denying `anon` and UPDATE.
+1. Current-head Android CI must finish successfully.
+2. Install the built APK and verify sign-in, session restore, sign-out while offline, email verification callback, notification permission prompts, token reassignment after account switching, incoming-call timeout/decline, and voice/video calls between two real accounts/devices.
+3. Confirm the deployed `get-turn-credentials`, `notify-incoming-call`, `send-message-push`, and `create-conversation` Edge Functions match the reviewed branch behavior.
+4. Verify the GitHub Actions secret `MEDIA_CLEANUP_CRON_SECRET` matches the Supabase `cleanup-chat-media` function secret without exposing either value. The latest scheduled cleanup workflow failed, but its log artifact was unavailable during this audit, so the exact failure cause remains unverified.
+5. Because the repository is public, scan all Git refs/history, tags, branches, and PR diffs for credentials. Rotate any confirmed exposed credential. Restrict the Firebase Android API key to package `com.sayangqoemeet.app`, the correct signing certificate fingerprints, and required APIs; client Firebase configuration is not a service-account private key.
+6. Re-run Supabase Security and Performance Advisors after code review; retain unused indexes unless workload evidence proves they are redundant.
 
-## Applied migration summary
+## Merge and release gate
 
-### `20261021135034_phase2_database_security_performance`
-Adds the three missing FK indexes, optimizes seven RLS predicates without widening access, and revokes direct EXECUTE access to the trigger-only update guard.
+PR #13 must be ported onto current `main` to remove its reported merge conflicts. Merge only after the clean branch has green current-head Android CI and Phase 2 database validation, all changed migration effects have been reviewed, and the device/backend smoke tests are recorded. Never run a blanket production migration push to resolve a local replay issue.
 
-### `20261021135259_phase2_enforce_soft_delete_boundaries`
-Revokes client hard DELETE on profiles/messages and makes the membership-scoped message SELECT policy exclude soft-deleted rows.
-
-### `20261021155023_phase2_pinned_messages_authenticated_access`
-Grants only SELECT/INSERT/DELETE to authenticated users for RLS-scoped pinned messages; anon access and authenticated UPDATE remain denied.
-
-### `20261021160316_phase2_harden_profile_rpc_search_path`
-Sets `get_my_profile()` to `search_path = public, pg_temp`, matching the already-hardened conversation-list RPC while preserving its caller filter and authenticated EXECUTE grant.
-
-### `20261022074000_register_device_token_securely`
-Adds authenticated-only `register_device_token(text,text)`. It derives the owner from `auth.uid()` and atomically reassigns an installation's unique FCM token to the currently signed-in account. This fixes the RLS-blocked upsert that could leave a token attached to the previous account after offline sign-out. Anonymous execution is revoked.
-
-## Completion status
-
-- Migration ledger reconciled in the branch: **done**.
-- Verified database security/performance fixes applied and catalog-verified: **done**.
-- Security/Performance Advisor re-run: **done**; only the documented intentional/configuration findings remain.
-- Fresh-database migration replay: **pending final CI** after removal of unledgered duplicate migrations and restoration of the hosted avatar/Realtime schema into the exact-version reconstruction.
-- `supabase db lint --local --fail-on error`: **pending final CI** for the normalized migration chain.
-- Authenticated two-user message RLS isolation test: **pending final CI** for the normalized migration chain; it uses the actual `authenticated` role and distinct JWT subject identities for users A and B.
-- FCM account-switch regression: **added**; the test reuses one installation token as two authenticated users and asserts the token is assigned only to the second user. It also verifies anonymous EXECUTE is denied.
-- Fresh-schema regression assertions now verify the profile-avatar bucket is public, chat attachments remain private, messages/calls/presence/pinned messages are all in the Realtime publication, and all three chat-attachment policies guard UUID casts.
-- Push delivery regression: FCM payloads now include `recipient_id`; Android drops payloads that do not explicitly target the active user. Message push payloads are data-only so Android can validate identity before showing a notification.
-- TURN credential requests now include `call_id`; the Edge Function verifies the authenticated user is a participant in that active call before asking Cloudflare to mint temporary ICE credentials. Legacy clients without `call_id` are temporarily supported only when RLS exposes an active call for that user.
-- Message-push authorization now rejects soft-deleted messages and callers who are no longer members of the conversation. Android app backup is disabled to avoid restoring authentication/session state onto another device.
-- Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
-- Live SECURITY DEFINER RPC review confirmed caller-scoped bodies, no anon EXECUTE, and `search_path = public, pg_temp` for both authenticated RPCs.
-- Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
-- This work is submitted as an open PR; no merge performed.
+Leaked-password protection is deliberately outside this work scope and was not changed by this audit.
