@@ -765,4 +765,55 @@ BEGIN
 END $$;
 
 
+-- Idempotency key regression: retries for one sender/key must create one row only.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='messages' AND column_name='client_request_id'
+      AND data_type='uuid'
+  ) THEN
+    RAISE EXCEPTION 'messages.client_request_id UUID column is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='public' AND tablename='messages'
+      AND indexname='messages_sender_client_request_uidx'
+      AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+  ) THEN
+    RAISE EXCEPTION 'Unique sender/client_request_id index is missing';
+  END IF;
+  IF NOT has_column_privilege('authenticated', 'public.messages', 'client_request_id', 'INSERT') THEN
+    RAISE EXCEPTION 'Authenticated clients must be able to submit a client request idempotency key';
+  END IF;
+END $$;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+INSERT INTO public.messages (conversation_id, sender_id, body, client_request_id)
+VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'idempotency test message',
+        'abababab-abab-4bab-8bab-abababababab')
+ON CONFLICT (sender_id, client_request_id) DO NOTHING;
+INSERT INTO public.messages (conversation_id, sender_id, body, client_request_id)
+VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'duplicate retry must not create a second row',
+        'abababab-abab-4bab-8bab-abababababab')
+ON CONFLICT (sender_id, client_request_id) DO NOTHING;
+DO $$
+BEGIN
+  IF (
+    SELECT count(*) FROM public.messages
+    WHERE sender_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
+      AND client_request_id='abababab-abab-4bab-8bab-abababababab'::uuid
+  ) <> 1 THEN
+    RAISE EXCEPTION 'Message idempotency key allowed duplicate rows';
+  END IF;
+END $$;
+RESET ROLE;
+
 ROLLBACK;
