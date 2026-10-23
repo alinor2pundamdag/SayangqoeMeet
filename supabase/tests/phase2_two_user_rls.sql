@@ -875,4 +875,76 @@ BEGIN
   END IF;
 END $$;
 
+-- Generic regression gates for the whole exposed public schema. These checks
+-- prevent new tables/functions/FKs from silently bypassing Phase 2 hardening.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public'
+      AND c.relkind IN ('r','p')
+      AND (
+        NOT c.relrowsecurity
+        OR NOT EXISTS (
+          SELECT 1 FROM pg_policies p
+          WHERE p.schemaname=n.nspname AND p.tablename=c.relname
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'Every exposed public table must keep RLS enabled and at least one explicit policy';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint fk
+    WHERE fk.contype='f'
+      AND fk.connamespace='public'::regnamespace
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_index i
+        WHERE i.indrelid=fk.conrelid
+          AND i.indisvalid AND i.indisready
+          AND (
+            SELECT array_agg(i.indkey[k]::smallint ORDER BY k)
+            FROM generate_series(0,cardinality(fk.conkey)-1) AS k
+          ) = fk.conkey
+      )
+  ) THEN
+    RAISE EXCEPTION 'Every public foreign key must have a valid index whose leading columns cover the FK columns in order';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.prosecdef
+      AND (
+        p.proconfig IS NULL
+        OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) cfg WHERE cfg LIKE 'search_path=%')
+        OR has_function_privilege('anon',p.oid,'EXECUTE')
+      )
+  ) THEN
+    RAISE EXCEPTION 'Every public SECURITY DEFINER function must pin search_path and deny anon EXECUTE';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_index i
+    JOIN pg_class idx ON idx.oid=i.indexrelid
+    JOIN pg_class tbl ON tbl.oid=i.indrelid
+    JOIN pg_namespace n ON n.oid=tbl.relnamespace
+    WHERE n.nspname='public'
+      AND tbl.relname='admin_memberships'
+      AND idx.relname='admin_memberships_granted_by_idx'
+      AND i.indisvalid AND i.indisready
+      AND (i.indkey::smallint[])[0]=(
+        SELECT attnum::smallint FROM pg_attribute
+        WHERE attrelid='public.admin_memberships'::regclass AND attname='granted_by'
+      )
+  ) THEN
+    RAISE EXCEPTION 'The admin_memberships.granted_by FK covering index is missing or invalid';
+  END IF;
+END $$;
+
 ROLLBACK;
