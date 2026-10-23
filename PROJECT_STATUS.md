@@ -1,11 +1,22 @@
 # SayangqoeMeet — Project Status
 
-**Status date:** 2026-10-16  
+**Status date:** 2026-10-23  
 **Repository:** `alinor2pundamdag/SayangqoeMeet`  
-**Visibility:** Private  
+**Visibility:** Public  
 **Default branch:** `main`
 
-## Verified completed items
+## Current verified status (2026-10-23)
+
+- **Phase 1:** PR #11 merged to `main`. Android CI passed for the merged Phase 1 source: lint, unit tests, debug APK assembly, and artifact upload.
+- **Phase 2:** PR #16 merged to `main` at merge commit `f31de60110d78a8f5093f823b0e59aefe52d667d`.
+- **Combined validation:** Android CI passed on tested PR head `d3814a9620dfe4bd06b65144cc58b3f033b0bd20`; fresh local Supabase migration replay, `supabase db lint --local --fail-on error`, two-user RLS isolation tests, and Deno type-check of Edge Functions passed on that same head.
+- **Migration chain:** 25 executable migration files match the 25 versions in the live Supabase migration ledger. Eleven repository-only timestamp variants are preserved verbatim under `docs/legacy-migrations/` and intentionally excluded from fresh replay.
+- **Live database review:** All 12 inspected public application tables have RLS enabled and policies. All 23 inspected foreign keys have child-side indexes. Representative read-only query plans use the expected message, call-session, and media-cleanup indexes. No production DDL or data changes were made during the PR #16 work.
+- **Backend/frontend parity:** `notify-incoming-call`, `get-turn-credentials`, `send-message-push`, and `cleanup-chat-media` deployed source was compared with repository source and matched exactly. The call notification endpoint routing bug is fixed in Android source and covered by unit tests.
+- **Security findings retained for explicit review:** Supabase advisor reports three authenticated-callable SECURITY DEFINER functions; their caller-scoped behavior and lack of anon EXECUTE were checked. Ten unused-index notices remain; no indexes were dropped. Leaked-password protection was explicitly outside scope and was not changed.
+- **Not yet release-certified:** Real-device two-account tests for auth/session restoration, invitation/message flow, FCM push delivery, and voice/video calls; Google Cloud Firebase API-key restrictions; verification that `FIREBASE_SERVICE_ACCOUNT_JSON` and `MEDIA_CLEANUP_CRON_SECRET` are configured/matched without exposing values; full Git-history secret scan; and secure admin backend/role enforcement.
+
+## Historical snapshot (2026-10-16; superseded by the current status above)
 
 - [x] Android Compose foundation and neon sign-in/registration UI are committed.
 - [x] Sign-in success now routes to an app shell; sign-out calls Supabase Auth.
@@ -26,7 +37,7 @@
 - [x] Expanded `admin-console/index.html` into a responsive sci-fi command-center UI with overview metrics, online-user directory, grouped chat sessions, video/voice review layouts, safety case queue, audit trail, settings, responsive navigation, and working UI-level search/navigation. All live values remain explicitly unconnected; no fabricated user activity.
 - [x] Added a mobile admin-access UI with a three-dot overflow menu, password field, locked verification button, and module cards. It does not check or store an admin password locally.
 
-## Incomplete / unverified
+## Historical incomplete / unverified list (superseded by the current status above)
 
 - **Android build/CI:** No confirmed successful GitHub Actions run or local Android build result has been observed for these latest UI/data changes.
 - **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
@@ -38,7 +49,7 @@
 - **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
 - **Responsive verification:** Build, emulator screenshots, compact/large layout, orientation, and keyboard test matrix are still pending.
 
-## Next actions
+## Historical next actions (superseded by the current status above)
 
 1. Build the latest Android source in GitHub Actions or AndroidIDE and fix actual compiler errors from logs.
 2. Test registration, sign-in, profile creation, conversation invitation, message send/history, and denied cross-user access with two test accounts.
