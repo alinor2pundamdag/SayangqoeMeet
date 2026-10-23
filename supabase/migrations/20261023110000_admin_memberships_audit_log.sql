@@ -26,6 +26,11 @@ CREATE INDEX IF NOT EXISTS admin_audit_log_created_at_idx
 CREATE INDEX IF NOT EXISTS admin_audit_log_actor_created_at_idx
   ON public.admin_audit_log (actor_id, created_at DESC);
 
+COMMENT ON TABLE public.admin_memberships IS
+  'Server-only admin authorization memberships. Client roles cannot read or mutate this table.';
+COMMENT ON TABLE public.admin_audit_log IS
+  'Append-only admin access audit events. Client roles and the service role cannot update or delete existing events.';
+
 ALTER TABLE public.admin_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 
