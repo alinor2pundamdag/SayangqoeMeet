@@ -439,18 +439,22 @@ internal object SupabaseDataRepository {
         val response = try {
             runRequest { request("POST", "messages", payload, "return=representation") }
         } catch (insertError: Exception) {
-            // Avoid orphaned private objects when Storage upload succeeds but the
-            // message row is rejected (for example, if membership changed mid-upload).
-            val rollbackError = runCatching {
-                withContext(NonCancellable) { deleteUploadedChatAttachment(objectPath) }
-            }.exceptionOrNull()
-            if (rollbackError != null) {
-                insertError.addSuppressed(rollbackError)
-                if (insertError !is kotlinx.coroutines.CancellationException) {
-                    throw IllegalStateException(
-                        "Message could not be saved and uploaded-file cleanup could not be confirmed. Refresh before retrying.",
-                        insertError
-                    )
+            // Roll back only on a definite client-side HTTP rejection. A timeout,
+            // connection reset, or server error can occur after the row committed;
+            // deleting the object then would leave a valid message with broken media.
+            val rejectedByServer = insertError.message?.startsWith("Request failed (4") == true
+            if (rejectedByServer) {
+                val rollbackError = runCatching {
+                    withContext(NonCancellable) { deleteUploadedChatAttachment(objectPath) }
+                }.exceptionOrNull()
+                if (rollbackError != null) {
+                    insertError.addSuppressed(rollbackError)
+                    if (insertError !is kotlinx.coroutines.CancellationException) {
+                        throw IllegalStateException(
+                            "Message was rejected and uploaded-file cleanup could not be confirmed. Refresh before retrying.",
+                            insertError
+                        )
+                    }
                 }
             }
             throw insertError
