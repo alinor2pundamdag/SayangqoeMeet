@@ -60,7 +60,7 @@ BEGIN
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     '{"mimetype":"image/png","size":1}'::jsonb
   )
-  ON CONFLICT (bucket_id, name) DO NOTHING;
+  ON CONFLICT DO NOTHING;
 
   INSERT INTO public.conversation_invites
     (id, conversation_id, inviter_id, recipient_id, status)
