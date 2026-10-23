@@ -3,7 +3,7 @@
 Date: 2026-10-23
 Supabase project: `phjwzrrsaemgcedwpyyp`
 Target branch: `main` (Phase 1 PR #11 has been merged)
-Merged implementation: PR #16; current `main` also includes the full-history secret-scan correction from PR #23
+Merged implementation: PR #16 and migration-ledger filename alignment PR #45; current `main` also includes the full-history secret-scan correction from PR #23 and attachment authorization changes from PR #44
 
 ## A34–A42 — Migration ledger reconciliation
 
@@ -34,10 +34,14 @@ The live Supabase migration ledger was read before any DDL changes. It contains 
 - `20261022025350_explicit_service_only_media_policies`
 - `20261022032347_enforce_call_session_initial_state`
 - `20261022041708_harden_message_insert_columns`
+- `20261023100834_message_client_request_idempotency`
+- `20261023100920_admin_memberships_audit_log`
+- `20261023101814_admin_memberships_granted_by_index`
+- `20261023110331_lock_attachment_reads_to_live_messages`
 
-Seventeen migration versions present in the live Supabase ledger were missing from `main`; the branch restores the exact ledger-versioned migration chain so fresh local replay follows the same 25 version IDs. Eleven repository-only migration files whose version IDs are absent from the live ledger are preserved under `docs/legacy-migrations/` and excluded from `supabase db reset`; this is a replay-chain reconciliation, not loss of source content. Their effects must remain represented by the canonical ledger-versioned SQL and are subject to fresh replay validation.
+At the start of PR #16, seventeen migration versions present in the live Supabase ledger were missing from `main`; PR #16 reconciled that historical drift. PR #45 then aligned the attachment-read migration filename with the final live-ledger version. The current `main` now contains all 29 live version IDs. Eleven repository-only migration files whose version IDs are absent from the live ledger are preserved under `docs/legacy-migrations/` and excluded from `supabase db reset`; this is a replay-chain reconciliation, not loss of source content. Their effects must remain represented by the canonical ledger-versioned SQL and are subject to fresh replay validation.
 
-The live ledger and production catalog were inspected read-only. **No production migration, DDL change, data rewrite, or `supabase db push` was executed as part of this PR work.** CI is responsible for testing the complete 25-file chain against a disposable local Supabase instance before merge.
+The live ledger and production catalog were inspected read-only. **No production migration, DDL change, data rewrite, or `supabase db push` was executed as part of this PR work.** The complete 29-file chain subsequently passed against a disposable local Supabase instance.
 
 ## A43–A55 — Authorization and RLS
 
@@ -64,7 +68,7 @@ Post-change verification:
 - All three indexes exist in `pg_indexes`.
 - Supabase Performance Advisor no longer reports unindexed foreign keys or RLS initplan warnings.
 - Representative `EXPLAIN (FORMAT JSON)` plans use `messages_conversation_created_idx`, `call_sessions_callee_status_created_idx`, and `message_media_cleanup_due_idx`.
-- Ten indexes are flagged as unused by the advisor after adding the three indexes. They were retained because usage history is short and index removal is not justified by the advisory alone.
+- Thirteen indexes are flagged as unused by the advisor after adding the three indexes. They were retained because usage history is short and index removal is not justified by the advisory alone.
 - PostgreSQL logs in the inspected 24-hour window contained no duration-log lines; `pg_stat_statements` was reviewed. The highest mean times were dominated by platform/catalog metadata queries, not a verified application hot query.
 
 ### Pinned-message schema recovery
@@ -90,16 +94,16 @@ Adds authenticated-only `register_device_token(text,text)`. It derives the owner
 
 ## Completion status
 
-- **Migration ledger:** complete — the 25 repository migration files match the 25 live Supabase migration versions exactly; no missing or extra executable migration versions.
-- **Fresh-database replay:** passed on main commit `60a734072bf7aa852f26d65d770a1ee385329260` in [Phase 2 validation run #39927349041](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927349041). This replays the full chain into a disposable local database; it does not write to production.
+- **Migration ledger:** complete — the 29 repository migration files match all 29 live Supabase migration versions exactly; no missing or extra executable migration versions.
+- **Fresh-database replay:** passed after PR #45 on migration-chain commit `e4fc1e9d3363b4ea7c336f7cc1d235e75d10c893` in [Phase 2 validation run #39943802528]. The later Phase 3 PR #46 changed Android realtime/call handling without changing migrations(https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39943802528). This replays the full chain into a disposable local database; it does not write to production.
 - **Database lint and isolation:** `supabase db lint --local --fail-on error`, the two-user RLS regression suite, and Deno type-check of Edge Functions passed in the same run.
-- **Live catalog:** all 12 inspected public application tables have RLS and policies; all 23 inspected foreign keys have child-side indexes. The two media bookkeeping tables remain service-role-only. `chat-attachments` remains private; `profile-avatars` remains public as intended.
+- **Live catalog:** all 14 public tables have RLS and at least one policy; no public foreign key is missing a valid child-side index (verified by read-only catalog query). The two media bookkeeping tables remain service-role-only. `chat-attachments` remains private; `profile-avatars` remains public as intended.
 - **RPCs and triggers:** three authenticated-callable SECURITY DEFINER functions were reviewed. Their search paths are pinned; `anon` cannot execute them; caller identity is derived from `auth.uid()`. The live call/message guard triggers are installed. The advisor warnings remain documented because authenticated execution is intentional for these three RPCs.
-- **Index warnings:** ten unused-index notices remain. No indexes were dropped: zero scans over a short observation window do not establish that an index is unnecessary. All foreign-key indexes were verified present.
-- **Edge Function parity:** all eight active deployed functions were compared byte-for-byte with the corresponding `main` source and matched: `create-conversation`, `send-message-push`, `respond-conversation-invite`, `open-private-conversation`, `notify-incoming-call`, `get-turn-credentials`, `confirm-message-media-download`, and `cleanup-chat-media`. Seven require JWT verification; the cleanup worker deliberately uses a custom secret header.
-- **Secret scan:** PR #23 corrected the old workflow, which had scanned only the latest commit despite its full-history label. The replacement scans all reachable Git history and current files. It passed on merge commit `2dd4dccbe168d7b8bc2a2d05d41d72c0c18c1415`, covering 537 commits. A narrowly scoped `.gitleaksignore` entry suppresses the known Firebase Android client API key at `app/google-services.json:18`; it is not a service credential. Google Cloud API restrictions still need owner verification.
+- **Index warnings:** thirteen unused-index notices remain. No indexes were dropped: zero scans over a short observation window do not establish that an index is unnecessary. All foreign-key indexes were verified present.
+- **Edge Function parity:** all nine active deployed functions were compared byte-for-byte with the corresponding `main` source and matched: `create-conversation`, `send-message-push`, `respond-conversation-invite`, `open-private-conversation`, `notify-incoming-call`, `get-turn-credentials`, `confirm-message-media-download`, `cleanup-chat-media`, and `admin-console`. Eight require JWT verification; the cleanup worker deliberately uses a custom secret header.
+- **Secret scan:** PR #23 corrected the old workflow, which had scanned only the latest commit despite its full-history label. The replacement scans all reachable Git history and current files. It passed on commit `e4fc1e9d3363b4ea7c336f7cc1d235e75d10c893`; the latest `main` commit has a fresh scan running after Phase 3 PR #46. A narrowly scoped `.gitleaksignore` entry suppresses the known Firebase Android client API key at `app/google-services.json:18`; it is not a service credential. Google Cloud API restrictions still need owner verification.
 - **Production safety:** no production schema/data changes were performed during this reconciliation. No migration was blindly pushed and no indexes or policies were removed.
-- **Remaining release gates:** real-device two-account tests for email verification/session restore, invitation and message delivery, attachment access, FCM delivery while foreground/background, voice/video call negotiation and teardown; verify Firebase API-key restrictions; verify the presence and equality of `FIREBASE_SERVICE_ACCOUNT_JSON`, `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN`, and `MEDIA_CLEANUP_CRON_SECRET` without printing values; investigate the previously failed scheduled cleanup run before manually dispatching it.
+- **Remaining release gates:** run the safe `cleanup-chat-media.yml` manual `dry_run=true` workflow and confirm `MEDIA_CLEANUP_CRON_SECRET` matches the deployed Edge Function secret without printing either value; verify Firebase Android API-key restrictions in Google Cloud; confirm required GitHub/Supabase deployment secrets exist without exposing values; perform real-device two-account tests for email verification/session restore, invitation and message delivery, attachment authorization, foreground/background FCM, voice/video negotiation and teardown. The connected GitHub tool can read workflow runs but cannot dispatch a workflow, so the cleanup dry run still needs an owner-triggered workflow dispatch.
 - **Explicitly out of scope:** leaked-password protection was not changed.
 
-**Status:** Phase 2 repository/database migration parity and CI validation are complete. Production release certification remains pending the external secret/configuration checks and real-device end-to-end tests above.
+**Status:** Phase 1 Android CI and Phase 2 repository/database migration parity, fresh replay, RLS isolation, Edge Function type-check, and source/deployment parity checks are passing on the current `main` commit. Production release certification remains pending the external secret/configuration checks and real-device end-to-end tests above.
