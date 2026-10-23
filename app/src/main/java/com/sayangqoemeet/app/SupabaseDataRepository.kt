@@ -35,7 +35,7 @@ internal data class RegisteredUserRecord(
     val username: String?,
     val displayName: String,
     val createdAt: String,
-    val isOnline: Boolean = false,
+    val isOnline: Boolean? = null,
     val avatarUrl: String? = null
 )
 
@@ -239,7 +239,9 @@ internal object SupabaseDataRepository {
         val id = userId()
         val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at,avatar_url&order=created_at.desc&limit=500"
         val rows = JSONArray(runRequest { request("GET", query) })
-        val onlineIds = runCatching { loadOnlineUserIds() }.getOrDefault(emptySet())
+        // Distinguish a confirmed offline result from a failed presence request.
+        // A transport/RLS error must never be rendered as a definitive offline state.
+        val onlineIds = runCatching { loadOnlineUserIds() }.getOrNull()
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             val userId = row.getString("id")
@@ -248,7 +250,7 @@ internal object SupabaseDataRepository {
                 username = row.optString("username").takeIf { it.isNotBlank() },
                 displayName = row.optString("display_name"),
                 createdAt = row.optString("created_at"),
-                isOnline = userId in onlineIds,
+                isOnline = onlineIds?.let { userId in it },
                 avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() }
             )
         }
