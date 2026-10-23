@@ -28,3 +28,21 @@ class CallSignalingRepositoryTest {
         )
     }
 }
+
+
+class CallSessionUpdateResponseTest {
+    @Test
+    fun acceptsExactlyOneUpdatedCallRow() {
+        requireSingleCallSessionUpdate("""[{"id":"call-1","status":"connected"}]""")
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun rejectsEmptySuccessResponseWhenRlsMatchedNoRow() {
+        requireSingleCallSessionUpdate("[]")
+    }
+
+    @Test(expected = org.json.JSONException::class)
+    fun rejectsMalformedUpdateResponse() {
+        requireSingleCallSessionUpdate("")
+    }
+}
