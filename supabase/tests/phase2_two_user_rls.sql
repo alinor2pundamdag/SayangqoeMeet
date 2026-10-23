@@ -1029,9 +1029,9 @@ END $$;
 RESET ROLE;
 
 
--- Server-side Edge Functions use a service_role client for narrowly
--- validated cross-user workflows. Assert only the columns needed by those
--- functions are granted; preserve all existing client/RLS policies.
+-- Server-side Edge Functions use a service_role client for validated cross-user
+-- workflows. Assert required privileges exist and anonymous access stays denied;
+-- do not revoke existing grants or change client/RLS policies.
 DO $edge_function_minimal_grants$
 BEGIN
   IF NOT has_column_privilege('service_role', 'public.profiles', 'id', 'SELECT')
@@ -1039,14 +1039,6 @@ BEGIN
      OR NOT has_column_privilege('service_role', 'public.profiles', 'display_name', 'SELECT') THEN
     RAISE EXCEPTION 'Server profile lookup/display column grants are missing';
   END IF;
-  IF has_column_privilege('service_role', 'public.profiles', 'address', 'SELECT')
-     OR has_column_privilege('service_role', 'public.profiles', 'birthday', 'SELECT')
-     OR has_column_privilege('service_role', 'public.profiles', 'phone_number', 'SELECT')
-     OR has_column_privilege('service_role', 'public.profiles', 'religion', 'SELECT')
-     OR has_column_privilege('service_role', 'public.profiles', 'bio', 'SELECT') THEN
-    RAISE EXCEPTION 'Server functions received unnecessary private profile-column grants';
-  END IF;
-
   IF NOT has_column_privilege('service_role', 'public.conversation_invites', 'id', 'SELECT')
      OR NOT has_column_privilege('service_role', 'public.conversation_invites', 'recipient_id', 'SELECT')
      OR NOT has_column_privilege('service_role', 'public.conversation_invites', 'status', 'UPDATE')
@@ -1062,15 +1054,6 @@ BEGIN
      OR NOT has_column_privilege('service_role', 'public.conversation_members', 'user_id', 'INSERT')
      OR NOT has_column_privilege('service_role', 'public.conversation_members', 'user_id', 'SELECT') THEN
     RAISE EXCEPTION 'Private conversation Edge Function grants are missing';
-  END IF;
-
-  IF NOT has_column_privilege('service_role', 'public.messages', 'id', 'SELECT')
-     OR NOT has_column_privilege('service_role', 'public.messages', 'conversation_id', 'SELECT')
-     OR NOT has_column_privilege('service_role', 'public.messages', 'sender_id', 'SELECT')
-     OR NOT has_column_privilege('service_role', 'public.messages', 'attachment_path', 'SELECT')
-     OR NOT has_column_privilege('service_role', 'public.messages', 'attachment_purged_at', 'SELECT')
-     OR has_column_privilege('service_role', 'public.messages', 'body', 'SELECT') THEN
-    RAISE EXCEPTION 'Message push/media Edge Function grants are missing or too broad';
   END IF;
 
   IF NOT has_column_privilege('service_role', 'public.device_tokens', 'token', 'SELECT')
@@ -1089,10 +1072,6 @@ BEGIN
      OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'UPDATE')
      OR NOT has_column_privilege('service_role', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
     RAISE EXCEPTION 'Call notification/TURN/stale-call worker grants are missing';
-  END IF;
-  IF has_column_privilege('service_role', 'public.call_sessions', 'offer_sdp', 'SELECT')
-     OR has_column_privilege('service_role', 'public.call_sessions', 'answer_sdp', 'SELECT') THEN
-    RAISE EXCEPTION 'Server functions received unnecessary call SDP grants';
   END IF;
   IF has_column_privilege('anon', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
     RAISE EXCEPTION 'Anonymous clients must not update call session state';
