@@ -868,6 +868,11 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Explicit client-deny RLS policies are required for admin tables';
   END IF;
+  IF has_sequence_privilege('anon', 'public.admin_audit_log_id_seq', 'USAGE')
+     OR has_sequence_privilege('authenticated', 'public.admin_audit_log_id_seq', 'USAGE')
+     OR NOT has_sequence_privilege('service_role', 'public.admin_audit_log_id_seq', 'USAGE') THEN
+    RAISE EXCEPTION 'Admin audit identity sequence must be service-role only';
+  END IF;
 END $$;
 
 ROLLBACK;
