@@ -28,9 +28,9 @@ CREATE INDEX IF NOT EXISTS admin_audit_log_actor_created_at_idx
 ALTER TABLE public.admin_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON TABLE public.admin_memberships FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.admin_audit_log FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.admin_memberships TO service_role;
+REVOKE ALL ON TABLE public.admin_memberships FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.admin_audit_log FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.admin_memberships TO service_role;
 GRANT SELECT, INSERT ON TABLE public.admin_audit_log TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.admin_audit_log_id_seq TO service_role;
 
