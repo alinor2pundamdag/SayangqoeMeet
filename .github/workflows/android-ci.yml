@@ -2,16 +2,22 @@ name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - fix/phase-2-db-reconciliation-on-phase-1
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: android-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   debug-build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@v4
