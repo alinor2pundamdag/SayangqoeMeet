@@ -1,0 +1,6 @@
+# Narrow exception for the Firebase Android client API key in generated client config.
+# This key is shipped to Android clients by design and is not a server credential.
+# Keep this exception limited to this exact file/rule/line; do not add broad path or rule allowlists.
+# RELEASE FOLLOW-UP: owner must verify Google Cloud API restrictions for package
+# com.sayangqoemeet.app and the correct debug/release SHA fingerprints before production release.
+app/google-services.json:gcp-api-key:18
