@@ -30,6 +30,14 @@ internal fun supabaseRequestUrl(baseUrl: String, path: String): String {
     }
 }
 
+/** Reject PostgREST's empty successful response when RLS matched no call row. */
+internal fun requireSingleCallSessionUpdate(response: String) {
+    val rows = JSONArray(response)
+    check(rows.length() == 1) {
+        "Call session was not updated; it may have ended or access was denied."
+    }
+}
+
 
 internal data class CallIceCandidate(
     val id: Long,
@@ -155,7 +163,10 @@ internal object CallSignalingRepository {
     }
 
     private suspend fun update(id: String, body: JSONObject) {
-        io { request("PATCH", "call_sessions?id=eq.${enc(id)}", body, "return=minimal") }
+        val response = io {
+            request("PATCH", "call_sessions?id=eq.${enc(id)}", body, "return=representation")
+        }
+        requireSingleCallSessionUpdate(response)
     }
 
     suspend fun addIce(id: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int) {
