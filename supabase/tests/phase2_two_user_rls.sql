@@ -1028,4 +1028,30 @@ BEGIN
 END $$;
 RESET ROLE;
 
+
+-- The stale-call maintenance worker needs narrow service_role privileges to
+-- inspect ringing calls and mark stale calls missed. It must not gain access
+-- to SDP or participant identity columns, and clients must not inherit these
+-- service-only privileges.
+DO $
+BEGIN
+  IF NOT has_column_privilege('service_role', 'public.call_sessions', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'created_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'UPDATE')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Stale-call worker is missing required service_role column privileges';
+  END IF;
+  IF has_column_privilege('service_role', 'public.call_sessions', 'offer_sdp', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'answer_sdp', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'caller_id', 'SELECT')
+     OR has_column_privilege('service_role', 'public.call_sessions', 'callee_id', 'SELECT') THEN
+    RAISE EXCEPTION 'Stale-call worker received unnecessary SDP or participant-column privileges';
+  END IF;
+  IF has_column_privilege('anon', 'public.call_sessions', 'ended_at', 'UPDATE')
+     OR has_column_privilege('authenticated', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Service-only stale-call ended_at update privilege leaked to client roles';
+  END IF;
+END $;
+
 ROLLBACK;
