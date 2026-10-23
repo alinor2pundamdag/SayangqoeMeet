@@ -848,7 +848,13 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 val isDeletion = change.eventType == "DELETE" ||
                     (change.eventType == "UPDATE" && deletedAt.isNotBlank() && deletedAt != "null")
                 if (isDeletion && affectedId != null) {
-                    messages = messages.filterNot { it.id == affectedId }
+                    messages = reconcileRealtimeMessages(
+                        existing = messages,
+                        fresh = emptyList(),
+                        eventType = change.eventType,
+                        record = change.record,
+                        oldRecord = change.oldRecord
+                    )
                 } else {
                     runCatching { SupabaseDataRepository.loadMessages(conversationId) }.onSuccess { fresh ->
                         messages = reconcileRealtimeMessages(
