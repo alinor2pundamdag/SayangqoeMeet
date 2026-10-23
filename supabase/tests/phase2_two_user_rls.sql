@@ -683,7 +683,7 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $
+DO $$
 DECLARE invite_count integer; pin_count integer;
 BEGIN
   SELECT count(*) INTO invite_count FROM public.conversation_invites
@@ -711,13 +711,13 @@ BEGIN
   END;
   DELETE FROM public.pinned_messages
   WHERE id='13222222-2222-4222-8222-222222222222';
-END $;
+END $$;
 RESET ROLE;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $
+DO $$
 DECLARE invite_count integer; pin_count integer;
 BEGIN
   SELECT count(*) INTO invite_count FROM public.conversation_invites
@@ -734,13 +734,13 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'User B must only see pinned messages for conversation B';
   END IF;
-END $;
+END $$;
 RESET ROLE;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-DO $
+DO $$
 DECLARE invite_count integer; pin_count integer;
 BEGIN
   SELECT count(*) INTO invite_count FROM public.conversation_invites
@@ -751,10 +751,10 @@ BEGIN
   IF invite_count <> 0 OR pin_count <> 0 THEN
     RAISE EXCEPTION 'Non-participant C can read invitations or pinned messages';
   END IF;
-END $;
+END $$;
 RESET ROLE;
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.pinned_messages
@@ -762,7 +762,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'User A unexpectedly deleted user B pinned message';
   END IF;
-END $;
+END $$;
 
 
 ROLLBACK;
