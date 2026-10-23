@@ -45,6 +45,19 @@ BEGIN
          ('99999999-9999-4999-8999-999999999999', conversation_a, user_a,
           'soft-deleted and must never be selected', now())
   ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.conversation_invites
+    (id, conversation_id, inviter_id, recipient_id, status)
+  VALUES
+    ('12111111-1111-4111-8111-111111111111', conversation_a, user_a, user_b, 'pending')
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.pinned_messages
+    (id, conversation_id, message_id, pinned_by)
+  VALUES
+    ('13111111-1111-4111-8111-111111111111', conversation_a, message_a, user_a),
+    ('13222222-2222-4222-8222-222222222222', conversation_b, message_b, user_b)
+  ON CONFLICT (id) DO NOTHING;
 END $$;
 
 -- Guard the grant/RLS boundaries fixed during Phase 2 as regression assertions.
@@ -664,5 +677,92 @@ BEGIN
   END IF;
 END $$;
 RESET ROLE;
+
+ 
+-- Invitation and pinned-message isolation must match the two-user membership boundary.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE invite_count integer; pin_count integer;
+BEGIN
+  SELECT count(*) INTO invite_count FROM public.conversation_invites
+  WHERE id='12111111-1111-4111-8111-111111111111';
+  IF invite_count <> 1 THEN
+    RAISE EXCEPTION 'Invite participant A must be able to read its invitation';
+  END IF;
+  SELECT count(*) INTO pin_count FROM public.pinned_messages
+  WHERE id IN ('13111111-1111-4111-8111-111111111111',
+               '13222222-2222-4222-8222-222222222222');
+  IF pin_count <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.pinned_messages
+    WHERE id='13111111-1111-4111-8111-111111111111'
+  ) THEN
+    RAISE EXCEPTION 'User A must only see pinned messages for conversation A';
+  END IF;
+  BEGIN
+    INSERT INTO public.pinned_messages (conversation_id, message_id, pinned_by)
+    VALUES ('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            'ffffffff-ffff-4fff-8fff-ffffffffffff',
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    RAISE EXCEPTION 'User A incorrectly pinned a message in conversation B' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+  DELETE FROM public.pinned_messages
+  WHERE id='13222222-2222-4222-8222-222222222222';
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE invite_count integer; pin_count integer;
+BEGIN
+  SELECT count(*) INTO invite_count FROM public.conversation_invites
+  WHERE id='12111111-1111-4111-8111-111111111111';
+  IF invite_count <> 1 THEN
+    RAISE EXCEPTION 'Invite recipient B must be able to read its invitation';
+  END IF;
+  SELECT count(*) INTO pin_count FROM public.pinned_messages
+  WHERE id IN ('13111111-1111-4111-8111-111111111111',
+               '13222222-2222-4222-8222-222222222222');
+  IF pin_count <> 1 OR NOT EXISTS (
+    SELECT 1 FROM public.pinned_messages
+    WHERE id='13222222-2222-4222-8222-222222222222'
+  ) THEN
+    RAISE EXCEPTION 'User B must only see pinned messages for conversation B';
+  END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE invite_count integer; pin_count integer;
+BEGIN
+  SELECT count(*) INTO invite_count FROM public.conversation_invites
+  WHERE id='12111111-1111-4111-8111-111111111111';
+  SELECT count(*) INTO pin_count FROM public.pinned_messages
+  WHERE id IN ('13111111-1111-4111-8111-111111111111',
+               '13222222-2222-4222-8222-222222222222');
+  IF invite_count <> 0 OR pin_count <> 0 THEN
+    RAISE EXCEPTION 'Non-participant C can read invitations or pinned messages';
+  END IF;
+END $$;
+RESET ROLE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.pinned_messages
+    WHERE id='13222222-2222-4222-8222-222222222222'
+  ) THEN
+    RAISE EXCEPTION 'User A unexpectedly deleted user B pinned message';
+  END IF;
+END $$;
+
 
 ROLLBACK;
