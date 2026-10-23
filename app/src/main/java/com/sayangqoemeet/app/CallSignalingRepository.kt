@@ -44,7 +44,7 @@ internal fun hasExactlyOneJsonArrayObject(response: String): Boolean {
         if (inString) {
             when {
                 escaped -> escaped = false
-                ch == '\\\\' -> escaped = true
+                ch.code == 92 -> escaped = true
                 ch == '"' -> inString = false
             }
             continue
