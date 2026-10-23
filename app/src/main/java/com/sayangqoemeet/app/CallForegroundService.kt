@@ -62,7 +62,33 @@ internal class CallForegroundService : Service() {
 
     private fun scheduleBoundedStop() {
         timeoutRunnable?.let(handler::removeCallbacks)
-        timeoutRunnable = Runnable { stopAlertAndSelf() }.also {
+        timeoutRunnable = Runnable {
+            val callId = activeCallId
+            if (callId.isNullOrBlank()) {
+                stopAlertAndSelf()
+            } else {
+                serviceScope.launch {
+                    try {
+                        val call = CallSignalingRepository.getCall(callId)
+                        // A bounded local ringtone must also close the server-side
+                        // unanswered call, otherwise the caller can ring forever.
+                        if (
+                            call.status == "ringing" &&
+                            call.calleeId == SupabaseAuthRepository.currentUserId()
+                        ) {
+                            CallSignalingRepository.setStatus(callId, "missed")
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // The local alert still stops on time if the device is offline.
+                        // Server state remains visible for later reconciliation.
+                    } finally {
+                        stopAlertAndSelf()
+                    }
+                }
+            }
+        }.also {
             handler.postDelayed(it, MAX_RINGING_MILLIS)
         }
     }
