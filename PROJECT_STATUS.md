@@ -28,7 +28,7 @@
 
 ## Incomplete / unverified
 
-- **Android build/CI:** No confirmed successful GitHub Actions run or local Android build result has been observed for these latest UI/data changes.
+- **Android build/CI:** PR #11's exact source head passed lint, unit tests, debug APK assembly, and artifact upload in GitHub Actions run #39920311161. The merged main commit has not yet had a separate post-merge CI run confirmed.
 - **Auth lifecycle:** Session restoration, expired-token handling, and full sign-up/sign-in/sign-out device tests remain unverified.
 - **Messaging:** REST history/send are implemented, but Realtime subscriptions, pagination UI, retry/deduplication, offline queueing, and comprehensive failure handling are not complete.
 - **Invitations:** The deployed Edge Functions create a pending invitation and allow only the recipient to accept/decline; the recipient receives conversation membership only after acceptance. This still needs end-to-end two-account testing and abuse/rate-limit review before production use.
@@ -84,8 +84,8 @@ Never claim a successful build, live Auth test, push delivery, or call unless ev
 
 ## Audit status — 2026-10-23 (supersedes conflicting older status statements)
 
-### Phase 1 — NOT COMPLETE
-- PR #11 (`fix/phase-1-auth-manifest-ci`) remains open and unmerged. Its current head is `53c02be1feabdcd65381778dd9cb8ff8c5f0310a`; the current head's Android CI run failed. A prior successful run mentioned in the PR body does not prove the current head passes.
+### Phase 1 — CODE MERGED; DEVICE VERIFICATION PENDING
+- PR #11 is merged into `main` at `56f2e14f2a4fd923e23f8fcd02f25e181c6d70b4`. The exact source head `da4a96a1ca5ea6a580ec24ad439ac803d517fde7` passed lint, unit tests, debug APK assembly, and artifact upload in [run #39920311161](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39920311161).
 - Main still has the old `MainActivity.kt` entry path and the manifest does not yet declare all components/auth callback handling present in PR #11.
 - Required completion evidence: current lint + unit tests + debug APK build; review Application initialization and manifest compatibility; device tests for auth/session restoration, email callback, notification permissions/FCM, incoming call and two-device call behavior.
 
@@ -98,7 +98,7 @@ Never claim a successful build, live Auth test, push delivery, or call unless ev
 - Verify `MEDIA_CLEANUP_CRON_SECRET` matches between GitHub Actions and the `cleanup-chat-media` Edge Function; connector access cannot reveal secret values.
 
 ### Merge and release gate
-1. Review and validate PR #11; fix CI or device-test defects, then merge only when checks pass.
-2. Rebase/reconcile PR #13 on the updated main, resolve conflicts, replay all migrations against a disposable fresh database, and run RLS/RPC negative tests before merging.
+1. PR #11 is merged after its CI passed. Complete device smoke tests for auth/session restoration, email callback, notification permissions/FCM, incoming-call handling, and two-device calling before release.
+2. Retarget/reconcile PR #13 onto the updated `main`, resolve conflicts, replay all migrations against a disposable fresh database, and run RLS/RPC negative tests before merging.
 3. Re-run Supabase security/performance advisors and query-plan checks after remediation.
 4. Do not declare release-ready until evidence is recorded for each gate. No production schema changes were made by this audit.
