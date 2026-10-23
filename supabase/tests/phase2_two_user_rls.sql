@@ -143,6 +143,21 @@ BEGIN
   END IF;
 END $$;
 
+-- The stale-call maintenance worker requires server-only SELECT/UPDATE.
+-- This must not grant any additional access to anon/authenticated clients.
+DO $
+BEGIN
+  IF NOT has_table_privilege('service_role', 'public.call_sessions', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.call_sessions', 'UPDATE') THEN
+    RAISE EXCEPTION 'service_role must be able to inspect and transition stale call sessions';
+  END IF;
+  IF has_table_privilege('anon', 'public.call_sessions', 'SELECT')
+     OR has_table_privilege('anon', 'public.call_sessions', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.call_sessions', 'DELETE') THEN
+    RAISE EXCEPTION 'Call-session grants exceed the intended client privilege boundary';
+  END IF;
+END $;
+
 -- No exposed public table may be left without RLS. Service-only media tables
 -- deliberately have no client grants or client policies.
 DO $$
