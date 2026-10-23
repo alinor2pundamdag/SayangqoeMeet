@@ -26,15 +26,41 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 internal object FcmTokenRegistrar {
     fun registerCurrentToken(context: Context, scope: CoroutineScope) {
-        // Firebase is deliberately optional until the project-specific app config is supplied.
-        if (FirebaseApp.getApps(context).isEmpty()) return
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            scope.launch(Dispatchers.IO) {
-                runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+        // Call only after a valid Supabase session exists.
+        if (FirebaseApp.getApps(context).isEmpty() ||
+            SupabaseAuthRepository.currentUserId() == null
+        ) return
+
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                if (token.isNullOrBlank()) return@addOnSuccessListener
+                scope.launch(Dispatchers.IO) {
+                    runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+                }
             }
+    }
+
+    suspend fun unregisterCurrentToken(context: Context) {
+        if (FirebaseApp.getApps(context).isEmpty()) return
+        val token = suspendCancellableCoroutine<String> { continuation ->
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { value ->
+                    if (continuation.isActive) continuation.resume(value)
+                }
+                .addOnFailureListener { error ->
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                }
+        }
+        if (token.isNotBlank() && SupabaseAuthRepository.currentUserId() != null) {
+            SupabaseDataRepository.removeDeviceToken(token)
         }
     }
 }
@@ -69,17 +95,46 @@ internal object MessageNotificationChannels {
 class SayangqoeMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
+        if (token.isBlank()) return
+        // Token rotation may start this service before Supabase Auth has finished
+        // restoring persisted state. Await initialization instead of dropping the token.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+            val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+            if (restored && SupabaseAuthRepository.currentUserId() != null) {
+                runCatching { SupabaseDataRepository.saveDeviceToken(token) }
+            }
         }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        // Complete the short local-session restore and recipient check before this
+        // Firebase callback returns; otherwise the process may stop before the
+        // coroutine posts the notification or starts the incoming-call service.
+        runCatching {
+            runBlocking(Dispatchers.IO) { withTimeout(15_000) { processPushMessage(message) } }
+        }.onFailure { failure ->
+            android.util.Log.w("SayangqoeFCM", "Push processing failed", failure)
+        }
+    }
+
+    private suspend fun processPushMessage(message: RemoteMessage) {
+        val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+        // FCM tokens can outlive a failed offline sign-out. Require both an
+        // active restored session and an explicit recipient match before showing or ringing.
+        val currentUserId = if (restored) SupabaseAuthRepository.currentUserId() else null
+        if (currentUserId == null) {
+            runCatching { CallForegroundService.stop(this) }
+            return
+        }
+        if (!shouldAcceptPushForUser(currentUserId, message.data["recipient_id"])) {
+            return
+        }
         // Ringing is independent of notification permission; Android may suppress
         // the notification while the high-priority FCM data event still arrives.
         if (message.data["type"] == "incoming_call") {
-            runCatching { CallForegroundService.start(this) }
+            val callId = message.data["call_id"]?.takeIf { it.isNotBlank() }
+            runCatching { CallForegroundService.start(this, callId) }
             showIncomingCallNotification(message)
             return
         }
@@ -220,13 +275,20 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
 
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val callId = intent.getStringExtra("call_id") ?: return
+        val callId = intent.getStringExtra("call_id")?.takeIf {
+            it.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"))
+        } ?: return
         if (intent.action != ACTION_DECLINE) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                // Stop local ringing immediately; network signaling is best-effort.
+                runCatching { CallForegroundService.stop(context, callId) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
+                val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
+                if (restored && SupabaseAuthRepository.currentUserId() != null) {
+                    runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                }
             } finally {
                 pending.finish()
             }

@@ -61,6 +61,12 @@ object SupabaseAuthRepository {
     fun currentAccessToken(): String? = client.auth.currentSessionOrNull()?.accessToken
 
     suspend fun signOut() {
-        client.auth.signOut()
+        try {
+            client.auth.signOut()
+        } finally {
+            // supabase-kt can leave stale local state when the remote request fails.
+            // Always clear persisted session state so offline logout is fail-closed.
+            client.auth.clearSession()
+        }
     }
 }

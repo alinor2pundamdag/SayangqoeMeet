@@ -69,6 +69,44 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(401, { error: "Invalid or expired session" });
     }
 
+    let body: { call_id?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse(400, { error: "Expected a JSON body" });
+    }
+    if (typeof body.call_id !== "string" || body.call_id.trim() === "") {
+      return jsonResponse(400, { error: "call_id is required" });
+    }
+    const callId = body.call_id.trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+      return jsonResponse(400, { error: "call_id must be a UUID" });
+    }
+
+    const activeStatuses = ["ringing", "accepted", "connecting", "connected"];
+    // A caller must identify the exact call. RLS remains defense in depth, and
+    // this explicit participant predicate prevents future policy drift from
+    // turning the TURN endpoint into a credential oracle for unrelated calls.
+    const { data: call, error: callError } = await supabase
+      .from("call_sessions")
+      .select("id, caller_id, callee_id, status")
+      .eq("id", callId)
+      .or(`caller_id.eq.${authData.user.id},callee_id.eq.${authData.user.id}`)
+      .maybeSingle();
+    if (callError) {
+      console.error("Call authorization lookup failed:", callError.message);
+      return jsonResponse(500, { error: "Could not authorize TURN credentials" });
+    }
+    if (!call) {
+      return jsonResponse(403, { error: "An active call participant session is required" });
+    }
+    if (call.caller_id !== authData.user.id && call.callee_id !== authData.user.id) {
+      return jsonResponse(403, { error: "Only call participants may request TURN credentials" });
+    }
+    if (!activeStatuses.includes(call.status)) {
+      return jsonResponse(409, { error: "Call is no longer active" });
+    }
+
     const cloudflareResponse = await fetch(
       `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(turnKeyId)}/credentials/generate-ice-servers`,
       {

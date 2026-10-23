@@ -124,7 +124,7 @@ private val ReligionOptions = listOf(
 internal enum class AppDestination { HOME, PROFILE, SETTINGS, CHATS, CHAT, CALL, ADMIN, USERS }
 
 @Composable
-internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, isDarkTheme: Boolean = true, onThemeChanged: (Boolean) -> Unit = {}, onSignOut: () -> Unit) {
+internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, initialCallId: String? = null, initialCallRecipientId: String? = null, initialCallType: String = "voice", onIncomingCallHandled: (String) -> Unit = {}, isDarkTheme: Boolean = true, onThemeChanged: (Boolean) -> Unit = {}, onSignOut: () -> Unit) {
     // Heartbeats run only while this screen's Activity is STARTED. When the
     // app goes to the background, stop refreshing and expire this user's row.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -145,16 +145,24 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
         }
     }
 
-    var destination by remember { mutableStateOf(if (!initialConversationId.isNullOrBlank()) AppDestination.CHAT else if (openChatsOnStart) AppDestination.CHATS else AppDestination.HOME) }
+    var destination by remember { mutableStateOf(if (!initialConversationId.isNullOrBlank()) AppDestination.CHAT else if (!initialCallId.isNullOrBlank() || !initialCallRecipientId.isNullOrBlank()) AppDestination.CALL else if (openChatsOnStart) AppDestination.CHATS else AppDestination.HOME) }
     var selectedConversation by remember { mutableStateOf<String?>(initialConversationId) }
-    var selectedCallRecipient by remember { mutableStateOf<String?>(null) }
-    var selectedCallType by remember { mutableStateOf("voice") }
+    var selectedCallRecipient by remember { mutableStateOf<String?>(initialCallRecipientId) }
+    var selectedCallType by remember { mutableStateOf(if (initialCallType == "video") "video" else "voice") }
     var showAbout by remember { mutableStateOf(false) }
     LaunchedEffect(initialConversationId) {
         if (!initialConversationId.isNullOrBlank()) {
             selectedConversation = initialConversationId
             destination = AppDestination.CHAT
         }
+    }
+
+    LaunchedEffect(openChatsOnStart) {
+        if (openChatsOnStart) destination = AppDestination.CHATS
+    }
+
+    LaunchedEffect(initialCallId) {
+        if (!initialCallId.isNullOrBlank()) destination = AppDestination.CALL
     }
     val context = LocalContext.current
 
@@ -250,7 +258,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                     onBack = { destination = AppDestination.CHATS },
                     onCall = { id, type -> selectedCallRecipient = id; selectedCallType = type; destination = AppDestination.CALL }
                 )
-                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, initialCallType = selectedCallType, onBack = { destination = AppDestination.HOME })
+                AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, initialCallType = selectedCallType, initialCallId = initialCallId, onInitialCallHandled = onIncomingCallHandled, onBack = { destination = AppDestination.HOME })
                 AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.USERS -> RegisteredUsersScreen(
                     onBack = { destination = AppDestination.HOME },
