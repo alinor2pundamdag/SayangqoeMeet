@@ -32,6 +32,7 @@ REVOKE ALL ON TABLE public.admin_memberships FROM PUBLIC, anon, authenticated, s
 REVOKE ALL ON TABLE public.admin_audit_log FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.admin_memberships TO service_role;
 GRANT SELECT, INSERT ON TABLE public.admin_audit_log TO service_role;
+REVOKE ALL ON SEQUENCE public.admin_audit_log_id_seq FROM PUBLIC, anon, authenticated, service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.admin_audit_log_id_seq TO service_role;
 
 DROP POLICY IF EXISTS admin_memberships_deny_clients ON public.admin_memberships;
