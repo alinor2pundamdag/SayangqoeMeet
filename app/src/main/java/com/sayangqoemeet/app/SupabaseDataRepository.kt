@@ -724,10 +724,12 @@ internal object SupabaseDataRepository {
         }
     }
     /** Server-authorized read-only admin overview; never trusts client-supplied roles. */
-    suspend fun loadAdminDashboardOverview(): AdminDashboardOverview = runRequest {
-        val root = JSONObject(request("POST", "functions/v1/admin-console", JSONObject().put("action", "overview")))
+    suspend fun loadAdminDashboardOverview(): AdminDashboardOverview {
+        val root = JSONObject(runRequest {
+            request("POST", "functions/v1/admin-console", JSONObject().put("action", "overview"))
+        })
         val overview = root.getJSONObject("overview")
-        AdminDashboardOverview(
+        return AdminDashboardOverview(
             role = root.optString("role", "read_only"),
             generatedAt = root.optString("generated_at"),
             registeredProfiles = overview.optInt("registered_profiles"),
@@ -739,10 +741,12 @@ internal object SupabaseDataRepository {
     }
 
     /** Audit rows are returned only after the Edge Function validates admin membership. */
-    suspend fun loadAdminAuditLog(): List<AdminAuditEvent> = runRequest {
-        val root = JSONObject(request("POST", "functions/v1/admin-console", JSONObject().put("action", "audit_log")))
+    suspend fun loadAdminAuditLog(): List<AdminAuditEvent> {
+        val root = JSONObject(runRequest {
+            request("POST", "functions/v1/admin-console", JSONObject().put("action", "audit_log"))
+        })
         val rows = root.optJSONArray("events") ?: JSONArray()
-        (0 until rows.length()).map { index ->
+        return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             AdminAuditEvent(
                 id = row.optString("id"),
