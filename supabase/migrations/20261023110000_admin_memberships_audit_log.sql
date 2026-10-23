@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS public.admin_memberships (
 
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  actor_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  -- Keep the immutable actor UUID even if the Auth account is later deleted.
+  actor_id uuid NOT NULL,
   action text NOT NULL CHECK (char_length(action) BETWEEN 1 AND 120),
   target_type text,
   target_id text,
