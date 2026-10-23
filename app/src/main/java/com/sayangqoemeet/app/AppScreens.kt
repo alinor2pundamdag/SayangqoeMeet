@@ -961,7 +961,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                         } else {
                             Text("ATTACHMENT", color = ShellCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             Text(message.attachmentName ?: message.body, color = ShellText, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (message.attachmentPurgedAt != null) {
+                            if (isAttachmentPurged(message.attachmentPurgedAt)) {
                                 Text(
                                     "MEDIA EXPIRED",
                                     color = ShellMuted,
