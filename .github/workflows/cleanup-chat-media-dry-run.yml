@@ -1,4 +1,4 @@
-name: Chat Media Cleanup Dry Run
+name: Scheduled Maintenance Dry Run
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
       - ".github/workflows/cleanup-chat-media-dry-run.yml"
       - ".github/workflows/cleanup-chat-media.yml"
       - "supabase/functions/cleanup-chat-media/**"
+      - "supabase/functions/cleanup-stale-calls/**"
   workflow_dispatch:
 
 permissions:
@@ -66,3 +67,36 @@ jobs:
 
           echo "Cleanup endpoint dry-run passed. No media deletion was requested or performed."
           jq '{dry_run, queue_rows, claimed, purged, failed}' "$response_file"
+
+          stale_response_file="$(mktemp)"
+          trap 'rm -f "$response_file" "$stale_response_file"' EXIT
+
+          stale_status="$(
+            curl --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 60 \
+              --output "$stale_response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --header "x-cleanup-secret: ${CLEANUP_SECRET}" \
+              --data '{"dry_run":true}' \
+              "${SUPABASE_URL}/functions/v1/cleanup-stale-calls"
+          )"
+
+          if [[ "$stale_status" != "200" ]]; then
+            case "$stale_status" in
+              401) echo "Stale-call cleanup secret is missing or does not match the deployed worker." ;;
+              404) echo "Deployed cleanup-stale-calls Edge Function was not found." ;;
+              *) echo "Stale-call dry-run request failed with HTTP ${stale_status}." ;;
+            esac
+            exit 1
+          fi
+
+          if ! jq -e 'type == "object" and .dry_run == true and (.stale_ringing_calls | type == "number") and .marked_missed == 0' "$stale_response_file" >/dev/null; then
+            echo "Stale-call worker returned an invalid dry-run response."
+            exit 1
+          fi
+
+          echo "Stale-call cleanup dry-run passed. No call state was changed:"
+          jq '{dry_run, stale_ringing_calls, marked_missed}' "$stale_response_file"
