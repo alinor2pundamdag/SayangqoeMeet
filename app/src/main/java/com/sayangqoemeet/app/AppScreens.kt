@@ -840,7 +840,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
 
     DisposableEffect(conversationId) {
         if (conversationId.isNullOrBlank()) return@DisposableEffect onDispose { }
-        val subscription = SupabaseDataRepository.subscribeToMessages(conversationId) { change ->
+        val subscription = SupabaseDataRepository.subscribeToMessages(conversationId, onChange = { change ->
             scope.launch {
                 val affected = if (change.eventType == "DELETE") change.oldRecord else change.record
                 val affectedId = affected.optString("id").takeIf { it.isNotBlank() && it != "null" }
@@ -870,7 +870,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                     }
                 }
             }
-        }
+        })
         onDispose { subscription?.close() }
     }
 
