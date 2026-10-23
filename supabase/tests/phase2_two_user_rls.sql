@@ -1050,12 +1050,6 @@ BEGIN
      OR has_column_privilege('service_role', 'public.call_sessions', 'answer_sdp', 'UPDATE') THEN
     RAISE EXCEPTION 'Service-role stale-call cleanup has broader call signaling access than required';
   END IF;
-  IF has_column_privilege('authenticated', 'public.call_sessions', 'ended_at', 'UPDATE') IS FALSE THEN
-    -- Authenticated may have table-level UPDATE but triggers constrain the
-    -- allowed terminal-state transitions; this check is intentionally not
-    -- used as the authorization boundary.
-    NULL;
-  END IF;
 END $;
 
 ROLLBACK;
