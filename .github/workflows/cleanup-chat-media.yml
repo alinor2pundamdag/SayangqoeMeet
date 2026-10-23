@@ -1,4 +1,4 @@
-name: Scheduled Chat Media Cleanup
+name: Scheduled Media and Stale Call Cleanup
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Validate cleanup secret and queue access without deleting media"
+        description: "Validate the maintenance secret and both queues without deleting media or changing call state"
         required: true
         type: boolean
         default: true
