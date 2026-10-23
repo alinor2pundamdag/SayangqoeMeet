@@ -6,6 +6,7 @@ name: Phase 2 Database Validation
 on:
   push:
     branches:
+      - main
       - fix/phase-2-main-rebased
     paths:
       - "supabase/**"
