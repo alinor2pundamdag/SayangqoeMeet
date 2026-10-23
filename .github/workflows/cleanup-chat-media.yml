@@ -91,3 +91,40 @@ jobs:
 
           echo "Cleanup worker succeeded:"
           jq '{claimed, purged, failed}' "$response_file"
+
+          call_response_file="$(mktemp)"
+          trap 'rm -f "$response_file" "$call_response_file"' EXIT
+
+          call_status="$(
+            curl --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 60 \
+              --output "$call_response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --header "x-cleanup-secret: ${CLEANUP_SECRET}" \
+              --data "$payload" \
+              "${SUPABASE_URL}/functions/v1/cleanup-stale-calls"
+          )"
+
+          if [[ "$call_status" != "200" ]]; then
+            echo "Stale-call cleanup failed with HTTP ${call_status}; check function configuration and logs."
+            exit 1
+          fi
+
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            if ! jq -e 'type == "object" and .dry_run == true and (.stale_ringing_calls | type == "number") and .marked_missed == 0' "$call_response_file" >/dev/null; then
+              echo "Stale-call dry-run response was invalid."
+              exit 1
+            fi
+            echo "Stale-call dry-run succeeded; no call state was changed:"
+            jq '{dry_run, stale_ringing_calls, marked_missed}' "$call_response_file"
+          else
+            if ! jq -e 'type == "object" and .dry_run == false and (.stale_ringing_calls | type == "number") and (.marked_missed | type == "number") and .stale_ringing_calls == .marked_missed' "$call_response_file" >/dev/null; then
+              echo "Stale-call cleanup response was invalid."
+              exit 1
+            fi
+            echo "Stale-call cleanup succeeded:"
+            jq '{dry_run, stale_ringing_calls, marked_missed}' "$call_response_file"
+          fi
