@@ -404,12 +404,13 @@ internal object SupabaseDataRepository {
         val uid = userId()
         require(message.senderId == uid) { "You can only delete messages you sent." }
         val payload = JSONObject().put("deleted_at", java.time.Instant.now().toString())
-        val query = "messages?id=eq.${enc(message.id)}&sender_id=eq.${enc(uid)}&deleted_at=is.null&select=id"
-        val response = runRequest {
-            request("PATCH", query, payload, "return=representation")
+        val query = "messages?id=eq.${enc(message.id)}&sender_id=eq.${enc(uid)}&deleted_at=is.null"
+        // The SELECT policy hides rows immediately after deleted_at is set, so
+        // requesting a representation can return an empty array even on success.
+        // Let PostgREST report authorization/trigger errors and use minimal return.
+        runRequest {
+            request("PATCH", query, payload, "return=minimal")
         }
-        val rows = JSONArray(response)
-        check(rows.length() == 1) { "Message was already deleted or you no longer have permission." }
     }
 
     suspend fun sendMessage(conversationId: String, body: String): MessageRecord {
