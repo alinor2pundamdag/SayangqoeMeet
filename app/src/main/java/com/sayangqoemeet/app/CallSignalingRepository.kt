@@ -159,18 +159,35 @@ internal object CallSignalingRepository {
     }
 
     suspend fun pollIncoming(): List<CallSession> {
-        // Calls older than 30 seconds must not be re-enqueued as ringing after resume.
-        val cutoff = java.time.Instant.now().minusSeconds(30).toString()
+        // FCM data messages expire after 45s. Give the recipient 60s, then close
+        // stale ringing rows as missed instead of leaving permanent backend state.
+        val now = java.time.Instant.now()
+        val cutoff = now.minusSeconds(60).toString()
+        val staleIds = runCatching {
+            JSONArray(io {
+                request(
+                    "GET",
+                    "call_sessions?callee_id=eq.${enc(currentUserId())}&status=eq.ringing&created_at=lt.${enc(cutoff)}&select=id&order=created_at.asc&limit=50"
+                )
+            })
+        }.getOrElse { error ->
+            android.util.Log.w("CallSignalingRepository", "Could not inspect stale incoming calls", error)
+            JSONArray()
+        }
+        for (index in 0 until staleIds.length()) {
+            val id = staleIds.optJSONObject(index)?.optString("id")?.takeIf { it.isNotBlank() && it != "null" } ?: continue
+            runCatching { setStatus(id, "missed") }.onFailure { error ->
+                android.util.Log.w("CallSignalingRepository", "Could not mark stale call missed", error)
+            }
+        }
+
         val rows = JSONArray(io {
             request(
                 "GET",
                 "call_sessions?callee_id=eq.${enc(currentUserId())}&status=eq.ringing&created_at=gte.${enc(cutoff)}&select=*&order=created_at.desc&limit=10"
             )
         })
-        val nowCutoff = java.time.Instant.now().minusSeconds(30)
-        return (0 until rows.length()).map { parse(rows.getJSONObject(it)) }.filter { call ->
-            runCatching { java.time.Instant.parse(call.createdAt).isAfter(nowCutoff) }.getOrDefault(false)
-        }
+        return (0 until rows.length()).map { parse(rows.getJSONObject(it)) }
     }
 
     suspend fun getCall(id: String): CallSession {
