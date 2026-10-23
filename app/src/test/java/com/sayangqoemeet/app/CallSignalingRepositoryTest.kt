@@ -34,6 +34,7 @@ class CallSessionUpdateResponseTest {
     @Test
     fun acceptsExactlyOneUpdatedCallRow() {
         requireSingleCallSessionUpdate("""[{"id":"call-1","status":"connected"}]""")
+        assertEquals(true, hasExactlyOneJsonArrayObject("""[{"id":"call-1","nested":{"ok":true}}]"""))
     }
 
     @Test(expected = IllegalStateException::class)
@@ -41,7 +42,7 @@ class CallSessionUpdateResponseTest {
         requireSingleCallSessionUpdate("[]")
     }
 
-    @Test(expected = org.json.JSONException::class)
+    @Test(expected = IllegalStateException::class)
     fun rejectsMalformedUpdateResponse() {
         requireSingleCallSessionUpdate("")
     }
