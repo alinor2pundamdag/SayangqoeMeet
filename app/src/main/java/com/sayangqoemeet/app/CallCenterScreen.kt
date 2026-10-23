@@ -73,6 +73,9 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
     var remoteRenderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingInitialCallConsumed by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingPermissionCall by remember { mutableStateOf<CallSession?>(null) }
+    var pendingPermissionIsCaller by remember { mutableStateOf(false) }
+    var pendingPermissionRequiresCamera by remember { mutableStateOf(false) }
     val callUiStateStore = remember { CallUiStateStore.shared }
 
     LaunchedEffect(Unit) {
@@ -88,17 +91,40 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
-        val granted = result[Manifest.permission.RECORD_AUDIO] == true &&
-            (activeCall?.type != "video" || result[Manifest.permission.CAMERA] == true)
+    ) { _ ->
+        // Check the final system permission state rather than the result map:
+        // already-granted permissions are omitted from that map, and activeCall
+        // is not assigned until after the permission request succeeds.
+        val audioGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        val cameraGranted = !pendingPermissionRequiresCamera ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        val granted = audioGranted && cameraGranted
         val action = pendingAction
+        val deniedCall = pendingPermissionCall
+        val deniedCallIsCaller = pendingPermissionIsCaller
         pendingAction = null
+        pendingPermissionCall = null
+        pendingPermissionIsCaller = false
+        pendingPermissionRequiresCamera = false
         if (granted) {
             action?.invoke()
         } else {
             pendingInitialCallConsumed?.invoke()
             pendingInitialCallConsumed = null
-            error = "Microphone permission is required; camera permission is required for video calls."
+            if (deniedCall != null) {
+                scope.launch {
+                    runCatching {
+                        CallSignalingRepository.setStatus(
+                            deniedCall.id,
+                            if (deniedCallIsCaller) "cancelled" else "declined"
+                        )
+                    }
+                }
+            }
+            error = "Required microphone/camera permission was denied. The call has been ended."
         }
     }
 
@@ -113,18 +139,25 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         }
         if (required.isEmpty()) action() else {
             pendingAction = action
+            pendingPermissionRequiresCamera = video
             permissionLauncher.launch(required.toTypedArray())
         }
     }
 
     fun startMedia(call: CallSession, caller: Boolean, onCallIdConsumed: (() -> Unit)? = null) {
         if (onCallIdConsumed != null) pendingInitialCallConsumed = onCallIdConsumed
+        pendingPermissionCall = call
+        pendingPermissionIsCaller = caller
+        pendingPermissionRequiresCamera = call.type == "video"
         CallForegroundService.stop(context.applicationContext, call.id)
         withPermissions(call.type == "video") {
             scope.launch {
                 try {
                     error = null
                     activeCall = call
+                    pendingPermissionCall = null
+                    pendingPermissionIsCaller = false
+                    pendingPermissionRequiresCamera = false
                     pendingInitialCallConsumed?.invoke()
                     pendingInitialCallConsumed = null
                     callType = call.type
@@ -153,6 +186,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
+                    runCatching { CallSignalingRepository.setStatus(call.id, "failed") }
                     error = failure.message ?: "Could not start the call."
                     status = "Call setup failed"
                 }
@@ -292,7 +326,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                         onClick = {
                             val current = manager
                             scope.launch {
-                                runCatching { current?.hangUp("ended") }
+                                runCatching { current?.hangUp() }
                                 activeCall?.id?.let(CallPipController::unregister)
                                 callUiStateStore.clear()
                                 manager = null
