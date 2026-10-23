@@ -45,9 +45,27 @@ jobs:
           )"
 
           if [[ "$status" != "200" ]]; then
-            echo "Cleanup request failed with HTTP ${status}."
+            case "$status" in
+              401)
+                echo "Cleanup authentication failed (HTTP 401). Verify MEDIA_CLEANUP_CRON_SECRET exists in GitHub Actions and matches the Supabase Edge Function secret; never print either value."
+                ;;
+              404)
+                echo "Cleanup endpoint returned HTTP 404. Verify the deployed function name and URL."
+                ;;
+              500)
+                echo "Cleanup worker returned HTTP 500. Check Supabase function configuration, database RPCs, and function logs."
+                ;;
+              *)
+                echo "Cleanup request failed with HTTP ${status}."
+                ;;
+            esac
             exit 1
           fi
 
-          echo "Cleanup worker returned HTTP 200."
-          cat "$response_file"
+          if ! jq -e 'type == "object" and (.claimed | type == "number") and (.purged | type == "number") and (.failed | type == "number") and .failed == 0' "$response_file" >/dev/null; then
+            echo "Cleanup endpoint returned HTTP 200 but the response was invalid or one or more cleanup jobs failed."
+            exit 1
+          fi
+
+          echo "Cleanup worker succeeded:"
+          jq '{claimed, purged, failed}' "$response_file"
