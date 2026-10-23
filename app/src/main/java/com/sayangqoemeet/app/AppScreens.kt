@@ -840,11 +840,28 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
 
     DisposableEffect(conversationId) {
         if (conversationId.isNullOrBlank()) return@DisposableEffect onDispose { }
-        val subscription = SupabaseDataRepository.subscribeToMessages(conversationId) {
+        val subscription = SupabaseDataRepository.subscribeToMessages(conversationId) { change ->
             scope.launch {
-                runCatching { SupabaseDataRepository.loadMessages(conversationId) }.onSuccess { fresh ->
-                    messages = (messages + fresh).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
-                    if (messages.isNotEmpty()) status = ""
+                val affected = if (change.eventType == "DELETE") change.oldRecord else change.record
+                val affectedId = affected.optString("id").takeIf { it.isNotBlank() && it != "null" }
+                val deletedAt = affected.optString("deleted_at")
+                val isDeletion = change.eventType == "DELETE" ||
+                    (change.eventType == "UPDATE" && deletedAt.isNotBlank() && deletedAt != "null")
+                if (isDeletion && affectedId != null) {
+                    messages = messages.filterNot { it.id == affectedId }
+                } else {
+                    runCatching { SupabaseDataRepository.loadMessages(conversationId) }.onSuccess { fresh ->
+                        messages = reconcileRealtimeMessages(
+                            existing = messages,
+                            fresh = fresh,
+                            eventType = change.eventType,
+                            record = change.record,
+                            oldRecord = change.oldRecord
+                        )
+                        if (messages.isNotEmpty()) status = ""
+                    }.onFailure { error ->
+                        status = error.message ?: "Could not refresh live messages."
+                    }
                 }
             }
         }
