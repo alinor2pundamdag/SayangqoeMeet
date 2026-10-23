@@ -593,4 +593,76 @@ BEGIN
   END IF;
 END $$;
 
+
+-- Verify the two intentionally exposed SECURITY DEFINER RPCs remain caller-scoped.
+-- They must be executable only by authenticated callers and must never expose another user's rows.
+DO $$
+BEGIN
+  IF NOT has_function_privilege('authenticated', 'public.get_my_profile()', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.get_my_profile()', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.get_my_conversation_list()', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.get_my_conversation_list()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Profile/conversation RPC grants exceed or fall short of the intended authenticated-only contract';
+  END IF;
+
+  IF (
+    SELECT count(*) FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname IN ('get_my_profile','get_my_conversation_list')
+      AND p.prosecdef
+      AND p.proconfig @> ARRAY['search_path=public, pg_temp']
+  ) <> 2 THEN
+    RAISE EXCEPTION 'Profile/conversation SECURITY DEFINER RPCs must pin search_path';
+  END IF;
+END $$;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE profile_count integer; conversation_count integer;
+BEGIN
+  SELECT count(*) INTO profile_count FROM public.get_my_profile();
+  IF profile_count <> 1 OR EXISTS (
+    SELECT 1 FROM public.get_my_profile()
+    WHERE id <> 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
+  ) THEN
+    RAISE EXCEPTION 'get_my_profile exposed rows outside user A or failed to return user A profile';
+  END IF;
+
+  SELECT count(*) INTO conversation_count FROM public.get_my_conversation_list();
+  IF conversation_count <> 1 OR EXISTS (
+    SELECT 1 FROM public.get_my_conversation_list()
+    WHERE conversation_id <> 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid
+  ) THEN
+    RAISE EXCEPTION 'get_my_conversation_list exposed rows outside user A membership';
+  END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE profile_count integer; conversation_count integer;
+BEGIN
+  SELECT count(*) INTO profile_count FROM public.get_my_profile();
+  IF profile_count <> 1 OR EXISTS (
+    SELECT 1 FROM public.get_my_profile()
+    WHERE id <> 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+  ) THEN
+    RAISE EXCEPTION 'get_my_profile exposed rows outside user B or failed to return user B profile';
+  END IF;
+
+  SELECT count(*) INTO conversation_count FROM public.get_my_conversation_list();
+  IF conversation_count <> 1 OR EXISTS (
+    SELECT 1 FROM public.get_my_conversation_list()
+    WHERE conversation_id <> 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+  ) THEN
+    RAISE EXCEPTION 'get_my_conversation_list exposed rows outside user B membership';
+  END IF;
+END $$;
+RESET ROLE;
+
 ROLLBACK;
