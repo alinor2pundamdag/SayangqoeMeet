@@ -6,6 +6,14 @@ Deno.serve(async(req:Request)=>{
  if(!expected||!supplied||supplied.length!==expected.length||supplied!==expected)return json(401,{error:"Unauthorized"});
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"); if(!url||!service)return json(500,{error:"Server configuration is incomplete"});
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
+ let body:{dry_run?:unknown};
+ try{body=await req.json()}catch{return json(400,{error:"Expected a JSON body"})}
+ if(body.dry_run===true){
+  const {count,error:queueError}=await admin.from("message_media_cleanup_queue")
+   .select("message_id",{count:"exact",head:true}).in("status",["pending","claimed"]);
+  if(queueError){console.error("Cleanup dry-run queue check failed",JSON.stringify({code:queueError.code}));return json(500,{error:"Could not inspect cleanup queue"})}
+  return json(200,{dry_run:true,queue_rows:count??0,claimed:0,purged:0,failed:0});
+ }
  const {data:jobs,error}=await admin.rpc("claim_chat_media_cleanup",{p_limit:50});
  if(error){console.error("Claim failed",JSON.stringify({code:error.code,message:error.message}));return json(500,{error:"Could not claim cleanup jobs"})}
  let purged=0,failed=0,claimed=0;
