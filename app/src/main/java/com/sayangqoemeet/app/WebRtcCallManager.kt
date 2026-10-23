@@ -68,6 +68,7 @@ internal class WebRtcCallManager(
     private var speakerOn = true
     private var ringbackTone: ToneGenerator? = null
     private var isCaller = false
+    private var callAccepted = false
     private val connectionEstablished = AtomicBoolean(false)
 
     val isVideoCall: Boolean get() = videoEnabled
@@ -115,11 +116,29 @@ internal class WebRtcCallManager(
 
     suspend fun acceptAsCallee() {
         initializePeer()
-        val call = CallSignalingRepository.getCall(callId)
-        val offerSdp = call.offerSdp ?: error("The caller's offer has not arrived yet.")
-        setRemoteDescription(SessionDescription(SessionDescription.Type.OFFER, offerSdp))
+
+        // The caller sends the push immediately after creating the session, before
+        // WebRTC has necessarily finished creating and uploading its SDP offer.
+        // Wait briefly for that offer instead of failing a legitimate fast answer.
+        var attempt = 0
+        var offerSdp: String? = null
+        while (attempt < 40 && offerSdp.isNullOrBlank()) {
+            val call = CallSignalingRepository.getCall(callId)
+            check(call.status == "ringing") { "This incoming call is no longer ringing." }
+            offerSdp = call.offerSdp
+            if (offerSdp.isNullOrBlank()) {
+                onStatus("Waiting for the caller's secure connection")
+                delay(250)
+            }
+            attempt++
+        }
+        val finalOfferSdp = offerSdp?.takeIf { it.isNotBlank() }
+            ?: error("The caller did not publish a connection offer in time. Please call again.")
+
+        setRemoteDescription(SessionDescription(SessionDescription.Type.OFFER, finalOfferSdp))
         val answer = createDescription(offer = false)
         CallSignalingRepository.setAnswer(callId, answer.description)
+        callAccepted = true
         onStatus("Connecting securely")
         startSignalPolling(caller = false)
     }
@@ -136,7 +155,7 @@ internal class WebRtcCallManager(
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .createPeerConnectionFactory()
-        val iceServers = fetchIceServersOrFallback()
+        val iceServers = fetchIceServersOrFallback(callId)
         val config = PeerConnection.RTCConfiguration(iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
@@ -220,7 +239,7 @@ internal class WebRtcCallManager(
      * If the function is unavailable, retain STUN-only connectivity rather than failing
      * call initialization; restrictive NATs may still require TURN and can fail to connect.
      */
-    private suspend fun fetchIceServersOrFallback(): List<PeerConnection.IceServer> =
+    private suspend fun fetchIceServersOrFallback(callId: String): List<PeerConnection.IceServer> =
         withContext(Dispatchers.IO) {
             val fallback = listOf(
                 PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
@@ -411,7 +430,11 @@ internal class WebRtcCallManager(
 
     suspend fun hangUp(status: String? = null) {
         if (disposed.getAndSet(true)) return
-        val terminalStatus = status ?: if (isCaller && !connectionEstablished.get()) "cancelled" else "ended"
+        val terminalStatus = status ?: when {
+            isCaller && !connectionEstablished.get() -> "cancelled"
+            !isCaller && !callAccepted -> "declined"
+            else -> "ended"
+        }
         stopRingbackTone()
         signalJob?.cancel()
         callStatusSubscription?.close()
