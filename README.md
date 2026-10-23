@@ -35,7 +35,7 @@ Requirements: JDK 17, Android SDK platform 36/build-tools 36.0.0, Gradle 8.11.1.
 gradle assembleDebug
 ```
 
-If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The combined Phase 1/2 source passed lint, unit tests, debug APK assembly, and artifact upload on tested commit [d3814a9](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672216). Fresh local migration replay and two-user RLS tests also passed on that commit [in this run](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672196). These CI results do not replace physical-device tests.
+If successful, the APK is at `app/build/outputs/apk/debug/app-debug.apk`. The combined Phase 1/2 source passed lint, unit tests, debug APK assembly, and artifact upload on tested commit [d3814a9](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672216). Fresh local migration replay and two-user RLS tests also passed on that commit [in this run](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39923672196). Current `main` commit `60a734072bf7aa852f26d65d770a1ee385329260` has all three required GitHub Actions gates green: [Android CI](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927349144), [fresh Supabase migration replay and two-user RLS tests](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927349041), and [full-history secret scan](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927348989). The current debug APK artifact expires 2026-10-30. These CI results do not replace physical-device tests.
 
 ## Firebase / push notifications
 
@@ -53,7 +53,7 @@ The master plan now explicitly requires a separate web-based admin console with 
 - Verify FCM push delivery on devices after the owner confirms `FIREBASE_SERVICE_ACCOUNT_JSON` is configured in Supabase secrets.
 - Verify voice/video calls on two physical devices, including TURN relay behavior on restrictive networks.
 - Restrict the Firebase Android API key in Google Cloud Console and confirm required GitHub/Supabase secret names are present/matched without exposing their values.
-- Complete a full Git-history scan for credentials/private data and rotate any confirmed exposed credential.
+- Full-history Gitleaks scan passed on current `main`; continue scanning future changes and rotate any credential if one is confirmed exposed.
 - Secure admin-console authentication, server-verified roles, privileged endpoints, and audit history remain separate implementation work.
 - Complete responsive layout, orientation, keyboard, and production-release checks.
 
