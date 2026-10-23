@@ -416,15 +416,56 @@ internal object SupabaseDataRepository {
         }
     }
 
-    suspend fun sendMessage(conversationId: String, body: String): MessageRecord {
+    suspend fun sendMessage(
+        conversationId: String,
+        body: String,
+        clientRequestId: String? = null
+    ): MessageRecord {
+        val senderId = userId()
+        val cleanBody = body.trim()
+        require(conversationId.isNotBlank()) { "Select a valid conversation." }
+        require(cleanBody.isNotEmpty()) { "Message cannot be empty." }
+        require(cleanBody.length <= 10_000) { "Messages must be 10,000 characters or fewer." }
+        clientRequestId?.let { java.util.UUID.fromString(it) }
+
         val payload = JSONObject()
             .put("conversation_id", conversationId)
-            .put("sender_id", userId())
-            .put("body", body.trim())
-        val response = runRequest { request("POST", "messages", payload, "return=representation") }
-        val row = JSONArray(response).getJSONObject(0)
-        val saved = MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.getString("body"), row.getString("created_at"))
-        // Push delivery is best-effort: message persistence must not fail if Firebase is not configured.
+            .put("sender_id", senderId)
+            .put("body", cleanBody)
+        if (clientRequestId != null) payload.put("client_request_id", clientRequestId)
+
+        val path = if (clientRequestId == null) {
+            "messages?select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+        } else {
+            "messages?on_conflict=sender_id,client_request_id&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+        }
+        val prefer = if (clientRequestId == null) {
+            "return=representation"
+        } else {
+            "resolution=ignore-duplicates,return=representation"
+        }
+        val response = runRequest { request("POST", path, payload, prefer) }
+        val rows = JSONArray(response)
+        val saved = if (rows.length() > 0) {
+            messageFromRow(rows.getJSONObject(0))
+        } else {
+            // A duplicate idempotency key returns no inserted row. Resolve the
+            // original row so a retry after a lost HTTP response is still success.
+            val key = clientRequestId ?: error("Message insert returned no row.")
+            val lookup = "messages?sender_id=eq.${enc(senderId)}&client_request_id=eq.${enc(key)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&limit=1"
+            val existingRows = JSONArray(runRequest { request("GET", lookup) })
+            check(existingRows.length() == 1) {
+                "Message retry could not be reconciled. Refresh the conversation before retrying."
+            }
+            val existing = messageFromRow(existingRows.getJSONObject(0))
+            check(existing.conversationId == conversationId && existing.body == cleanBody) {
+                "This retry key is already associated with a different message. Start a new send operation."
+            }
+            existing
+        }
+
+        // Retry push after resolving an idempotent request: the original request
+        // may have committed the row but lost its response before push was queued.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching {
                 request(
