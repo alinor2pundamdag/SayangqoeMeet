@@ -46,6 +46,22 @@ BEGIN
           'soft-deleted and must never be selected', now())
   ON CONFLICT (id) DO NOTHING;
 
+  UPDATE public.messages
+  SET attachment_path = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/phase4-fixture.png',
+      attachment_mime_type = 'image/png',
+      attachment_name = 'phase4-fixture.png'
+  WHERE id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+  INSERT INTO storage.objects (bucket_id, name, owner, owner_id, metadata)
+  VALUES (
+    'chat-attachments',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/phase4-fixture.png',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    '{"mimetype":"image/png","size":1}'::jsonb
+  )
+  ON CONFLICT (bucket_id, name) DO NOTHING;
+
   INSERT INTO public.conversation_invites
     (id, conversation_id, inviter_id, recipient_id, status)
   VALUES
@@ -958,5 +974,58 @@ BEGIN
     RAISE EXCEPTION 'The admin_memberships.granted_by FK covering index is missing or invalid';
   END IF;
 END $$;
+
+-- Actual Storage RLS behavior: only a live message attachment in a member's
+-- conversation is readable. A known object path is not sufficient by itself.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM storage.objects
+  WHERE bucket_id='chat-attachments'
+    AND name='cccccccc-cccc-4ccc-8ccc-cccccccccccc/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/phase4-fixture.png';
+  IF visible_count <> 1 THEN
+    RAISE EXCEPTION 'Conversation member could not read an active message attachment';
+  END IF;
+END $$;
+
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+DO $$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM storage.objects
+  WHERE bucket_id='chat-attachments'
+    AND name='cccccccc-cccc-4ccc-8ccc-cccccccccccc/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/phase4-fixture.png';
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'Non-member could read another conversation attachment';
+  END IF;
+END $$;
+RESET ROLE;
+
+-- A soft-deleted message must immediately stop authorizing object reads even
+-- before the scheduled cleanup worker purges the bytes.
+UPDATE public.messages
+SET deleted_at=now()
+WHERE id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM storage.objects
+  WHERE bucket_id='chat-attachments'
+    AND name='cccccccc-cccc-4ccc-8ccc-cccccccccccc/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/phase4-fixture.png';
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'Soft-deleted message still authorized private attachment reads';
+  END IF;
+END $$;
+RESET ROLE;
 
 ROLLBACK;
