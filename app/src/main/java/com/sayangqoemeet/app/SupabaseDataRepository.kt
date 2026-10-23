@@ -8,6 +8,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -475,7 +476,29 @@ internal object SupabaseDataRepository {
             .put("attachment_path", objectPath)
             .put("attachment_mime_type", mimeType.ifBlank { "application/octet-stream" })
             .put("attachment_name", safeName)
-        val response = runRequest { request("POST", "messages", payload, "return=representation") }
+        val response = try {
+            runRequest { request("POST", "messages", payload, "return=representation") }
+        } catch (insertError: Exception) {
+            // Roll back only on a definite client-side HTTP rejection. A timeout,
+            // connection reset, or server error can occur after the row committed;
+            // deleting the object then would leave a valid message with broken media.
+            val rejectedByServer = insertError.message?.startsWith("Request failed (4") == true
+            if (rejectedByServer) {
+                val rollbackError = runCatching {
+                    withContext(NonCancellable) { deleteUploadedChatAttachment(objectPath) }
+                }.exceptionOrNull()
+                if (rollbackError != null) {
+                    insertError.addSuppressed(rollbackError)
+                    if (insertError !is kotlinx.coroutines.CancellationException) {
+                        throw IllegalStateException(
+                            "Message was rejected and uploaded-file cleanup could not be confirmed. Refresh before retrying.",
+                            insertError
+                        )
+                    }
+                }
+            }
+            throw insertError
+        }
         val row = JSONArray(response).getJSONObject(0)
         val saved = MessageRecord(
             row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"),
@@ -486,6 +509,30 @@ internal object SupabaseDataRepository {
             runCatching { request("POST", "functions/v1/send-message-push", JSONObject().put("conversation_id", saved.conversationId).put("message_id", saved.id)) }
         }
         return saved
+    }
+
+    /** Best-effort rollback using the same user's JWT and existing Storage DELETE policy. */
+    private suspend fun deleteUploadedChatAttachment(objectPath: String) = runRequest {
+        val token = SupabaseAuthRepository.currentAccessToken()
+            ?: error("Sign in again to clean up the uploaded attachment.")
+        val encodedPath = objectPath.split("/").joinToString("/") { enc(it) }
+        val connection = (URL(
+            BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1/object/chat-attachments/" + encodedPath
+        ).openConnection() as HttpURLConnection).apply {
+            requestMethod = "DELETE"
+            connectTimeout = 15000
+            readTimeout = 20000
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299) error("Storage rollback failed (HTTP $code).")
+            ""
+        } finally {
+            connection.disconnect()
+        }
     }
 
     suspend fun createSignedAttachmentUrl(objectPath: String): String = runRequest {
