@@ -269,7 +269,6 @@ internal object SupabaseDataRepository {
             .put("id", id)
             .put("display_name", displayName.trim())
             .put("username", username.trim())
-            .put("updated_at", java.time.Instant.now().toString())
         payload.put("avatar_url", avatarUrl?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
         payload.put("bio", bio?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
         payload.put("birthday", birthday?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
