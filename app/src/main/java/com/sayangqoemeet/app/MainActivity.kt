@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
     private companion object { const val NOTIFICATION_PERMISSION_REQUEST = 1401 }
 
     private var isAuthReady by mutableStateOf(false)
+    private var isDarkTheme by mutableStateOf(true)
     private var isAuthenticated by mutableStateOf(false)
     private var openChatsOnStart by mutableStateOf(false)
     private var incomingCallId by mutableStateOf<String?>(null)
@@ -40,6 +41,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        isDarkTheme = getSharedPreferences("sayangqoemeet_local_settings", MODE_PRIVATE)
+            .getBoolean("dark_theme", true)
         handleAuthIntent(intent)
         handleNavigationIntent(intent)
 
@@ -59,6 +62,8 @@ class MainActivity : ComponentActivity() {
                             initialCallId = incomingCallId,
                             initialCallRecipientId = callRecipientId,
                             initialCallType = callType,
+                            isDarkTheme = isDarkTheme,
+                            onThemeChanged = { enabled -> isDarkTheme = enabled },
                             onIncomingCallHandled = { handledId ->
                                 if (incomingCallId == handledId) incomingCallId = null
                             },
