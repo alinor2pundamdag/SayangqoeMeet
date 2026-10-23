@@ -961,28 +961,42 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                         } else {
                             Text("ATTACHMENT", color = ShellCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             Text(message.attachmentName ?: message.body, color = ShellText, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        try {
-                                            val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
-                                                context = context,
-                                                messageId = message.id,
-                                                senderId = message.senderId,
-                                                objectPath = message.attachmentPath,
-                                                mimeType = message.attachmentMimeType,
-                                                displayName = message.attachmentName ?: message.body
-                                            )
-                                            val openIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
-                                            }
-                                            context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
-                                        } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                            if (message.attachmentPurgedAt != null) {
+                                Text(
+                                    "MEDIA EXPIRED",
+                                    color = ShellMuted,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(vertical = 6.dp)
+                                )
+                                Text(
+                                    "This attachment was cleaned up by the retention policy. The message record remains.",
+                                    color = ShellMuted,
+                                    fontSize = 11.sp
+                                )
+                            } else {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            try {
+                                                val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
+                                                    context = context,
+                                                    messageId = message.id,
+                                                    senderId = message.senderId,
+                                                    objectPath = message.attachmentPath,
+                                                    mimeType = message.attachmentMimeType,
+                                                    displayName = message.attachmentName ?: message.body
+                                                )
+                                                val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
+                                                }
+                                                context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
+                                            } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                                        }
                                     }
-                                }
-                            ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                                ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                            }
                         }
                         Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (mine) {
