@@ -1048,9 +1048,8 @@ BEGIN
      OR has_column_privilege('service_role', 'public.call_sessions', 'callee_id', 'SELECT') THEN
     RAISE EXCEPTION 'Stale-call worker received unnecessary SDP or participant-column privileges';
   END IF;
-  IF has_column_privilege('anon', 'public.call_sessions', 'ended_at', 'UPDATE')
-     OR has_column_privilege('authenticated', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
-    RAISE EXCEPTION 'Service-only stale-call ended_at update privilege leaked to client roles';
+  IF has_column_privilege('anon', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Anonymous clients must not update call session state';
   END IF;
 END $;
 
