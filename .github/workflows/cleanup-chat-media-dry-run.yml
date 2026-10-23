@@ -1,0 +1,68 @@
+name: Chat Media Cleanup Dry Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cleanup-chat-media-dry-run.yml"
+      - ".github/workflows/cleanup-chat-media.yml"
+      - "supabase/functions/cleanup-chat-media/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cleanup-chat-media-dry-run
+  cancel-in-progress: true
+
+jobs:
+  verify-cleanup-endpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate cleanup secret and deployed worker without deleting media
+        env:
+          SUPABASE_URL: https://phjwzrrsaemgcedwpyyp.supabase.co
+          CLEANUP_SECRET: ${{ secrets.MEDIA_CLEANUP_CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${CLEANUP_SECRET}" ]]; then
+            echo "Required MEDIA_CLEANUP_CRON_SECRET is not configured."
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          status="$(
+            curl --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 120 \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --header "x-cleanup-secret: ${CLEANUP_SECRET}" \
+              --data '{"dry_run":true}' \
+              "${SUPABASE_URL}/functions/v1/cleanup-chat-media"
+          )"
+
+          if [[ "$status" != "200" ]]; then
+            case "$status" in
+              401) echo "Cleanup secret missing or does not match the deployed Edge Function secret." ;;
+              404) echo "Deployed cleanup Edge Function was not found." ;;
+              *) echo "Cleanup dry-run request failed with HTTP ${status}." ;;
+            esac
+            exit 1
+          fi
+
+          if ! jq -e 'type == "object" and .dry_run == true and (.queue_rows | type == "number") and .failed == 0' "$response_file" >/dev/null; then
+            echo "Cleanup worker returned an invalid dry-run response."
+            exit 1
+          fi
+
+          echo "Cleanup endpoint dry-run passed. No media deletion was requested or performed."
+          jq '{dry_run, queue_rows, claimed, purged, failed}' "$response_file"
