@@ -636,7 +636,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
     val filteredUsers = remember(users, searchQuery, activeOnly) {
         val query = searchQuery.trim().removePrefix("@").lowercase()
         users.filter { user ->
-            (!activeOnly || user.isOnline) &&
+            (!activeOnly || user.isOnline == true) &&
                 (query.isBlank() || user.displayName.lowercase().contains(query) ||
                     user.username.orEmpty().lowercase().contains(query))
         }
@@ -715,7 +715,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                 }
             }
         }
-        Text("Green = active within the last 90 seconds. Search history stays on this device.", color = ShellMuted, fontSize = 11.sp)
+        Text("Green = active within the last 90 seconds; amber = presence could not be verified. Search history stays on this device.", color = ShellMuted, fontSize = 11.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
         if (filteredUsers.isEmpty() && status.isBlank()) Text("No people match this search.", color = ShellMuted, fontSize = 12.sp)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -725,7 +725,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(10.dp).background(if (user.isOnline) Color(0xFF43E08A) else ShellMuted, CircleShape))
+                    Box(Modifier.size(10.dp).background(when (user.isOnline) { true -> Color(0xFF43E08A); false -> ShellMuted; null -> Color(0xFFFFCE79) }, CircleShape))
                     Spacer(Modifier.width(12.dp))
                     Box(Modifier.size(44.dp).clip(CircleShape).background(ShellPanel), contentAlignment = Alignment.Center) {
                         if (!user.avatarUrl.isNullOrBlank()) {
@@ -738,7 +738,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
                         val showDates = context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE).getBoolean("show_registration_dates", true)
                         if (showDates) Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
-                        Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
+                        Text(when (user.isOnline) { true -> "Active now"; false -> "Offline"; null -> "Status unavailable" }, color = when (user.isOnline) { true -> Color(0xFF43E08A); false -> ShellMuted; null -> Color(0xFFFFCE79) }, fontSize = 10.sp)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         TextButton(onClick = { onCall(user.id, "voice") }) { Text("VOICE", color = ShellCyan, fontSize = 10.sp) }
