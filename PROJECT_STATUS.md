@@ -5,16 +5,21 @@
 **Visibility:** Public  
 **Default branch:** `main`
 
-## Current verified status (2026-10-23)
+## Current verified status
 
-- **Phase 1:** PR #11 merged to `main`. Android CI passed for the merged Phase 1 source: lint, unit tests, debug APK assembly, and artifact upload.
-- **Phase 2:** PR #16 merged to `main` at merge commit `f31de60110d78a8f5093f823b0e59aefe52d667d`.
-- **Combined validation:** Android CI passed on tested PR head `d3814a9620dfe4bd06b65144cc58b3f033b0bd20`; fresh local Supabase migration replay, `supabase db lint --local --fail-on error`, two-user RLS isolation tests, and Deno type-check of Edge Functions passed on that same head.
-- **Migration chain:** 25 executable migration files match the 25 versions in the live Supabase migration ledger. Eleven repository-only timestamp variants are preserved verbatim under `docs/legacy-migrations/` and intentionally excluded from fresh replay.
-- **Live database review:** All 12 inspected public application tables have RLS enabled and policies. All 23 inspected foreign keys have child-side indexes. Representative read-only query plans use the expected message, call-session, and media-cleanup indexes. No production DDL or data changes were made during the PR #16 work.
-- **Backend/frontend parity:** `notify-incoming-call`, `get-turn-credentials`, `send-message-push`, and `cleanup-chat-media` deployed source was compared with repository source and matched exactly. The call notification endpoint routing bug is fixed in Android source and covered by unit tests.
-- **Security findings retained for explicit review:** Supabase advisor reports three authenticated-callable SECURITY DEFINER functions; their caller-scoped behavior and lack of anon EXECUTE were checked. Ten unused-index notices remain; no indexes were dropped. Leaked-password protection was explicitly outside scope and was not changed.
-- **Not yet release-certified:** Real-device two-account tests for auth/session restoration, invitation/message flow, FCM push delivery, and voice/video calls; Google Cloud Firebase API-key restrictions; verification that `FIREBASE_SERVICE_ACCOUNT_JSON` and `MEDIA_CLEANUP_CRON_SECRET` are configured/matched without exposing values; full Git-history secret scan; and secure admin backend/role enforcement.
+- **Phase 1 baseline:** PR #11 is merged. Android CI on the merged source passed `lintDebug`, `testDebugUnitTest`, `assembleDebug`, and APK artifact upload.
+- **Phase 2 baseline:** PR #16 is merged. Its exact tested head `d3814a9620dfe4bd06b65144cc58b3f033b0bd20` passed Android CI plus fresh local Supabase migration replay, database lint, two-user message RLS isolation, and Deno type-check for Edge Functions. The current main tip later received the project-status/CI follow-up; the Android CI run on main `ceac6a5ff9bd092da1319c5402e6461925694102` also passed.
+- **Migration parity:** The repository has 25 executable migration files matching the 25 live ledger versions. Eleven historical timestamp variants are preserved verbatim under `docs/legacy-migrations/`; they are not executed by fresh replay. No production DDL or data rewrite was performed during PR #16 work.
+- **Database posture:** All 12 inspected public application tables have RLS enabled and policies. All 23 inspected foreign keys have child-side indexes. Representative query plans were checked. Ten unused-index notices remain informational; no indexes were dropped.
+- **Edge Functions:** Eight functions are active. Source parity was verified for `notify-incoming-call`, `get-turn-credentials`, `send-message-push`, and `cleanup-chat-media`. The Supabase security advisor still reports three authenticated-callable SECURITY DEFINER RPCs; their caller scoping and anon EXECUTE denial were inspected. Leaked-password protection was not changed, as requested.
+- **Current follow-up branch:** `fix/post-merge-integration-gates` adds a client-side `deleted_at IS NULL` filter as defense in depth and makes the Phase 2 database validation workflow run on future `main` pushes. These changes require CI before merge.
+- **Open PR #9:** It is not safe to merge as-is: its MainActivity is based on an older, much larger version and its migration timestamp is not in the live ledger. Its local-only theme preference and message-history filtering should be ported selectively onto current `main`; do not merge its whole-file replacement or old migration.
+- **Not yet release-certified:** Real-device two-account auth/session, invitation/message, FCM push, and voice/video/TURN tests; Google Cloud Firebase API-key restrictions; secret-name/value-match verification for `FIREBASE_SERVICE_ACCOUNT_JSON` and `MEDIA_CLEANUP_CRON_SECRET` without revealing values; full Git-history secret scan; and server-verified admin-console roles/privileged endpoints/audit history.
+- **Owner-dependent:** Physical devices/accounts and access to Google Cloud Console are needed for end-to-end checks. Secret values must remain private.
+
+## Release gate
+Do not label the product fully release-ready until CI is green for the final commit, real-device flows pass, owner-managed key/secret checks are confirmed, and the admin backend security scope is resolved.
+
 
 ## Historical snapshot (2026-10-16; superseded by the current status above)
 
