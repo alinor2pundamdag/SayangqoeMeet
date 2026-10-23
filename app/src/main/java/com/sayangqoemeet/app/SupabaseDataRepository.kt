@@ -367,7 +367,7 @@ internal object SupabaseDataRepository {
     }
 
     suspend fun loadMessages(conversationId: String): List<MessageRecord> {
-        val query = "messages?conversation_id=eq.${enc(conversationId)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.asc&limit=100"
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.asc&limit=100"
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
