@@ -113,6 +113,18 @@ BEGIN
   ) <> 3 THEN
     RAISE EXCEPTION 'Chat attachment storage policies must guard malformed UUID paths before casting';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='storage' AND tablename='objects'
+      AND policyname='Conversation members can read chat attachments'
+      AND lower(coalesce(qual,'')) LIKE '%attachment_path%'
+      AND lower(coalesce(qual,'')) LIKE '%attachment_purged_at is null%'
+      AND lower(coalesce(qual,'')) LIKE '%deleted_at is null%'
+      AND lower(coalesce(qual,'')) LIKE '%conversation_members%'
+  ) THEN
+    RAISE EXCEPTION 'Private attachment reads must require a live, unpurged message attachment and conversation membership';
+  END IF;
 END $$;
 
 -- No exposed public table may be left without RLS. Service-only media tables
