@@ -28,3 +28,22 @@ class CallSignalingRepositoryTest {
         )
     }
 }
+
+
+class CallSessionUpdateResponseTest {
+    @Test
+    fun acceptsExactlyOneUpdatedCallRow() {
+        requireSingleCallSessionUpdate("""[{"id":"call-1","status":"connected"}]""")
+        assertEquals(true, hasExactlyOneJsonArrayObject("""[{"id":"call-1","nested":{"ok":true}}]"""))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun rejectsEmptySuccessResponseWhenRlsMatchedNoRow() {
+        requireSingleCallSessionUpdate("[]")
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun rejectsMalformedUpdateResponse() {
+        requireSingleCallSessionUpdate("")
+    }
+}
