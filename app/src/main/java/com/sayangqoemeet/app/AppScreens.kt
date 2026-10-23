@@ -636,7 +636,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
     val filteredUsers = remember(users, searchQuery, activeOnly) {
         val query = searchQuery.trim().removePrefix("@").lowercase()
         users.filter { user ->
-            (!activeOnly || user.isOnline) &&
+            (!activeOnly || user.isOnline == true) &&
                 (query.isBlank() || user.displayName.lowercase().contains(query) ||
                     user.username.orEmpty().lowercase().contains(query))
         }
@@ -715,7 +715,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                 }
             }
         }
-        Text("Green = active within the last 90 seconds. Search history stays on this device.", color = ShellMuted, fontSize = 11.sp)
+        Text("Green = active within the last 90 seconds; amber = presence could not be verified. Search history stays on this device.", color = ShellMuted, fontSize = 11.sp)
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 12.sp)
         if (filteredUsers.isEmpty() && status.isBlank()) Text("No people match this search.", color = ShellMuted, fontSize = 12.sp)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -725,7 +725,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         .background(ShellPanel, RoundedCornerShape(16.dp)).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(10.dp).background(if (user.isOnline) Color(0xFF43E08A) else ShellMuted, CircleShape))
+                    Box(Modifier.size(10.dp).background(when (user.isOnline) { true -> Color(0xFF43E08A); false -> ShellMuted; null -> Color(0xFFFFCE79) }, CircleShape))
                     Spacer(Modifier.width(12.dp))
                     Box(Modifier.size(44.dp).clip(CircleShape).background(ShellPanel), contentAlignment = Alignment.Center) {
                         if (!user.avatarUrl.isNullOrBlank()) {
@@ -738,7 +738,7 @@ private fun RegisteredUsersScreen(onBack: () -> Unit, onOpenConversation: (Strin
                         Text(user.username?.let { "@$it" } ?: "Username not set", color = ShellMuted, fontSize = 11.sp)
                         val showDates = context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE).getBoolean("show_registration_dates", true)
                         if (showDates) Text("Registered: ${formatRegistrationDate(user.createdAt)}", color = ShellMuted, fontSize = 10.sp)
-                        Text(if (user.isOnline) "Active now" else "Offline", color = if (user.isOnline) Color(0xFF43E08A) else ShellMuted, fontSize = 10.sp)
+                        Text(when (user.isOnline) { true -> "Active now"; false -> "Offline"; null -> "Status unavailable" }, color = when (user.isOnline) { true -> Color(0xFF43E08A); false -> ShellMuted; null -> Color(0xFFFFCE79) }, fontSize = 10.sp)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         TextButton(onClick = { onCall(user.id, "voice") }) { Text("VOICE", color = ShellCyan, fontSize = 10.sp) }
@@ -779,6 +779,9 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
     var status by remember { mutableStateOf("Loading message history…") }
     var loading by remember { mutableStateOf(false) }
+    var loadingOlder by remember { mutableStateOf(false) }
+    var hasOlderMessages by remember { mutableStateOf(false) }
+    var messageToDelete by remember { mutableStateOf<MessageRecord?>(null) }
     var currentUserId by remember { mutableStateOf<String?>(null) }
     var otherUserId by remember { mutableStateOf<String?>(null) }
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
@@ -808,7 +811,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 try {
                     val name = context.contentResolver.getDisplayName(uri) ?: "video"
                     val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, context.contentResolver.getType(uri) ?: "video/mp4", name)
-                    messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                    messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                     status = ""
                 } catch (error: Exception) { status = error.message ?: "Video upload failed." }
                 finally { loading = false }
@@ -822,7 +825,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 try {
                     val name = context.contentResolver.getDisplayName(uri) ?: "attachment"
                     val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, context.contentResolver.getType(uri) ?: "application/octet-stream", name)
-                    messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                    messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                     status = ""
                 } catch (error: Exception) { status = error.message ?: "Attachment upload failed." }
                 finally { loading = false }
@@ -830,7 +833,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         }
     }
 
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(messages.lastOrNull()?.id) {
         if (messages.isNotEmpty()) messageListState.animateScrollToItem(messages.lastIndex)
     }
 
@@ -839,7 +842,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         val subscription = SupabaseDataRepository.subscribeToMessages(conversationId) {
             scope.launch {
                 runCatching { SupabaseDataRepository.loadMessages(conversationId) }.onSuccess { fresh ->
-                    messages = (messages + fresh).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                    messages = (messages + fresh).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                     if (messages.isNotEmpty()) status = ""
                 }
             }
@@ -859,6 +862,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 otherUserId = conversation?.otherUserId
                 otherDisplayName = conversation?.displayLabel
                 messages = SupabaseDataRepository.loadMessages(conversationId)
+                hasOlderMessages = messages.size >= 100
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
             } catch (error: Exception) { status = error.message ?: "Could not load messages." }
         }
@@ -890,7 +894,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             loading = true
             try {
                 val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, mime, name)
-                messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                 status = ""; capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null
             } catch (error: Exception) { status = error.message ?: "Media upload failed." }
             finally { loading = false }
@@ -916,6 +920,26 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             }
         }
         if (status.isNotBlank()) Text(status, color = ShellMuted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
+        if (hasOlderMessages && messages.isNotEmpty()) {
+            TextButton(
+                enabled = !loadingOlder && !loading,
+                onClick = {
+                    val first = messages.firstOrNull() ?: return@TextButton
+                    loadingOlder = true
+                    scope.launch {
+                        try {
+                            val older = SupabaseDataRepository.loadOlderMessages(conversationId.orEmpty(), first)
+                            messages = (older + messages).distinctBy { it.id }
+                                .sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
+                            hasOlderMessages = older.size >= 50
+                            status = if (older.isEmpty()) "You have reached the beginning of this conversation." else ""
+                        } catch (error: Exception) {
+                            status = error.message ?: "Could not load older messages."
+                        } finally { loadingOlder = false }
+                    }
+                }
+            ) { Text(if (loadingOlder) "LOADING OLDER MESSAGES…" else "LOAD OLDER MESSAGES", color = ShellCyan, fontSize = 10.sp) }
+        }
         LazyColumn(
             state = messageListState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -958,6 +982,11 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                             ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
                         }
                         Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (mine) {
+                            TextButton(onClick = { messageToDelete = message }, enabled = !loading) {
+                                Text("DELETE", color = Color(0xFFFF9DAF), fontSize = 9.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -985,7 +1014,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                         scope.launch {
                             try {
                                 val sent = SupabaseDataRepository.sendMessage(conversationId, content)
-                                messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                                messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                                 draft = ""
                                 status = ""
                             } catch (error: Exception) { status = error.message ?: "Message could not be sent." }
@@ -996,6 +1025,34 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 enabled = !loading && draft.isNotBlank() && !conversationId.isNullOrBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = ShellBlue)
             ) { Text(if (loading) "…" else "SEND") }
+        }
+    }
+
+    if (messageToDelete != null) {
+        Dialog(onDismissRequest = { messageToDelete = null }) {
+            Surface(shape = RoundedCornerShape(20.dp), color = ShellPanel) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("DELETE MESSAGE?", color = Color(0xFFFF9DAF), fontWeight = FontWeight.Bold)
+                    Text("This will soft-delete your message for the conversation. It cannot be restored from the app.", color = ShellMuted, fontSize = 12.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { messageToDelete = null }) { Text("CANCEL", color = ShellMuted) }
+                        TextButton(onClick = {
+                            val target = messageToDelete ?: return@TextButton
+                            messageToDelete = null
+                            scope.launch {
+                                loading = true
+                                try {
+                                    SupabaseDataRepository.softDeleteMessage(target)
+                                    messages = messages.filterNot { it.id == target.id }
+                                    status = ""
+                                } catch (error: Exception) {
+                                    status = error.message ?: "Could not delete this message."
+                                } finally { loading = false }
+                            }
+                        }, enabled = !loading) { Text("DELETE", color = Color(0xFFFF9DAF), fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
         }
     }
 
@@ -1044,7 +1101,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                     loading = true
                     try {
                         val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, "audio/mp4", "voice-note.m4a")
-                        messages = (messages + sent).distinctBy { it.id }.sortedBy { it.createdAt }.takeLast(100)
+                        messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
                         status = ""
                     } catch (error: Exception) { status = error.message ?: "Voice note upload failed." }
                     finally { loading = false }

@@ -35,7 +35,7 @@ internal data class RegisteredUserRecord(
     val username: String?,
     val displayName: String,
     val createdAt: String,
-    val isOnline: Boolean = false,
+    val isOnline: Boolean? = null,
     val avatarUrl: String? = null
 )
 
@@ -239,7 +239,9 @@ internal object SupabaseDataRepository {
         val id = userId()
         val query = "profiles?id=neq.${enc(id)}&select=id,username,display_name,created_at,avatar_url&order=created_at.desc&limit=500"
         val rows = JSONArray(runRequest { request("GET", query) })
-        val onlineIds = runCatching { loadOnlineUserIds() }.getOrDefault(emptySet())
+        // Distinguish a confirmed offline result from a failed presence request.
+        // A transport/RLS error must never be rendered as a definitive offline state.
+        val onlineIds = runCatching { loadOnlineUserIds() }.getOrNull()
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             val userId = row.getString("id")
@@ -248,7 +250,7 @@ internal object SupabaseDataRepository {
                 username = row.optString("username").takeIf { it.isNotBlank() },
                 displayName = row.optString("display_name"),
                 createdAt = row.optString("created_at"),
-                isOnline = userId in onlineIds,
+                isOnline = onlineIds?.let { userId in it },
                 avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() }
             )
         }
@@ -366,12 +368,50 @@ internal object SupabaseDataRepository {
         }
     }
 
+    private fun messageFromRow(row: JSONObject) = MessageRecord(
+        id = row.getString("id"),
+        conversationId = row.getString("conversation_id"),
+        senderId = row.getString("sender_id"),
+        body = row.optString("body"),
+        createdAt = row.getString("created_at"),
+        attachmentPath = row.optString("attachment_path").takeIf { it.isNotBlank() && it != "null" },
+        attachmentMimeType = row.optString("attachment_mime_type").takeIf { it.isNotBlank() && it != "null" },
+        attachmentName = row.optString("attachment_name").takeIf { it.isNotBlank() && it != "null" }
+    )
+
+    /**
+     * Loads the newest page, then presents it oldest-to-newest for the chat UI.
+     * Ordering by both timestamp and UUID makes the cursor deterministic when
+     * multiple messages share the same timestamp.
+     */
     suspend fun loadMessages(conversationId: String): List<MessageRecord> {
-        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.asc&limit=100"
+        require(conversationId.isNotBlank()) { "Select a valid conversation." }
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.desc,id.desc&limit=100"
         val rows = JSONArray(runRequest { request("GET", query) })
-        return (0 until rows.length()).map { index ->
-            val row = rows.getJSONObject(index)
-            MessageRecord(row.getString("id"), row.getString("conversation_id"), row.getString("sender_id"), row.optString("body"), row.getString("created_at"), row.optString("attachment_path").takeIf { it.isNotBlank() && it != "null" }, row.optString("attachment_mime_type").takeIf { it.isNotBlank() && it != "null" }, row.optString("attachment_name").takeIf { it.isNotBlank() && it != "null" })
+        return (0 until rows.length()).map { messageFromRow(rows.getJSONObject(it)) }.asReversed()
+    }
+
+    /** Fetches one older page using a stable (created_at, id) cursor. */
+    suspend fun loadOlderMessages(conversationId: String, before: MessageRecord, pageSize: Int = 50): List<MessageRecord> {
+        require(conversationId.isNotBlank()) { "Select a valid conversation." }
+        require(pageSize in 1..100) { "Page size must be between 1 and 100." }
+        val cursor = "(created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id}))"
+        val query = "messages?conversation_id=eq.${enc(conversationId)}&deleted_at=is.null&or=${enc(cursor)}&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name&order=created_at.desc,id.desc&limit=$pageSize"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { messageFromRow(rows.getJSONObject(it)) }.asReversed()
+    }
+
+    /** Soft-delete only the authenticated sender's own live message. */
+    suspend fun softDeleteMessage(message: MessageRecord) {
+        val uid = userId()
+        require(message.senderId == uid) { "You can only delete messages you sent." }
+        val payload = JSONObject().put("deleted_at", java.time.Instant.now().toString())
+        val query = "messages?id=eq.${enc(message.id)}&sender_id=eq.${enc(uid)}&deleted_at=is.null"
+        // The SELECT policy hides rows immediately after deleted_at is set, so
+        // requesting a representation can return an empty array even on success.
+        // Let PostgREST report authorization/trigger errors and use minimal return.
+        runRequest {
+            request("PATCH", query, payload, "return=minimal")
         }
     }
 
