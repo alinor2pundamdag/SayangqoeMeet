@@ -13,7 +13,7 @@ using (
   bucket_id='chat-attachments'
   and exists (
     select 1 from public.conversation_members cm
-    where cm.conversation_id::text = (storage.foldername(name))[1]
+    where lower(cm.conversation_id::text) = lower((storage.foldername(name))[1])
     and cm.user_id=(select auth.uid())
   )
 );
@@ -25,7 +25,7 @@ with check (
   and (storage.foldername(name))[2]=(select auth.uid())::text
   and exists (
     select 1 from public.conversation_members cm
-    where cm.conversation_id::text = (storage.foldername(name))[1]
+    where lower(cm.conversation_id::text) = lower((storage.foldername(name))[1])
     and cm.user_id=(select auth.uid())
   )
 );
@@ -37,7 +37,7 @@ using (
   and (storage.foldername(name))[2]=(select auth.uid())::text
   and exists (
     select 1 from public.conversation_members cm
-    where cm.conversation_id::text = (storage.foldername(name))[1]
+    where lower(cm.conversation_id::text) = lower((storage.foldername(name))[1])
     and cm.user_id=(select auth.uid())
   )
 );
