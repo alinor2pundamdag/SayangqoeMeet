@@ -1335,13 +1335,18 @@ private fun AdminConsoleScreen(onBack: () -> Unit) {
         }
 
         if (status.isNotBlank()) {
+            val checking = status.startsWith("Checking")
             val notProvisioned = status.contains("403") || status.contains("not provisioned", ignoreCase = true)
             EmptyState(
-                if (notProvisioned) "ADMIN ACCESS NOT PROVISIONED" else "ADMIN SERVICE UNAVAILABLE",
-                if (notProvisioned) {
-                    "The backend denied admin access for this account. The project owner must explicitly provision the correct Supabase Auth user in admin_memberships. A password typed into the app cannot grant admin privileges.\n\n$status"
-                } else {
-                    "No live admin data is shown because server verification or the audit write failed. Retry after checking the backend.\n\n$status"
+                when {
+                    checking -> "CHECKING ADMIN ACCESS"
+                    notProvisioned -> "ADMIN ACCESS NOT PROVISIONED"
+                    else -> "ADMIN SERVICE UNAVAILABLE"
+                },
+                when {
+                    checking -> "Waiting for the authenticated backend to verify this account. No admin data is shown until the server confirms access."
+                    notProvisioned -> "The backend denied admin access for this account. The project owner must explicitly provision the correct Supabase Auth user in admin_memberships. A password typed into the app cannot grant admin privileges.\n\n$status"
+                    else -> "No live admin data is shown because server verification or the audit write failed. Retry after checking the backend.\n\n$status"
                 }
             )
         }
