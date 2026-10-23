@@ -81,16 +81,14 @@ jobs:
             fi
             echo "Cleanup dry-run succeeded; no media was deleted:"
             jq '{dry_run, queue_rows, claimed, purged, failed}' "$response_file"
-            exit 0
+          else
+            if ! jq -e 'type == "object" and (.claimed | type == "number") and (.purged | type == "number") and (.failed | type == "number") and .failed == 0' "$response_file" >/dev/null; then
+              echo "Cleanup endpoint returned HTTP 200 but the response was invalid or one or more cleanup jobs failed."
+              exit 1
+            fi
+            echo "Cleanup worker succeeded:"
+            jq '{claimed, purged, failed}' "$response_file"
           fi
-
-          if ! jq -e 'type == "object" and (.claimed | type == "number") and (.purged | type == "number") and (.failed | type == "number") and .failed == 0' "$response_file" >/dev/null; then
-            echo "Cleanup endpoint returned HTTP 200 but the response was invalid or one or more cleanup jobs failed."
-            exit 1
-          fi
-
-          echo "Cleanup worker succeeded:"
-          jq '{claimed, purged, failed}' "$response_file"
 
           call_response_file="$(mktemp)"
           trap 'rm -f "$response_file" "$call_response_file"' EXIT
