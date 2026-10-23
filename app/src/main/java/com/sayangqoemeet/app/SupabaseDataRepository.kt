@@ -458,9 +458,9 @@ internal object SupabaseDataRepository {
         if (clientRequestId != null) payload.put("client_request_id", clientRequestId)
 
         val path = if (clientRequestId == null) {
-            "messages?select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+            "messages?select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at"
         } else {
-            "messages?on_conflict=sender_id,client_request_id&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name"
+            "messages?on_conflict=sender_id,client_request_id&select=id,conversation_id,sender_id,body,created_at,attachment_path,attachment_mime_type,attachment_name,attachment_purged_at"
         }
         val prefer = if (clientRequestId == null) {
             "return=representation"
