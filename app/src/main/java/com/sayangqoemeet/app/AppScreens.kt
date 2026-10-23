@@ -845,15 +845,14 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 val affected = if (change.eventType == "DELETE") change.oldRecord else change.record
                 val affectedId = affected.optString("id").takeIf { it.isNotBlank() && it != "null" }
                 val deletedAt = affected.optString("deleted_at")
-                val isDeletion = change.eventType == "DELETE" ||
-                    (change.eventType == "UPDATE" && deletedAt.isNotBlank() && deletedAt != "null")
-                if (isDeletion && affectedId != null) {
+                val isDeletion = isMessageDeletionEvent(change.eventType, affectedId, deletedAt)
+                if (isDeletion) {
                     messages = reconcileRealtimeMessages(
                         existing = messages,
                         fresh = emptyList(),
                         eventType = change.eventType,
-                        record = change.record,
-                        oldRecord = change.oldRecord
+                        affectedId = affectedId,
+                        deletedAt = deletedAt
                     )
                 } else {
                     runCatching { SupabaseDataRepository.loadMessages(conversationId) }.onSuccess { fresh ->
@@ -861,8 +860,8 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                             existing = messages,
                             fresh = fresh,
                             eventType = change.eventType,
-                            record = change.record,
-                            oldRecord = change.oldRecord
+                            affectedId = affectedId,
+                            deletedAt = deletedAt
                         )
                         if (messages.isNotEmpty()) status = ""
                     }.onFailure { error ->
