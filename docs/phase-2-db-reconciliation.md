@@ -3,7 +3,7 @@
 Date: 2026-10-23
 Supabase project: `phjwzrrsaemgcedwpyyp`
 Target branch: `main` (Phase 1 PR #11 has been merged)
-Working branch: `fix/phase-2-main-rebased` (PR #16)
+Merged implementation: PR #16; current `main` also includes the full-history secret-scan correction from PR #23
 
 ## A34–A42 — Migration ledger reconciliation
 
@@ -90,18 +90,16 @@ Adds authenticated-only `register_device_token(text,text)`. It derives the owner
 
 ## Completion status
 
-- Migration ledger reconciled in the branch to the 25 live version IDs: **prepared; CI replay pending**.
-- Live database security/performance catalog review: **read-only verification completed**; no production DDL was executed in this PR.
-- Security/Performance Advisor re-run: **done**; three authenticated SECURITY DEFINER warnings are documented for review, and ten unused-index notices are retained without index deletion.
-- Fresh-database migration replay: **pending final CI** after removal of unledgered duplicate migrations and restoration of the hosted avatar/Realtime schema into the exact-version reconstruction.
-- `supabase db lint --local --fail-on error`: **pending final CI** for the normalized migration chain.
-- Authenticated two-user message RLS isolation test: **pending final CI** for the normalized migration chain; it uses the actual `authenticated` role and distinct JWT subject identities for users A and B.
-- FCM account-switch regression: **added**; the test reuses one installation token as two authenticated users and asserts the token is assigned only to the second user. It also verifies anonymous EXECUTE is denied.
-- Fresh-schema regression assertions now verify the profile-avatar bucket is public, chat attachments remain private, messages/calls/presence/pinned messages are all in the Realtime publication, and all three chat-attachment policies guard UUID casts.
-- Push delivery regression: FCM payloads now include `recipient_id`; Android drops payloads that do not explicitly target the active user. Message push payloads are data-only so Android can validate identity before showing a notification.
-- TURN credential requests now include `call_id`; the Edge Function verifies the authenticated user is a participant in that active call before asking Cloudflare to mint temporary ICE credentials. Legacy clients without `call_id` are temporarily supported only when RLS exposes an active call for that user.
-- Message-push authorization now rejects soft-deleted messages and callers who are no longer members of the conversation. Android app backup is disabled to avoid restoring authentication/session state onto another device.
-- Live pinned-message grants verified: authenticated SELECT/INSERT/DELETE allowed, UPDATE denied, anon SELECT denied.
-- Live SECURITY DEFINER RPC review confirmed caller-scoped bodies, no anon EXECUTE, and `search_path = public, pg_temp` for both authenticated RPCs.
-- Supabase Free-tier leaked-password protection limitation: **documented, non-blocking**.
-- This work is submitted as an open PR; no merge performed.
+- **Migration ledger:** complete — the 25 repository migration files match the 25 live Supabase migration versions exactly; no missing or extra executable migration versions.
+- **Fresh-database replay:** passed on main commit `60a734072bf7aa852f26d65d770a1ee385329260` in [Phase 2 validation run #39927349041](https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/39927349041). This replays the full chain into a disposable local database; it does not write to production.
+- **Database lint and isolation:** `supabase db lint --local --fail-on error`, the two-user RLS regression suite, and Deno type-check of Edge Functions passed in the same run.
+- **Live catalog:** all 12 inspected public application tables have RLS and policies; all 23 inspected foreign keys have child-side indexes. The two media bookkeeping tables remain service-role-only. `chat-attachments` remains private; `profile-avatars` remains public as intended.
+- **RPCs and triggers:** three authenticated-callable SECURITY DEFINER functions were reviewed. Their search paths are pinned; `anon` cannot execute them; caller identity is derived from `auth.uid()`. The live call/message guard triggers are installed. The advisor warnings remain documented because authenticated execution is intentional for these three RPCs.
+- **Index warnings:** ten unused-index notices remain. No indexes were dropped: zero scans over a short observation window do not establish that an index is unnecessary. All foreign-key indexes were verified present.
+- **Edge Function parity:** all eight active deployed functions were compared byte-for-byte with the corresponding `main` source and matched: `create-conversation`, `send-message-push`, `respond-conversation-invite`, `open-private-conversation`, `notify-incoming-call`, `get-turn-credentials`, `confirm-message-media-download`, and `cleanup-chat-media`. Seven require JWT verification; the cleanup worker deliberately uses a custom secret header.
+- **Secret scan:** PR #23 corrected the old workflow, which had scanned only the latest commit despite its full-history label. The replacement scans all reachable Git history and current files. It passed on merge commit `2dd4dccbe168d7b8bc2a2d05d41d72c0c18c1415`, covering 537 commits. A narrowly scoped `.gitleaksignore` entry suppresses the known Firebase Android client API key at `app/google-services.json:18`; it is not a service credential. Google Cloud API restrictions still need owner verification.
+- **Production safety:** no production schema/data changes were performed during this reconciliation. No migration was blindly pushed and no indexes or policies were removed.
+- **Remaining release gates:** real-device two-account tests for email verification/session restore, invitation and message delivery, attachment access, FCM delivery while foreground/background, voice/video call negotiation and teardown; verify Firebase API-key restrictions; verify the presence and equality of `FIREBASE_SERVICE_ACCOUNT_JSON`, `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN`, and `MEDIA_CLEANUP_CRON_SECRET` without printing values; investigate the previously failed scheduled cleanup run before manually dispatching it.
+- **Explicitly out of scope:** leaked-password protection was not changed.
+
+**Status:** Phase 2 repository/database migration parity and CI validation are complete. Production release certification remains pending the external secret/configuration checks and real-device end-to-end tests above.
