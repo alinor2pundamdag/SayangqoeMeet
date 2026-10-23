@@ -1028,4 +1028,103 @@ BEGIN
 END $$;
 RESET ROLE;
 
+
+-- Exercise the exact stale-call worker SELECT/UPDATE path in the disposable
+-- database. This fixture is old enough to be eligible, and the transaction
+-- rollback below ensures no test data persists.
+INSERT INTO public.call_sessions (id, caller_id, callee_id, call_type, status, created_at)
+VALUES (
+  '77777777-7777-4777-8777-777777777778',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'voice', 'ringing', now() - interval '2 minutes'
+);
+
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+DO $stale_call_worker_execution$
+DECLARE changed_id uuid;
+BEGIN
+  UPDATE public.call_sessions
+  SET status = 'missed', ended_at = now()
+  WHERE id = '77777777-7777-4777-8777-777777777778'
+    AND status = 'ringing'
+    AND created_at < now() - interval '60 seconds'
+  RETURNING id INTO changed_id;
+  IF NOT FOUND OR changed_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777778'::uuid THEN
+    RAISE EXCEPTION 'Stale-call worker could not close an eligible ringing call';
+  END IF;
+END $stale_call_worker_execution$;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+
+DO $stale_call_worker_result$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.call_sessions
+    WHERE id = '77777777-7777-4777-8777-777777777778'
+      AND status = 'missed' AND ended_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Stale-call worker did not persist the missed-call state';
+  END IF;
+END $stale_call_worker_result$;
+
+-- Server-side Edge Functions use a service_role client for validated cross-user
+-- workflows. Assert required privileges exist and anonymous access stays denied;
+-- do not revoke existing grants or change client/RLS policies.
+DO $edge_function_minimal_grants$
+BEGIN
+  IF NOT has_column_privilege('service_role', 'public.profiles', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.profiles', 'username', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.profiles', 'display_name', 'SELECT') THEN
+    RAISE EXCEPTION 'Server profile lookup/display column grants are missing';
+  END IF;
+  IF NOT has_column_privilege('service_role', 'public.conversation_invites', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.conversation_invites', 'recipient_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.conversation_invites', 'status', 'UPDATE')
+     OR NOT has_column_privilege('service_role', 'public.conversation_invites', 'responded_at', 'UPDATE')
+     OR NOT has_column_privilege('service_role', 'public.conversation_invites', 'status', 'INSERT') THEN
+    RAISE EXCEPTION 'Conversation invitation Edge Function grants are missing';
+  END IF;
+
+  IF NOT has_column_privilege('service_role', 'public.conversations', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.conversations', 'created_by', 'INSERT')
+     OR NOT has_table_privilege('service_role', 'public.conversations', 'DELETE')
+     OR NOT has_column_privilege('service_role', 'public.conversation_members', 'conversation_id', 'INSERT')
+     OR NOT has_column_privilege('service_role', 'public.conversation_members', 'user_id', 'INSERT')
+     OR NOT has_column_privilege('service_role', 'public.conversation_members', 'user_id', 'SELECT') THEN
+    RAISE EXCEPTION 'Private conversation Edge Function grants are missing';
+  END IF;
+
+  IF NOT has_column_privilege('service_role', 'public.messages', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'conversation_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'sender_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'deleted_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'attachment_path', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.messages', 'attachment_purged_at', 'SELECT') THEN
+    RAISE EXCEPTION 'Message push/media Edge Function grants are missing';
+  END IF;
+
+  IF NOT has_column_privilege('service_role', 'public.device_tokens', 'token', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.device_tokens', 'user_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.user_presence', 'user_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.user_presence', 'last_seen_at', 'SELECT') THEN
+    RAISE EXCEPTION 'Push notification/admin overview grants are missing';
+  END IF;
+
+  IF NOT has_column_privilege('service_role', 'public.call_sessions', 'id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'caller_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'callee_id', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'call_type', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'created_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'status', 'UPDATE')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Call notification/TURN/stale-call worker grants are missing';
+  END IF;
+  IF has_column_privilege('anon', 'public.call_sessions', 'ended_at', 'UPDATE') THEN
+    RAISE EXCEPTION 'Anonymous clients must not update call session state';
+  END IF;
+END $edge_function_minimal_grants$;
+
 ROLLBACK;
