@@ -300,7 +300,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
-END $;
+END $$;
 RESET ROLE;
 
 -- Call lifecycle regression fixtures and participant transition tests.
