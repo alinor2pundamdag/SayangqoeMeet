@@ -762,8 +762,17 @@ internal object SupabaseDataRepository {
         }
     }
 
-    fun subscribeToMessages(conversationId: String, onChange: () -> Unit): SupabaseRealtime.Subscription? =
-        SupabaseRealtime.subscribe("messages", "conversation_id=eq.$conversationId", { onChange() })
+    fun subscribeToMessages(
+        conversationId: String,
+        onChange: (RealtimeChange) -> Unit,
+        onFailure: (String) -> Unit = {}
+    ): SupabaseRealtime.Subscription? =
+        SupabaseRealtime.subscribeChanges(
+            "messages",
+            "conversation_id=eq.$conversationId",
+            onChange,
+            onFailure
+        )
 
     private fun enc(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
 }

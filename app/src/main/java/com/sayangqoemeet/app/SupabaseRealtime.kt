@@ -21,6 +21,12 @@ import java.util.concurrent.atomic.AtomicReference
  * reconnects with bounded exponential backoff; close() permanently disables
  * reconnects so disposed screens cannot leak sockets.
  */
+internal data class RealtimeChange(
+    val eventType: String,
+    val record: JSONObject,
+    val oldRecord: JSONObject
+)
+
 internal object SupabaseRealtime {
     private const val TAG = "SupabaseRealtime"
     private val client = OkHttpClient.Builder()
@@ -37,12 +43,22 @@ internal object SupabaseRealtime {
         filter: String,
         onRecord: (JSONObject) -> Unit,
         onFailure: (String) -> Unit = {}
+    ): Subscription? = subscribeChanges(table, filter, { change ->
+        val row = if (change.eventType == "DELETE") change.oldRecord else change.record
+        onRecord(row)
+    }, onFailure)
+
+    fun subscribeChanges(
+        table: String,
+        filter: String,
+        onChange: (RealtimeChange) -> Unit,
+        onFailure: (String) -> Unit = {}
     ): Subscription? {
         if (SupabaseAuthRepository.currentAccessToken().isNullOrBlank()) {
             onFailure("Sign in to receive live updates.")
             return null
         }
-        val subscription = ReconnectingSubscription(table, filter, onRecord, onFailure)
+        val subscription = ReconnectingSubscription(table, filter, onChange, onFailure)
         subscription.connect()
         return Subscription { subscription.close() }
     }
@@ -50,7 +66,7 @@ internal object SupabaseRealtime {
     private class ReconnectingSubscription(
         private val table: String,
         private val filter: String,
-        private val onRecord: (JSONObject) -> Unit,
+        private val onChange: (RealtimeChange) -> Unit,
         private val onFailure: (String) -> Unit
     ) {
         private val stopped = AtomicBoolean(false)
@@ -115,11 +131,22 @@ internal object SupabaseRealtime {
                             scheduleReconnect()
                             return
                         }
+                        if (event == "phx_reply") {
+                            val payload = envelope.optJSONObject("payload") ?: return
+                            if (payload.optString("status") == "error") {
+                                onFailure("Realtime subscription was rejected; retrying.")
+                                scheduleReconnect()
+                            }
+                            return
+                        }
                         if (event != "postgres_changes") return
                         val payload = envelope.optJSONObject("payload") ?: return
                         val data = payload.optJSONObject("data") ?: payload
-                        val record = data.optJSONObject("record") ?: return
-                        onRecord(record)
+                        val type = data.optString("type").uppercase()
+                        if (type !in setOf("INSERT", "UPDATE", "DELETE")) return
+                        val record = data.optJSONObject("record") ?: JSONObject()
+                        val oldRecord = data.optJSONObject("old_record") ?: JSONObject()
+                        onChange(RealtimeChange(type, record, oldRecord))
                     } catch (error: Exception) {
                         Log.w(TAG, "Ignoring malformed Realtime event", error)
                     }
