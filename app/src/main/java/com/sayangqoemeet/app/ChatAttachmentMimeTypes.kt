@@ -26,5 +26,5 @@ internal fun supportedChatAttachmentMimeType(rawMimeType: String?): String? {
         ?.lowercase()
         ?.takeIf { it.isNotEmpty() }
         ?: return null
-    return normalized.takeIf { it in SupportedChatAttachmentMimeTypes }
+    return normalized.takeIf { it in supportedChatAttachmentMimeTypes }
 }
