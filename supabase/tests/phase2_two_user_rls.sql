@@ -1111,6 +1111,64 @@ BEGIN
 END $reaction_non_member_negative$;
 RESET ROLE;
 
+-- Presence/last-active visibility is limited to the signed-in user and
+-- registered users who share a conversation with them.
+INSERT INTO public.conversations (id, created_by, is_group, title)
+VALUES ('88888888-8888-4888-8888-888888888888',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true, 'Presence isolation fixture')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.conversation_members (conversation_id, user_id)
+VALUES ('88888888-8888-4888-8888-888888888888', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+       ('88888888-8888-4888-8888-888888888888', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+ON CONFLICT DO NOTHING;
+INSERT INTO public.user_presence (user_id, last_seen_at)
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', now()),
+       ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', now()),
+       ('77777777-7777-4777-8777-777777777777', now())
+ON CONFLICT (user_id) DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at;
+
+DO $presence_policy_shape$
+BEGIN
+  IF has_function_privilege('anon', 'public.is_conversation_contact(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.is_conversation_contact(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Presence membership predicate grants are incorrect';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname='public' AND p.proname='is_conversation_contact'
+      AND p.prosecdef AND p.proconfig @> ARRAY['search_path=public, pg_temp']
+  ) THEN
+    RAISE EXCEPTION 'Presence membership predicate must be SECURITY DEFINER with hardened search_path';
+  END IF;
+END $presence_policy_shape$;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $presence_member_positive$
+DECLARE shared_count integer; unrelated_count integer;
+BEGIN
+  SELECT count(*) INTO shared_count FROM public.user_presence
+  WHERE user_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  SELECT count(*) INTO unrelated_count FROM public.user_presence
+  WHERE user_id='77777777-7777-4777-8777-777777777777';
+  IF shared_count <> 1 OR unrelated_count <> 0 THEN
+    RAISE EXCEPTION 'Presence must be visible to conversation contacts but hidden from unrelated users';
+  END IF;
+END $presence_member_positive$;
+SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
+DO $presence_non_member_negative$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count FROM public.user_presence
+  WHERE user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'Unrelated user could inspect another account last-active status';
+  END IF;
+END $presence_non_member_negative$;
+RESET ROLE;
+
 -- Actual Storage RLS behavior: only a live message attachment in a member's
 -- conversation is readable. A known object path is not sufficient by itself.
 RESET ROLE;
