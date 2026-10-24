@@ -228,6 +228,7 @@ class MainActivity : ComponentActivity() {
         ) {
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(16, 9))
+                .setActions(CallPipController.createActions(this))
                 .build()
 
             enterPictureInPictureMode(params)
