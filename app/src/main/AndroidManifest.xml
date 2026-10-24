@@ -74,6 +74,11 @@
             android:name=".ChatBubbleActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".CameraCaptureActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
