@@ -23,7 +23,10 @@ class FloatingChatBubbleService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) { stopSelf(); return }
         manager = getSystemService(WINDOW_SERVICE) as WindowManager
         val view = TextView(this).apply {
-            text = "S"; textSize = 21f; setTextColor(Color.rgb(7,11,24)); typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+            val prefs = getSharedPreferences("sayangqoemeet_local_settings", MODE_PRIVATE)
+            val contactName = prefs.getString("floating_chat_contact_name", "SayangqoeMeet").orEmpty()
+            text = contactName.trim().firstOrNull()?.uppercase() ?: "S"
+            textSize = 21f; setTextColor(Color.rgb(7,11,24)); typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.rgb(85,244,255)); setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE) }
             contentDescription = "Open SayangqoeMeet chats"
         }
@@ -58,7 +61,14 @@ class FloatingChatBubbleService : Service() {
                 if (dismissing && (kotlin.math.abs(event.rawX - startX) >= 8 || kotlin.math.abs(event.rawY - startY) >= 8)) {
                     stopSelf()
                 } else if (kotlin.math.abs(event.rawX-startX)<8 && kotlin.math.abs(event.rawY-startY)<8) {
-                    packageManager.getLaunchIntentForPackage(packageName)?.let { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); it.putExtra("open_chats",true); startActivity(it) }
+                    packageManager.getLaunchIntentForPackage(packageName)?.let {
+                    it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    val conversationId = getSharedPreferences("sayangqoemeet_local_settings", MODE_PRIVATE)
+                        .getString("floating_chat_conversation_id", null)
+                    if (!conversationId.isNullOrBlank()) it.putExtra("open_conversation_id", conversationId)
+                    else it.putExtra("open_chats", true)
+                    startActivity(it)
+                }
                 }
                 true
             }
