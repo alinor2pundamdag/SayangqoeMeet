@@ -259,6 +259,28 @@ internal object SupabaseDataRepository {
         }
     }
 
+    suspend fun loadLastSeenAt(targetUserId: String): String? {
+        require(targetUserId.isNotBlank()) { "A contact is required." }
+        val query = "user_presence?select=last_seen_at&user_id=eq.${enc(targetUserId)}&limit=1"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return rows.optJSONObject(0)?.optString("last_seen_at")
+            ?.takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    fun subscribeToUserPresence(
+        targetUserId: String,
+        onChange: () -> Unit,
+        onFailure: (String) -> Unit = {}
+    ): SupabaseRealtime.Subscription? {
+        require(targetUserId.isNotBlank()) { "A contact is required." }
+        return SupabaseRealtime.subscribeChanges(
+            "user_presence",
+            "user_id=eq.$targetUserId",
+            { onChange() },
+            onFailure
+        )
+    }
+
     private suspend fun loadOnlineUserIds(): Set<String> {
         val cutoff = java.time.Instant.now().minusSeconds(90).toString()
         val query = "user_presence?select=user_id&last_seen_at=gte.${enc(cutoff)}"
@@ -273,6 +295,9 @@ internal object SupabaseDataRepository {
         // Distinguish a confirmed offline result from a failed presence request.
         // A transport/RLS error must never be rendered as a definitive offline state.
         val onlineIds = runCatching { loadOnlineUserIds() }.getOrNull()
+        val knownContactIds = runCatching {
+            loadConversations().mapNotNull { it.otherUserId }.toSet()
+        }.getOrNull()
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             val userId = row.getString("id")
@@ -281,7 +306,8 @@ internal object SupabaseDataRepository {
                 username = row.optString("username").takeIf { it.isNotBlank() },
                 displayName = row.optString("display_name"),
                 createdAt = row.optString("created_at"),
-                isOnline = onlineIds?.let { userId in it },
+                isOnline = if (knownContactIds == null || userId !in knownContactIds) null
+                    else onlineIds?.let { userId in it },
                 avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() }
             )
         }
