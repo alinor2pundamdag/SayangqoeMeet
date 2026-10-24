@@ -90,3 +90,856 @@ Ang repository ay may umiiral nang `masterplan.md`, na siyang requirements sourc
 Isang mahalagang limitasyon: hindi natin makukuha ang literal na buong Messenger source code o garantisadong eksaktong internal algorithm ng Meta mula sa public research. Ang target ay isang maayos na engineered implementation ng mga behavior na gusto mo, gamit ang available na evidence at Android-supported mechanisms.
 
 Ikaw naman: ilista mo lang ang mga Messenger feature na hindi mo gustong isama. Hindi mo kailangang ilista ang lahat ng gusto mo—gagamitin ko ang public feature inventory para tukuyin ang mga posibleng kasama, saka natin ihihiwalay ang excluded features bago gumawa ng final implementation checklist.
+
+
+================================================================================
+ADDENDUM A — NATIVE ANDROID NOTIFICATION BUBBLES (MESSENGER-LIKE CONVERSATION BUBBLES)
+Purpose: complete technical reference + repository comparison only.
+Status: DOCUMENTATION ONLY. No project source code or policies are changed by this addendum.
+Target repository: alinor2pundamdag/SayangqoeMeet
+Comparison branch: docs/messenger-settings-new-chat-audit
+Comparison date: 2026-10-24
+================================================================================
+
+A1. SCOPE AND EXPECTED BEHAVIOR
+
+The goal is Android's native conversation notification bubble, not merely a custom
+floating overlay. Android owns the bubble window, collapsed icon, expansion/collapse,
+notification integration, and user-level bubble preferences. SayangqoeMeet owns the
+conversation UI and the authorized message flow inside the expanded bubble.
+
+Important platform limits:
+- The user, Android version, device manufacturer, notification settings, channel
+  settings, and battery/background restrictions can prevent or suppress bubbles.
+- The app must always provide a useful normal-notification fallback.
+- Do not promise that bubbles will appear on every device or when the user disables them.
+- Android 11+ (API 30+) conversation bubbles need a valid long-lived conversation
+  shortcut associated with the MessagingStyle notification.
+- The expanded activity must be resizeable and embedded. For multiple conversations,
+  each conversation needs a distinct stable shortcut/notification identity and the
+  activity must support multiple instances.
+- Do not launch unrelated full-screen activities from the bubble task without deliberate
+  navigation design. Starting activities with NEW_TASK can collapse the bubble.
+- Native bubbles do not require SYSTEM_ALERT_WINDOW. That permission is for the separate
+  custom overlay service and should not be requested just to use native bubbles.
+
+Official technical references:
+1. Android notification bubbles:
+   https://developer.android.com/develop/ui/compose/notifications/bubbles
+2. Android people and conversation notifications:
+   https://developer.android.com/develop/ui/views/notifications/conversations
+3. Android People sample:
+   https://github.com/android/user-interface-samples/tree/main/People
+4. Notification.MessagingStyle API:
+   https://developer.android.com/reference/android/app/Notification.MessagingStyle
+5. Firebase Cloud Messaging Android message priority:
+   https://firebase.google.com/docs/cloud-messaging/android-message-priority
+6. Supabase RLS:
+   https://supabase.com/docs/guides/database/postgres/row-level-security
+7. Supabase Storage access control:
+   https://supabase.com/docs/guides/storage/security/access-control
+
+This is an implementation reference based on public Android APIs. It is not Meta's
+private Messenger source code and does not claim to reproduce proprietary internals.
+
+A2. END-TO-END ARCHITECTURE / DATA FLOW
+
+A. Sender frontend:
+   ConversationScreen -> SupabaseDataRepository sends the message with authenticated
+   Supabase access token -> PostgreSQL validates grants/RLS/constraints -> committed
+   message row is authoritative.
+
+B. Push trigger:
+   Client or trusted server invokes send-message-push with conversation_id + message_id.
+   The Edge Function validates the JWT with auth.getUser(), verifies the message belongs
+   to the authenticated sender and conversation, verifies membership, loads recipient
+   device_tokens, then sends a DATA-ONLY FCM payload. The payload should not contain
+   private message text by default.
+
+C. Recipient frontend / Android system:
+   FirebaseMessagingService receives data -> restores local auth session -> checks
+   recipient_id matches current Supabase user -> validates identifiers -> resolves the
+   conversation's participant and latest message from the authorized backend if needed
+   -> publishes/refreshes the long-lived conversation shortcut -> builds MessagingStyle
+   notification with shortcutId + BubbleMetadata -> NotificationManager posts it.
+
+D. User opens the bubble:
+   Android opens ChatBubbleActivity inside a system-managed bubble window -> activity
+   obtains conversation_id from its intent -> authenticated ConversationScreen loads
+   messages through SupabaseDataRepository/Realtime -> PostgreSQL RLS ensures the signed
+   in user is still a conversation member -> UI displays authorized messages and errors.
+
+E. User replies:
+   Bubble ConversationScreen -> same repository send-message method and idempotency key
+   -> RLS/constraints -> persisted message -> push to other members. Never let a bubble
+   activity bypass the same send/authorization path used by the normal app.
+
+F. Read/unread:
+   The app must define a server-backed read receipt or last-read cursor before treating a
+   bubble as read. Merely opening a notification should not silently mark server messages
+   read unless that is the explicit product rule. Notification badge suppression and
+   database read state are separate concerns.
+
+A3. PERMISSIONS, MANIFEST AND USER CONSENT
+
+Native bubble:
+- No special overlay permission is needed.
+- Declare POST_NOTIFICATIONS in the manifest and request runtime permission on Android
+  13+ (API 33+) before expecting normal visible notifications.
+- Create a notification channel on Android 8+ (API 26+). User/system channel settings
+  control behavior after channel creation.
+- On Android 11+ use a long-lived dynamic or cached sharing shortcut and associate the
+  notification using setShortcutId() or setShortcutInfo().
+- The user can block all bubbles or choose only selected conversations. Respect that.
+- Keep notifications useful when bubbles are unavailable/disabled.
+- Do not request contacts, accessibility, display-over-other-apps, or broad storage
+  permissions for native bubbles unless a separate approved feature truly needs them.
+
+Separate custom overlay:
+- SYSTEM_ALERT_WINDOW and Settings.canDrawOverlays are only for FloatingChatBubbleService.
+  Keep it clearly labeled as a custom overlay, optional, and separately consented.
+  Do not describe this overlay as Android's native conversation bubble.
+
+Example manifest reference for the native bubble activity (adapt package/activity/theme
+to the actual project; this is a proposal, not an applied change):
+
+~~~xml
+<activity
+    android:name=".ChatBubbleActivity"
+    android:exported="false"
+    android:label="@string/app_name"
+    android:theme="@style/Theme.SayangqoeMeet"
+    android:allowEmbedded="true"
+    android:resizeableActivity="true"
+    android:documentLaunchMode="always" />
+~~~
+
+Notes:
+- documentLaunchMode="always" is required for bubble compatibility on Android 10 and
+  lower; Android 11+ manages conversation document behavior automatically. Validate
+  this against the app's minSdk/targetSdk and launch design before applying.
+- Existing ChatBubbleActivity currently extends ComponentActivity, so verify Compose,
+  window sizing, BackHandler, and multiple instances on device.
+- If the app needs to receive a shortcut launch from the system, the shortcut Intent
+  must contain the intended conversation ID and must be safe to recreate after process
+  death. Never rely only on in-memory UI state.
+
+A4. FILE-BY-FILE REFERENCE IMPLEMENTATION
+
+The snippets below are a reference design to review with another AI. They are not
+verified drop-in replacements. Merge them only after comparing actual imports, dependency
+versions, SDK levels, existing notification/call behavior, tests, and user-approved scope.
+The current repository has existing implementations; do not blindly replace them.
+
+------------------------------------------------------------------------------
+FILE 1: app/src/main/AndroidManifest.xml
+Purpose: declare a resizable, embedded bubble activity; notification permission.
+------------------------------------------------------------------------------
+
+Required manifest elements to verify/add only if absent:
+
+~~~xml
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+<application
+    ...>
+
+    <activity
+        android:name=".ChatBubbleActivity"
+        android:exported="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.SayangqoeMeet"
+        android:allowEmbedded="true"
+        android:resizeableActivity="true"
+        android:documentLaunchMode="always" />
+
+</application>
+~~~
+
+Audit checks:
+- POST_NOTIFICATIONS already exists in the inspected repository manifest.
+- ChatBubbleActivity already exists, but the inspected declaration does not specify
+  allowEmbedded or resizeableActivity. This is a confirmed source-level gap.
+- Do not remove existing activity/service declarations or the separate overlay permission.
+- Verify manifest merging and target/min SDK behavior after any future approved change.
+
+------------------------------------------------------------------------------
+FILE 2: app/build.gradle.kts
+Purpose: AndroidX notification/shortcut compatibility APIs.
+------------------------------------------------------------------------------
+
+Check whether these dependencies already resolve transitively. If missing, add compatible
+versions aligned with the project's version catalog/BOM and existing AndroidX versions.
+Do not duplicate dependencies or upgrade unrelated libraries as part of this task.
+
+~~~kotlin
+dependencies {
+    implementation("androidx.core:core-ktx:<project-compatible-version>")
+    implementation("androidx.core:core:<project-compatible-version>")
+}
+~~~
+
+The inspected service already imports androidx.core.app.NotificationCompat,
+NotificationManagerCompat, and androidx.core.graphics.drawable.IconCompat. Therefore,
+do not assume these dependencies are missing. Check the actual Gradle dependency graph
+and version catalog before changing anything.
+
+------------------------------------------------------------------------------
+FILE 3: app/src/main/java/com/sayangqoemeet/app/ConversationBubbleShortcuts.kt
+Purpose: one stable long-lived shortcut per conversation.
+------------------------------------------------------------------------------
+
+Reference Kotlin pattern; adapt the participant/profile model and avatar loading. Use a
+stable ID derived from the validated conversation UUID, not a timestamp or sender name.
+
+~~~kotlin
+package com.sayangqoemeet.app
+
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+
+internal object ConversationBubbleShortcuts {
+    fun shortcutId(conversationId: String): String =
+        "conversation-$conversationId"
+
+    fun publish(
+        context: Context,
+        conversationId: String,
+        participantName: String,
+        icon: IconCompat
+    ): String {
+        require(conversationId.matches(
+            Regex("^[0-9a-fA-F-]{36}$")
+        )) { "Invalid conversation ID" }
+
+        val id = shortcutId(conversationId)
+        val target = Intent(context, ChatBubbleActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            putExtra(ChatBubbleActivity.EXTRA_CONVERSATION_ID, conversationId)
+        }
+
+        val shortcut = ShortcutInfoCompat.Builder(context, id)
+            .setShortLabel(participantName.take(25).ifBlank { "Conversation" })
+            .setLongLabel("Chat with $participantName")
+            .setIcon(icon)
+            .setIntent(target)
+            .setLongLived(true)
+            .setPerson(
+                androidx.core.app.Person.Builder()
+                    .setName(participantName.ifBlank { "Conversation" })
+                    .setIcon(icon)
+                    .build()
+            )
+            .build()
+
+        // pushDynamicShortcut manages the dynamic shortcut limit. The AndroidX
+        // API may need a version check in the project's chosen dependency version.
+        ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
+        return id
+    }
+
+    fun removeWhenConversationIsDeleted(context: Context, conversationId: String) {
+        val id = shortcutId(conversationId)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            ShortcutManagerCompat.removeLongLivedShortcuts(context, listOf(id))
+        } else {
+            ShortcutManagerCompat.removeDynamicShortcuts(context, listOf(id))
+        }
+    }
+}
+~~~
+
+Important:
+- Verify the exact AndroidX API signatures against the version in this repository.
+- For a production implementation, publish a proper participant Person/icon and a stable
+  conversation ID. Avoid creating shortcuts only when a push arrives if that means the
+  first notification cannot be classified as a conversation.
+- Maintain shortcuts for conversations the user has used/pinned; do not indiscriminately
+  delete cached shortcuts and erase the user's system-level conversation preferences.
+- Remove shortcuts when the conversation is permanently deleted/blocked according to the
+  approved product policy, not merely because a notification was dismissed.
+- Keep the user profile and participant details sourced from authorized app data.
+
+------------------------------------------------------------------------------
+FILE 4: app/src/main/java/com/sayangqoemeet/app/SayangqoeMessagingService.kt
+Purpose: post a conversation notification with MessagingStyle + shortcut + BubbleMetadata.
+------------------------------------------------------------------------------
+
+Reference builder pattern for the existing authenticated data-only FCM handler. Integrate
+into processPushMessage after the existing session and recipient checks; do not create a
+second FirebaseMessagingService or bypass existing call-push handling.
+
+~~~kotlin
+private fun buildConversationNotification(
+    context: android.content.Context,
+    conversationId: String,
+    senderName: String,
+    messagePreview: String,
+    latestMessageTimeMillis: Long,
+    pendingIntent: android.app.PendingIntent,
+    shortcutId: String
+): androidx.core.app.NotificationCompat.Builder {
+    val me = androidx.core.app.Person.Builder()
+        .setName("You")
+        .build()
+    val sender = androidx.core.app.Person.Builder()
+        .setName(senderName.ifBlank { "New message" })
+        .build()
+
+    val style = androidx.core.app.NotificationCompat.MessagingStyle(me)
+        .addMessage(
+            messagePreview.ifBlank { "You have a new message." },
+            latestMessageTimeMillis,
+            sender
+        )
+
+    val bubble = androidx.core.app.NotificationCompat.BubbleMetadata.Builder(
+        pendingIntent,
+        androidx.core.graphics.drawable.IconCompat.createWithResource(
+            context, android.R.drawable.sym_action_chat
+        )
+    )
+        .setDesiredHeight(
+            (600 * context.resources.displayMetrics.density).toInt()
+        )
+        .setAutoExpandBubble(false)
+        .setSuppressNotification(false)
+        .build()
+
+    return androidx.core.app.NotificationCompat.Builder(
+        context, MessageNotificationChannels.CHANNEL_ID
+    )
+        .setSmallIcon(android.R.drawable.stat_notify_chat)
+        .setStyle(style)
+        .setContentTitle(senderName.ifBlank { "New message" })
+        .setContentText(messagePreview.ifBlank { "You have a new message." })
+        .setContentIntent(pendingIntent)
+        .setCategory(android.app.Notification.CATEGORY_MESSAGE)
+        .setShortcutId(shortcutId)
+        .setBubbleMetadata(bubble)
+        .setAutoCancel(false)
+        .setOnlyAlertOnce(true)
+        .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+}
+~~~
+
+Integration requirements:
+1. The conversation shortcut must be published before posting the notification.
+2. Build the notification only after the existing Supabase session restore and recipient_id
+   guard pass.
+3. Use the stable shortcutId returned by ConversationBubbleShortcuts.shortcutId().
+4. Use a PendingIntent request code derived from conversationId and an explicit intent to
+   ChatBubbleActivity carrying EXTRA_CONVERSATION_ID.
+5. Do not include private message body in FCM data by default. Fetch message details through
+   authenticated Supabase after the recipient check; if preview is shown, ensure it follows
+   the user's privacy/lock-screen preview setting.
+6. Keep message_id and conversation_id validation, but validate canonical UUIDs robustly.
+7. Use a stable notification ID per conversation, for example a deterministic positive
+   integer derived from UUID bytes/hash, and test collisions. Do not use currentTimeMillis
+   for each notification, because that creates a separate notification rather than updating
+   the conversation's existing notification.
+8. Avoid cancelling the notification while its bubble is active. Opening a bubble hides its
+   associated notification automatically; updates should refresh the same notification ID.
+9. When the user opens the conversation, suppress the bubble's unread badge/notification
+   only after reconciling actual unread/read state. Do not treat NotificationManager state
+   as the server's source of truth.
+10. Check NotificationManager.areBubblesAllowed() and channel state for diagnostics, but
+    don't attempt to override the user's settings.
+11. The exact API surface depends on the project's androidx.core version and SDK levels.
+    Check imports/build before applying. This is reference code, not a verified patch.
+
+------------------------------------------------------------------------------
+FILE 5: app/src/main/java/com/sayangqoemeet/app/ChatBubbleActivity.kt
+Purpose: secure entry point for one conversation, including process recreation.
+------------------------------------------------------------------------------
+
+Current activity passes conversationId to ConversationScreen, which is a useful base.
+The bubble activity must still handle null/malformed IDs, restored sessions, authorization
+failure, loading/error states, and multiple bubble instances. Reference lifecycle guard:
+
+~~~kotlin
+package com.sayangqoemeet.app
+
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
+
+class ChatBubbleActivity : ComponentActivity() {
+    private var conversationId: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        conversationId = savedInstanceState?.getString(EXTRA_CONVERSATION_ID)
+            ?: intent.getStringExtra(EXTRA_CONVERSATION_ID)
+        renderBubble()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID)
+        renderBubble()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(EXTRA_CONVERSATION_ID, conversationId)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun renderBubble() {
+        val id = conversationId
+        setContent {
+            MaterialTheme {
+                Surface(color = Color(0xFF070B18)) {
+                    when {
+                        id.isNullOrBlank() ||
+                            !id.matches(Regex("^[0-9a-fA-F-]{36}$")) ->
+                            Text("Conversation unavailable.")
+                        else -> ConversationBubbleGate(conversationId = id)
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        const val EXTRA_CONVERSATION_ID = "conversation_id"
+    }
+}
+~~~
+
+ConversationBubbleGate is a proposed composable to implement using existing auth/repository
+components; it is intentionally not shown as an existing repository function. Its contract:
+- Restore/check Supabase session; if signed out, show a safe sign-in-required state and route
+  to MainActivity without leaking conversation content.
+- Load the conversation and membership through the same repository/API used by normal chat.
+- On 401/403, show an access-denied state and do not render cached private messages.
+- Handle loading, retry, network loss, empty conversation, deleted conversation, and revoked
+  membership.
+- Use the existing ConversationScreen only after its lifecycle/back behavior is verified
+  for an embedded/resizable window.
+- Back should close/collapse the bubble appropriately; don't intercept Back permanently.
+- Launch call flows through an explicit, tested route. A NEW_TASK launch to MainActivity may
+  collapse the bubble; that may be intentional for calls, but document and test it.
+
+------------------------------------------------------------------------------
+FILE 6: app/src/main/java/com/sayangqoemeet/app/SupabaseDataRepository.kt
+Purpose: reuse existing authorized message/conversation APIs; no bubble-specific bypass.
+
+Reference contract (use the existing methods where possible; do not add duplicate APIs):
+
+~~~kotlin
+// The bubble must use the same authenticated repository operations as regular chat.
+// Conceptual interface; align names with the actual existing methods.
+interface ConversationBubbleDataSource {
+    suspend fun loadConversation(conversationId: String): ConversationRecord
+    suspend fun loadMessages(conversationId: String): List<MessageRecord>
+    suspend fun sendMessage(
+        conversationId: String,
+        body: String,
+        clientRequestId: String
+    ): MessageRecord
+}
+~~~
+
+Required behavior:
+- All requests use the current Supabase access token and public/publishable key.
+- Never embed SUPABASE_SERVICE_ROLE_KEY, Firebase private key, or other server secrets in
+  Android source/build config.
+- Do not trust a conversation ID just because it came from a notification or shortcut.
+- Keep database RLS as the final authorization boundary.
+- Preserve the current message idempotency key/client request ID flow to avoid duplicates
+  after retry or process death.
+- For attachments, use existing signed-URL/media authorization paths and enforce membership
+  server-side; never make private chat storage public merely to render a bubble.
+- Bubble UI and normal chat UI must share validation, error mapping, and repository behavior.
+
+------------------------------------------------------------------------------
+FILE 7: supabase/functions/send-message-push/index.ts
+Purpose: authorize the push request and send a minimal data-only payload.
+
+The inspected function already:
+- Requires a Bearer token and validates it using userClient.auth.getUser().
+- Validates conversation_id/message_id as UUIDs.
+- Verifies that the message belongs to the authenticated sender and requested conversation,
+  and is not deleted.
+- Verifies sender membership and resolves recipients from conversation_members.
+- Reads recipient device_tokens and sends FCM data-only messages with HIGH priority.
+- Avoids sending the message body in FCM data by default.
+
+Important additions to consider in a future approved implementation:
+- Per-user/per-device rate limiting for abusive push-trigger requests.
+- Idempotency or a server-side outbox so retries do not fan out duplicate FCM sends.
+- Parse FCM response bodies; delete/disable only tokens explicitly reported as unregistered
+  or permanently invalid. Retry transient 429/5xx with bounded exponential backoff and
+  jitter; do not retry forever.
+- Record safe structured outcomes (request ID, message ID, recipient count, success/failure
+  counts) without logging access tokens, private message text, or Firebase credentials.
+- Bound request/body size and enforce method/content type.
+- Restrict CORS to known origins if this Edge Function is called from browser clients.
+  CORS is not authentication; continue validating the JWT and authorization server-side.
+- Ensure only trusted callers can trigger this operation and that the caller is the actual
+  sender. Keep service-role credentials only in Edge Function secrets.
+- For reliable production delivery, consider a database-triggered/outbox architecture with
+  a unique message event key, delivery status, retry schedule, and cleanup job. Avoid client
+  double-submission as the sole reliability mechanism.
+
+These are recommendations/gaps to evaluate, not assertions that all are absent from every
+other backend path.
+
+------------------------------------------------------------------------------
+FILE 8: supabase/migrations/<new-approved-migration>.sql
+Purpose: policies for existing bubble-related data only if schema audit proves a gap.
+
+Native bubbles do not inherently require a new database table. Do not create a bubble table
+just to store Android shortcut metadata unless the product explicitly needs cross-device
+conversation preference synchronization.
+
+Security invariants to test:
+- A signed-in user can read only conversations they belong to.
+- A non-member cannot read messages, attachment metadata, signed URLs, or media objects.
+- A sender cannot forge sender_id, read receipts, deletion state, or server-managed timestamps.
+- Push trigger cannot send for a message not authored by the caller or for a conversation
+  where the caller is no longer a member.
+- A user cannot register/transfer another user's device token except via the authenticated
+  identity-derived registration RPC.
+- A deleted/blocked conversation cannot be reopened by replaying a stale shortcut or push.
+- service_role access remains confined to server functions and is never granted to clients.
+
+Illustrative policy pattern only; do not apply without matching actual table names and
+existing policy semantics:
+
+~~~sql
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "conversation members read messages"
+ON public.messages
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.conversation_members cm
+    WHERE cm.conversation_id = messages.conversation_id
+      AND cm.user_id = (SELECT auth.uid())
+  )
+);
+~~~
+
+This SQL is illustrative, not a proposed duplicate migration to apply blindly. The repository
+already has message/conversation RLS policies. First inspect all migrations and test their
+effective combined state; duplicate permissive policies can accidentally widen access.
+
+------------------------------------------------------------------------------
+FILE 9: app/src/test/java/com/sayangqoemeet/app/ConversationBubbleNotificationTest.kt
+Purpose: unit tests for stable IDs and notification eligibility/identity helpers.
+
+Refactor pure logic into testable functions, then test at minimum:
+- stable notification ID is same for same conversation and distinct for sample IDs;
+- stable shortcut ID equals "conversation-" + canonical conversation UUID;
+- malformed conversation UUID never creates a shortcut/bubble;
+- empty/oversized participant names safely fall back/truncate;
+- no private message text is included in the push payload;
+- same conversation updates the existing notification ID rather than creating a new one;
+- missing permission/disabled bubbles falls back to normal notification behavior;
+- deleted conversation or non-member access does not render message content.
+
+Example pure helper test pattern:
+
+~~~kotlin
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Test
+
+class ConversationBubbleNotificationTest {
+    @Test fun shortcutIdIsStablePerConversation() {
+        val id = "123e4567-e89b-12d3-a456-426614174000"
+        assertEquals("conversation-$id", ConversationBubbleShortcuts.shortcutId(id))
+        assertEquals(
+            ConversationBubbleShortcuts.shortcutId(id),
+            ConversationBubbleShortcuts.shortcutId(id)
+        )
+    }
+
+    @Test fun differentConversationsHaveDifferentShortcutIds() {
+        assertNotEquals(
+            ConversationBubbleShortcuts.shortcutId("123e4567-e89b-12d3-a456-426614174000"),
+            ConversationBubbleShortcuts.shortcutId("123e4567-e89b-12d3-a456-426614174001")
+        )
+    }
+}
+~~~
+
+This example assumes the helper is implemented as described above; it will not compile until
+that future code exists. No new test file is currently claimed to exist.
+
+------------------------------------------------------------------------------
+FILE 10: supabase/tests/native_bubble_authorization.sql
+Purpose: prove bubble deep links do not bypass RLS.
+
+This is a proposed test file, not an existing repository file. Extend the project's current
+two-user RLS test pattern instead of duplicating setup unnecessarily.
+
+Required test cases:
+1. User A is a member: can read own conversation/messages.
+2. User B is not a member: cannot read A's conversation/messages or attachment metadata.
+3. User A removed from membership: stale shortcut cannot retrieve messages.
+4. Sender cannot submit a push for another user's message.
+5. Deleted message cannot trigger notification content.
+6. Device token cannot be reassigned by direct table update if direct update is revoked.
+7. A signed-out session cannot fetch private messages even if it has a known conversation UUID.
+8. Storage signed URL generation requires current membership and valid attachment row.
+
+A5. BACKEND ↔ FRONTEND FIELD CONTRACT
+
+FCM data-only payload (keep payload small and private):
+- type: "message"
+- conversation_id: UUID
+- message_id: UUID
+- recipient_id: UUID
+- sender_name: optional display hint, not an authorization identity
+- message_preview: generic string by default ("You have a new message.")
+Do not use sender_name or other client-provided text to authorize a user. Re-fetch trusted
+participant/message details using the authenticated recipient session where needed.
+
+Frontend intent extras:
+- ChatBubbleActivity.EXTRA_CONVERSATION_ID: validated UUID only.
+- Never trust extras as proof of membership.
+- Do not include access tokens, service-role keys, Firebase credentials, or private message
+  body in shortcut labels/IDs or logs.
+
+Database fields referenced by the inspected implementation:
+- messages.id
+- messages.conversation_id
+- messages.sender_id
+- messages.deleted_at
+- conversation_members.conversation_id
+- conversation_members.user_id
+- device_tokens.user_id
+- device_tokens.token
+- profiles.display_name
+- profiles.username
+
+The Edge Function selects these fields in its current inspected path. The bubble frontend
+must still use the authenticated repository and RLS; an Edge Function's service-role client
+must explicitly perform authorization checks before accessing rows.
+
+A6. NOTIFICATION CHANNEL, USER SETTINGS, PRIVACY AND LIFECYCLE
+
+- The existing channel is "sayangqoemeet_messages" with IMPORTANCE_DEFAULT and setAllowBubbles(true).
+  This allows bubbles at the channel level but does not guarantee the user permits them.
+- Channel importance/sound/vibration become user-controlled after channel creation. Do not
+  assume updating channel properties silently overrides user choices.
+- Provide in-app explanation/shortcut to Android notification settings, not a fake in-app
+  switch that claims it can force-enable bubbles.
+- Respect notification permission denial. Continue in-app realtime messaging while showing
+  clear state that system notifications are disabled.
+- Avoid exposing message bodies on lock screens unless user preferences allow it.
+- Do not show notification previews for a different signed-in account after offline logout.
+- When account changes, reconcile FCM token ownership and notification state. Cancel or clear
+  stale account-specific notifications only after correctly identifying them.
+- On logout, remove the local account's device token while the session is valid; even if
+  server cleanup fails, locally sign out and ensure recipient_id/session checks suppress stale
+  push messages. Do not let a failed remote cleanup re-authenticate the old account.
+- Do not start a foreground service just to keep a chat bubble alive. Android owns bubble
+  lifecycle; use a foreground service only for a valid user-visible ongoing task.
+- Test process death, Doze, network loss, token rotation, app update, user changing bubble
+  settings, notification permission denied, locked device, multiple simultaneous chats,
+  and Android OEM variations.
+
+A7. REPOSITORY COMPARISON — INSPECTED FILES
+
+Comparison is against the public GitHub branch
+docs/messenger-settings-new-chat-audit at the time of review. "Present" means visible in
+the fetched source, not that the feature was built or runtime-tested.
+
+1) app/src/main/AndroidManifest.xml
+Status: PARTIAL / CRITICAL GAP.
+Present:
+- POST_NOTIFICATIONS permission.
+- SYSTEM_ALERT_WINDOW for the separate custom overlay.
+- SayangqoeMessagingService declaration.
+- FloatingChatBubbleService declaration.
+- ChatBubbleActivity declaration.
+Missing in the inspected ChatBubbleActivity declaration:
+- android:allowEmbedded="true"
+- android:resizeableActivity="true"
+No explicit documentLaunchMode was present. Evaluate whether to include it for Android 10
+support according to the project's minSdk and target behavior. Manifest gap is verified by
+source inspection only.
+
+2) app/src/main/java/com/sayangqoemeet/app/SayangqoeMessagingService.kt
+Status: PARTIAL / CRITICAL GAPS.
+Present:
+- Notification channel ID sayangqoemeet_messages.
+- setAllowBubbles(true) on Android Q+.
+- FCM data-only recipient guard and Supabase session restore.
+- conversation ID validation.
+- shortcut creation and BubbleMetadata builder.
+- bubble intent carries conversation_id.
+Missing/needs correction in inspected message notification path:
+- No setShortcutId(shortcutId) on notificationBuilder after publishing the shortcut.
+- No MessagingStyle/Person on the message notification builder.
+- Notification ID uses current time modulo Int.MAX_VALUE, so same-conversation messages do
+  not reliably update one stable notification.
+- Shortcut intent is given NEW_TASK/CLEAR_TOP flags; review whether a shortcut intent should
+  instead be a clean conversation entry intent.
+- Shortcut publication occurs in the push handling path; ensure shortcut is published before
+  notification post and exists for first notification on every supported OS version.
+- Shortcut ID is stable per conversation in the inspected code ("conversation-$conversationId"),
+  which is good, but must be associated with notification.
+- The sender display name is a push hint; it must not be treated as authorization.
+- The channel currently permits bubbles but does not override the user's app/conversation
+  bubble preference.
+
+3) app/src/main/java/com/sayangqoemeet/app/ChatBubbleActivity.kt
+Status: PARTIAL.
+Present:
+- Dedicated ComponentActivity.
+- Reads EXTRA_CONVERSATION_ID and renders ConversationScreen.
+- Call navigation is wired to MainActivity.
+Needs verification:
+- Malformed UUID rejection, auth/session state on direct launch, stale/deleted conversation
+  behavior, multiple simultaneous bubbles, process recreation, BackHandler and embedded-window
+  layout, loading/error states, and task collapse when call navigation starts MainActivity.
+- Current activity has no onSaveInstanceState/onNewIntent handling in the inspected source.
+- Activity does not itself prove membership; backend RLS/repository must enforce it.
+
+4) app/src/main/java/com/sayangqoemeet/app/FloatingChatBubbleService.kt
+Status: PRESENT, BUT NOT THE NATIVE BUBBLE.
+- Custom TextView "S" overlay via WindowManager.
+- Requires overlay permission and starts only when explicitly enabled.
+- Opens app chats; does not itself represent one selected conversation.
+Keep it separately labeled and optional if retained. Do not count this file as completion
+of native Android conversation bubbles.
+
+5) app/src/main/java/com/sayangqoemeet/app/MainActivity.kt
+Status: PARTIAL SUPPORT PRESENT.
+- Requests POST_NOTIFICATIONS permission on Android 13+ after auth.
+- Restores Supabase session and registers FCM token.
+- Logout attempts token removal and continues local logout if remote cleanup fails.
+Needs testing:
+- Permission denial, repeated request policy, stale notifications after logout/account switch,
+  deep link from bubble while signed out, and restoration after process death.
+- Bubble activity authentication is not proven solely by MainActivity auth state.
+
+6) app/src/main/java/com/sayangqoemeet/app/SupabaseDataRepository.kt
+Status: EXISTING DATA PATH; BUBBLE REUSE REQUIRED.
+- Existing repository has conversation loading, message sending with client idempotency, device
+  token registration/removal, attachment upload, and signed attachment URL methods.
+- Do not add a separate bubble-only API that bypasses existing auth/RLS.
+- Verify all operations when the conversation is opened from ChatBubbleActivity and when
+  membership is revoked after the shortcut has been published.
+
+7) supabase/functions/send-message-push/index.ts
+Status: AUTHORIZATION FOUNDATION PRESENT; DELIVERY HARDENING PARTIAL.
+Present:
+- Bearer auth + auth.getUser().
+- UUID validation for conversation_id/message_id.
+- Checks message ID, conversation ID, sender ID, deleted_at.
+- Verifies caller membership.
+- Resolves recipient member IDs and device tokens.
+- Data-only FCM payload with generic preview.
+- Firebase service account read from server environment.
+Needs review:
+- No explicit rate limiter visible in this file.
+- FCM responses are reduced to response.ok; invalid/unregistered tokens are not visibly
+  removed here, and transient errors have no bounded retry/backoff in this inspected path.
+- No visible durable outbox/idempotency record for push fan-out.
+- CORS allows *; determine whether browser origins need restriction. This is not itself a
+  replacement for authentication.
+- Add safe structured logs/request IDs without logging secrets or message content.
+
+8) supabase/migrations/*.sql and supabase/tests/phase2_two_user_rls.sql
+Status: EXISTING SECURITY FOUNDATION; FULL EFFECTIVE POLICY STATE NOT YET VERIFIED.
+Present in inspected migrations:
+- RLS for private messaging tables.
+- message insert column hardening.
+- attachment UUID-path validation.
+- attachment reads locked to live messages.
+- secure device-token registration via auth.uid()-derived RPC.
+Needs:
+- Replay all migrations in a disposable Supabase environment.
+- Run existing two-user RLS tests and extend tests for stale bubble shortcuts and revoked
+  membership.
+- Inspect effective policies/grants as a combined state; do not add duplicate permissive
+  policies based only on one migration.
+- Confirm service_role stays server-only.
+
+9) app/src/test/java/com/sayangqoemeet/app/
+Status: SOME EXISTING UNIT TESTS; NATIVE BUBBLE-SPECIFIC TEST NOT FOUND IN INSPECTED TEST TREE.
+Existing named tests include AttachmentAvailabilityTest, CallSignalingRepositoryTest,
+ChatAttachmentMimeTypesTest, MessageRealtimeReconcilerTest, and PushRecipientGuardTest.
+Add bubble notification/shortcut tests only after approved implementation exists.
+
+10) app/build.gradle.kts
+Status: AndroidX NotificationCompat APIs are already imported and compile dependency appears
+to be present, but exact compatible version was not revalidated from dependency resolution.
+Do not add duplicate core dependencies without checking version catalog/Gradle graph.
+
+A8. REQUIRED TEST MATRIX BEFORE CALLING IT COMPLETE
+
+Android versions:
+- API 26–28: normal notifications; bubbles are not supported as stable production behavior.
+- API 29: developer-preview-era behavior; validate only if the project supports it.
+- API 30+: conversation shortcut + MessagingStyle + BubbleMetadata.
+- API 33+: notification permission grant/deny.
+- Current supported Android version(s): verify behavior with current platform APIs and OEM UI.
+
+Scenarios:
+1. First-ever message to a conversation: shortcut exists before notification is posted.
+2. Repeated messages: same conversation bubble updates the same notification identity.
+3. Two conversations: independent shortcut IDs, pending intents, notification IDs and UI state.
+4. Tap collapsed bubble, expand, collapse, dismiss, and reopen from notification shade.
+5. Bubble disabled globally, per app, or for one conversation: normal notification fallback.
+6. POST_NOTIFICATIONS denied: no crash, no false success state; in-app chat still works.
+7. User locked device: preview obeys privacy settings.
+8. App process killed and restarted: shortcut restores conversation by ID.
+9. Session expired/signed out: no private content; route to authentication.
+10. User removed from conversation after notification: server denies read/send.
+11. Deleted message/conversation: stale push/shortcut is safely rejected.
+12. Network offline/slow: visible retry/error, no duplicate send.
+13. Message retry after lost response: idempotency prevents duplicate messages.
+14. FCM token rotates; account changes; offline logout; old account push arrives.
+15. Notification channel or bubble preference is changed in Android Settings.
+16. Reboot, app update, battery saver/Doze, OEM notification restrictions.
+17. Call action from bubble: expected bubble collapse/full-screen transition is documented.
+18. Accessibility: TalkBack labels, focus order, keyboard/Back behavior, font scaling and
+    narrow/resized bubble windows.
+19. Automated test checks shortcut/notification identity and repository authorization.
+20. Run Android unit tests, lint, assembleDebug, and Supabase RLS tests; record actual output.
+
+A9. DEFINITION OF DONE
+
+Native bubbles are complete only when all are true:
+- Correct manifest requirements and shortcut association are verified.
+- MessagingStyle and Person metadata render as conversation notifications.
+- Stable per-conversation shortcut, PendingIntent, and notification identities are used.
+- Bubble UI opens the correct authorized conversation and supports multiple conversations.
+- Existing repository/auth/RLS paths are reused; no client secrets or authorization bypass.
+- Normal notification fallback works when bubbles are unavailable or denied.
+- Push retries, invalid tokens, rate limits, and observability have an explicit policy.
+- Two-user security tests prove a non-member and a stale shortcut cannot read private content.
+- Android build/unit/instrumentation tests and physical-device tests pass on declared supported
+  versions; results are recorded rather than assumed.
+- Privacy, lock-screen preview, logout, account-switch, and notification permission behaviors
+  are documented and tested.
+
+A10. AUDIT LIMITATION / CHANGE CONTROL
+
+This addendum was appended to addedto.txt for independent AI review. The repository comparison
+above is based on fetched source files at the stated branch and date. It is not a claim that
+the app was built, deployed, or device-tested. Proposed code snippets are reference patterns,
+not changes to source files. No Android source, Gradle configuration, manifest, SQL migration,
+Edge Function, security policy, or test file was modified as part of this documentation task.
+Before implementing any proposed item, reconcile it with the current masterplan, exact SDK and
+dependency versions, existing data models, and user-approved scope.
