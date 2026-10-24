@@ -2,6 +2,8 @@ package com.sayangqoemeet.app
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.AudioAttributes
+import android.os.Build
 import android.media.ToneGenerator
 import android.util.Log
 import org.webrtc.Camera2Enumerator
@@ -51,6 +53,9 @@ internal class WebRtcCallManager(
     private var factory: PeerConnectionFactory? = null
     private var peer: PeerConnection? = null
     private var audioModule: JavaAudioDeviceModule? = null
+    private var previousAudioCapturePolicy: Int? = null
+    @Volatile var audioCaptureRestricted: Boolean = false
+        private set
     private var audioSource: org.webrtc.AudioSource? = null
     private var audioTrack: AudioTrack? = null
     private var videoSource: org.webrtc.VideoSource? = null
@@ -149,6 +154,7 @@ internal class WebRtcCallManager(
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions()
         )
+        restrictCallAudioCapture()
         audioModule = JavaAudioDeviceModule.builder(context.applicationContext).createAudioDeviceModule()
         factory = PeerConnectionFactory.builder()
             .setAudioDeviceModule(audioModule)
@@ -394,6 +400,34 @@ internal class WebRtcCallManager(
         }
     }
 
+    private fun restrictCallAudioCapture() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        runCatching {
+            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (previousAudioCapturePolicy == null) {
+                previousAudioCapturePolicy = audio.allowedCapturePolicy
+            }
+            audio.setAllowedCapturePolicy(AudioAttributes.ALLOW_CAPTURE_BY_NONE)
+            audioCaptureRestricted = true
+        }.onFailure { error ->
+            audioCaptureRestricted = false
+            Log.w(TAG, "Could not apply Android call-audio capture restriction", error)
+        }
+    }
+
+    private fun restoreCallAudioCapturePolicy() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val previous = previousAudioCapturePolicy ?: return
+        runCatching {
+            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audio.setAllowedCapturePolicy(previous)
+        }.onFailure { error ->
+            Log.w(TAG, "Could not restore Android audio capture policy", error)
+        }
+        previousAudioCapturePolicy = null
+        audioCaptureRestricted = false
+    }
+
     fun setMuted(muted: Boolean) {
         if (disposed.get()) return
         microphoneMuted = muted
@@ -463,6 +497,7 @@ internal class WebRtcCallManager(
             val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             audio.isSpeakerphoneOn = false
             audio.mode = AudioManager.MODE_NORMAL
+            restoreCallAudioCapturePolicy()
             peer = null
         }
     }

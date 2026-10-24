@@ -5,6 +5,7 @@ package com.sayangqoemeet.app
 import android.content.Intent
 import android.Manifest
 import android.media.MediaRecorder
+import android.media.MediaPlayer
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.provider.OpenableColumns
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -65,6 +67,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -116,6 +119,20 @@ private val RegistrationDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy
 private fun formatRegistrationDate(value: String): String = runCatching {
     RegistrationDateFormatter.withZone(ZoneId.systemDefault()).format(Instant.parse(value))
 }.getOrElse { value.replace("T", " ").substringBefore(".").removeSuffix("Z") }
+
+private fun formatLastActive(value: String?): String {
+    if (value.isNullOrBlank()) return "Activity unavailable"
+    return runCatching {
+        val seconds = java.time.Duration.between(Instant.parse(value), Instant.now()).seconds.coerceAtLeast(0)
+        when {
+            seconds < 90 -> "Active now"
+            seconds < 3_600 -> "Active ${seconds / 60} minutes ago"
+            seconds < 86_400 -> "Active ${seconds / 3_600} hours ago"
+            seconds < 604_800 -> "Active ${seconds / 86_400} days ago"
+            else -> "Last active ${DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()).withZone(ZoneId.systemDefault()).format(Instant.parse(value))}"
+        }
+    }.getOrDefault("Activity unavailable")
+}
 
 private val ReligionOptions = listOf(
     "Prefer not to say", "Christianity", "Islam", "Buddhism", "Hinduism", "Judaism", "Other", "None"
@@ -778,6 +795,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var draft by remember { mutableStateOf("") }
     var pendingSendRequestId by remember { mutableStateOf<String?>(null) }
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
+    var reactionsByMessage by remember { mutableStateOf<Map<String, List<MessageReactionRecord>>>(emptyMap()) }
     var status by remember { mutableStateOf("Loading message history…") }
     var loading by remember { mutableStateOf(false) }
     var loadingOlder by remember { mutableStateOf(false) }
@@ -786,23 +804,45 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var currentUserId by remember { mutableStateOf<String?>(null) }
     var otherUserId by remember { mutableStateOf<String?>(null) }
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
+    var otherLastSeenAt by remember { mutableStateOf<String?>(null) }
     var showAttachmentSheet by remember { mutableStateOf(false) }
+    var showLocalMediaPicker by remember { mutableStateOf(false) }
     var showVoiceRecorder by remember { mutableStateOf(false) }
     var showChatInfo by remember { mutableStateOf(false) }
     var showSharedMedia by remember { mutableStateOf(false) }
     var capturePreviewUri by remember { mutableStateOf<Uri?>(null) }
     var capturePreviewMime by remember { mutableStateOf<String?>(null) }
     var capturePreviewName by remember { mutableStateOf<String?>(null) }
+    suspend fun refreshMessageReactions() {
+        val id = conversationId?.takeIf { it.isNotBlank() } ?: return
+        val fresh = SupabaseDataRepository.loadMessageReactions(id)
+        reactionsByMessage = fresh.groupBy { it.messageId }
+    }
+
+    fun toggleMessageReaction(messageId: String, reaction: String) {
+        scope.launch {
+            try {
+                SupabaseDataRepository.toggleMessageReaction(messageId, reaction)
+                refreshMessageReactions()
+            } catch (error: Exception) {
+                status = error.message ?: "Could not update the message reaction."
+            }
+        }
+    }
+
     val messageListState = rememberLazyListState()
     val photoCapture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         if (!saved) { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
     }
     val videoCapture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.data
+        val data = result.data
+        val uri = data?.getStringExtra(CameraCaptureActivity.EXTRA_CAPTURE_URI)?.let(Uri::parse)
         if (result.resultCode == android.app.Activity.RESULT_OK && uri != null) {
             capturePreviewUri = uri
-            capturePreviewMime = context.contentResolver.getType(uri) ?: "video/mp4"
-            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "captured-video.mp4"
+            capturePreviewMime = data.getStringExtra(CameraCaptureActivity.EXTRA_CAPTURE_MIME)
+                ?: context.contentResolver.getType(uri) ?: "application/octet-stream"
+            capturePreviewName = data.getStringExtra(CameraCaptureActivity.EXTRA_CAPTURE_NAME)
+                ?: context.contentResolver.getDisplayName(uri) ?: "captured-media"
         } else { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
     }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -836,6 +876,30 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
 
     LaunchedEffect(messages.lastOrNull()?.id) {
         if (messages.isNotEmpty()) messageListState.animateScrollToItem(messages.lastIndex)
+    }
+
+    LaunchedEffect(otherUserId) {
+        val contactId = otherUserId
+        otherLastSeenAt = if (contactId.isNullOrBlank()) null else runCatching {
+            SupabaseDataRepository.loadLastSeenAt(contactId)
+        }.getOrNull()
+    }
+
+    DisposableEffect(otherUserId) {
+        val contactId = otherUserId?.takeIf { it.isNotBlank() }
+            ?: return@DisposableEffect onDispose { }
+        val subscription = SupabaseDataRepository.subscribeToUserPresence(
+            targetUserId = contactId,
+            onChange = {
+                scope.launch {
+                    runCatching { SupabaseDataRepository.loadLastSeenAt(contactId) }
+                        .onSuccess { otherLastSeenAt = it }
+                        .onFailure { error -> status = error.message ?: "Could not refresh contact activity." }
+                }
+            },
+            onFailure = { reason -> scope.launch { status = reason } }
+        )
+        onDispose { subscription?.close() }
     }
 
     DisposableEffect(conversationId) {
@@ -872,7 +936,20 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         }, onFailure = { reason ->
             scope.launch { status = reason }
         })
-        onDispose { subscription?.close() }
+        val reactionSubscription = SupabaseDataRepository.subscribeToMessageReactions(
+            onChange = {
+                scope.launch {
+                    runCatching { refreshMessageReactions() }.onFailure { error ->
+                        status = error.message ?: "Could not refresh message reactions."
+                    }
+                }
+            },
+            onFailure = { reason -> scope.launch { status = reason } }
+        )
+        onDispose {
+            subscription?.close()
+            reactionSubscription?.close()
+        }
     }
 
     LaunchedEffect(conversationId) {
@@ -881,6 +958,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         currentUserId = SupabaseAuthRepository.currentUserId()
         otherUserId = null
         otherDisplayName = null
+        otherLastSeenAt = null
         if (conversationId.isNullOrBlank()) {
             status = "Select a real conversation first."
         } else {
@@ -888,7 +966,13 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 val conversation = SupabaseDataRepository.loadConversations().firstOrNull { it.id == conversationId }
                 otherUserId = conversation?.otherUserId
                 otherDisplayName = conversation?.displayLabel
+                context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("floating_chat_conversation_id", conversationId)
+                    .putString("floating_chat_contact_name", otherDisplayName ?: "SayangqoeMeet")
+                    .apply()
                 messages = SupabaseDataRepository.loadMessages(conversationId)
+                refreshMessageReactions()
                 hasOlderMessages = messages.size >= 100
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
             } catch (error: Exception) { status = error.message ?: "Could not load messages." }
@@ -897,20 +981,19 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
 
     fun beginPhotoCapture() {
         runCatching {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "sayangqoemeet-${System.currentTimeMillis()}.jpg")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: error("Could not create a photo destination.")
-            capturePreviewUri = uri; capturePreviewMime = "image/jpeg"
-            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "photo.jpg"
-            photoCapture.launch(uri)
-        }.onFailure { status = it.message ?: "Could not open the camera." }
+            videoCapture.launch(
+                Intent(context, CameraCaptureActivity::class.java)
+                    .putExtra(CameraCaptureActivity.EXTRA_START_MODE, CameraCaptureActivity.MODE_NORMAL)
+            )
+        }.onFailure { status = it.message ?: "Could not open the in-app camera." }
     }
     fun beginVideoCapture() {
-        runCatching { videoCapture.launch(Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) }
-            .onFailure { status = it.message ?: "Could not open video capture." }
+        runCatching {
+            videoCapture.launch(
+                Intent(context, CameraCaptureActivity::class.java)
+                    .putExtra(CameraCaptureActivity.EXTRA_START_MODE, CameraCaptureActivity.MODE_VIDEO)
+            )
+        }.onFailure { status = it.message ?: "Could not open in-app video capture." }
     }
     fun sendCapturedMedia() {
         val uri = capturePreviewUri ?: return
@@ -933,7 +1016,15 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(8.dp), fontSize = 11.sp)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(otherDisplayName ?: "PRIVATE CHAT", color = ShellText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Private conversation", color = ShellMuted, fontSize = 10.sp)
+                Text(
+                    when {
+                        conversationId.isNullOrBlank() -> "No conversation selected"
+                        otherUserId.isNullOrBlank() -> "Conversation"
+                        else -> formatLastActive(otherLastSeenAt)
+                    },
+                    color = if (otherLastSeenAt != null) ShellCyan else ShellMuted,
+                    fontSize = 10.sp
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { showChatInfo = true }, enabled = !conversationId.isNullOrBlank()) { Text("INFO", color = ShellCyan, fontSize = 9.sp) }
@@ -958,6 +1049,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                             val older = SupabaseDataRepository.loadOlderMessages(conversationId.orEmpty(), first)
                             messages = (older + messages).distinctBy { it.id }
                                 .sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
+                            refreshMessageReactions()
                             hasOlderMessages = older.size >= 50
                             status = if (older.isEmpty()) "You have reached the beginning of this conversation." else ""
                         } catch (error: Exception) {
@@ -974,6 +1066,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         ) {
             items(messages, key = { it.id }) { message ->
                 val mine = message.senderId == currentUserId
+                val messageReactions = reactionsByMessage[message.id].orEmpty()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                     Column(
                         Modifier.widthIn(max = 280.dp)
@@ -998,28 +1091,49 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                                     fontSize = 11.sp
                                 )
                             } else {
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            try {
-                                                val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
-                                                    context = context,
-                                                    messageId = message.id,
-                                                    senderId = message.senderId,
-                                                    objectPath = message.attachmentPath,
-                                                    mimeType = message.attachmentMimeType,
-                                                    displayName = message.attachmentName ?: message.body
-                                                )
-                                                val openIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                    setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                    clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
-                                                }
-                                                context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
-                                            } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                                if (message.attachmentMimeType?.startsWith("audio/") == true) {
+                                    InlineVoiceNotePlayer(message = message, onError = { status = it })
+                                } else {
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                try {
+                                                    val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
+                                                        context = context,
+                                                        messageId = message.id,
+                                                        senderId = message.senderId,
+                                                        objectPath = message.attachmentPath,
+                                                        mimeType = message.attachmentMimeType,
+                                                        displayName = message.attachmentName ?: message.body
+                                                    )
+                                                    val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                        clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
+                                                    }
+                                                    context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
+                                                } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                                            }
                                         }
-                                    }
-                                ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                                    ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                                }
+                            }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("👍", "❤️", "😂", "😮", "😢", "🙏").forEach { emoji ->
+                                val matching = messageReactions.filter { it.reaction == emoji }
+                                val mineReaction = matching.any { it.userId == currentUserId }
+                                Text(
+                                    if (matching.isEmpty()) emoji else "$emoji ${matching.size}",
+                                    color = if (mineReaction) ShellCyan else ShellMuted,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.clickable { toggleMessageReaction(message.id, emoji) }
+                                        .padding(horizontal = 2.dp, vertical = 3.dp)
+                                )
                             }
                         }
                         Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1050,6 +1164,12 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 enabled = !loading && !conversationId.isNullOrBlank()
             )
             Spacer(Modifier.width(8.dp))
+            IconButton(
+                onClick = { messages.lastOrNull()?.let { toggleMessageReaction(it.id, "👍") } },
+                enabled = !loading && messages.isNotEmpty() && !conversationId.isNullOrBlank()
+            ) {
+                Icon(Icons.Default.ThumbUp, contentDescription = "React to latest message with thumbs up", tint = ShellCyan)
+            }
             Button(
                 onClick = {
                     val content = draft.trim()
@@ -1114,11 +1234,33 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 TextButton(onClick = { showAttachmentSheet = false; beginVideoCapture() }) { Text("🎥  Record video", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; showVoiceRecorder = true }) { Text("🎙  Voice recording", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; videoPicker.launch("video/*") }) { Text("▶  Select video", color = ShellText) }
+                TextButton(onClick = { showAttachmentSheet = false; showLocalMediaPicker = true }) { Text("▦  Browse albums", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; filePicker.launch("*/*") }) { Text("▤  Select file", color = ShellText) }
                 Spacer(Modifier.height(18.dp))
             }
         }
     }
+    if (showLocalMediaPicker) {
+        LocalMediaAlbumPicker(
+            onClose = { showLocalMediaPicker = false },
+            onSelected = { uri, mime, name ->
+                showLocalMediaPicker = false
+                if (!conversationId.isNullOrBlank()) scope.launch {
+                    loading = true
+                    try {
+                        val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, mime, name)
+                        messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
+                        status = ""
+                    } catch (error: Exception) {
+                        status = error.message ?: "Selected media upload failed."
+                    } finally {
+                        loading = false
+                    }
+                }
+            }
+        )
+    }
+
     if (capturePreviewUri != null && capturePreviewMime != null) {
         Dialog(onDismissRequest = { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }) {
             Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
@@ -1210,93 +1352,218 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
     val context = LocalContext.current
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var recordingFile by remember { mutableStateOf<java.io.File?>(null) }
+    var recordedUri by remember { mutableStateOf<Uri?>(null) }
+    var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var recording by remember { mutableStateOf(false) }
+    var playing by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableStateOf(0) }
+    var playbackDuration by remember { mutableStateOf(0) }
+    var playbackPosition by remember { mutableStateOf(0) }
     var dragDistance by remember { mutableStateOf(0f) }
     var error by remember { mutableStateOf<String?>(null) }
+    var amplitudeSamples by remember { mutableStateOf(listOf(0.08f)) }
+
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) error = "Microphone permission is required to record a voice note."
+        if (granted) startRecordingAfterPermission(context, onStarted = { startedRecorder, file ->
+            recorder = startedRecorder
+            recordingFile = file
+            elapsedSeconds = 0
+            amplitudeSamples = listOf(0.08f)
+            recording = true
+            error = null
+        }, onFailure = { error = it }) else {
+            error = "Microphone permission is required to record a voice note."
+        }
     }
+
+    fun releasePlayer() {
+        runCatching { player?.stop() }
+        runCatching { player?.release() }
+        player = null
+        playing = false
+        playbackPosition = 0
+    }
+
     fun finishRecording(keepFile: Boolean): Uri? {
         val file = recordingFile
         val success = runCatching { recorder?.stop() }.isSuccess
         runCatching { recorder?.release() }
         recorder = null
         recording = false
-        return if (keepFile && success && file?.exists() == true && file.length() > 0L) Uri.fromFile(file) else {
+        return if (keepFile && success && file?.exists() == true && file.length() > 0L) {
+            Uri.fromFile(file)
+        } else {
             runCatching { file?.delete() }
+            recordingFile = null
             null
         }
     }
+
     fun startRecording() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        runCatching {
-            val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
-            @Suppress("DEPRECATION")
-            val mediaRecorder = MediaRecorder()
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            mediaRecorder.setOutputFile(file.absolutePath)
-            mediaRecorder.prepare()
-            mediaRecorder.start()
-            recorder = mediaRecorder
+        startRecordingAfterPermission(context, onStarted = { startedRecorder, file ->
+            recorder = startedRecorder
             recordingFile = file
             elapsedSeconds = 0
+            amplitudeSamples = listOf(0.08f)
             recording = true
             error = null
-        }.onFailure { error = it.message ?: "Could not start recording." }
+        }, onFailure = { error = it })
     }
+
+    fun preparePlayback(uri: Uri) {
+        releasePlayer()
+        runCatching {
+            val created = checkNotNull(MediaPlayer.create(context, uri)) { "Could not prepare voice-note playback." }
+            player = created
+            playbackDuration = created.duration.coerceAtLeast(0)
+            playbackPosition = 0
+            created.setOnCompletionListener {
+                playing = false
+                playbackPosition = 0
+                runCatching { it.seekTo(0) }
+            }
+            created.start()
+            playing = true
+        }.onFailure {
+            releasePlayer()
+            error = it.message ?: "Could not play the recorded voice note."
+        }
+    }
+
     LaunchedEffect(recording) {
         while (recording) {
             kotlinx.coroutines.delay(1_000)
             elapsedSeconds += 1
         }
     }
+    LaunchedEffect(recording) {
+        while (recording) {
+            kotlinx.coroutines.delay(120)
+            val amplitude = runCatching { recorder?.maxAmplitude ?: 0 }.getOrDefault(0)
+            val normalized = (amplitude / 32767f).coerceIn(0.02f, 1f)
+            amplitudeSamples = (amplitudeSamples + normalized).takeLast(32)
+        }
+    }
+    LaunchedEffect(playing) {
+        while (playing) {
+            kotlinx.coroutines.delay(100)
+            playbackPosition = runCatching { player?.currentPosition ?: 0 }.getOrDefault(0)
+            if (player?.isPlaying != true) playing = false
+        }
+    }
     DisposableEffect(Unit) {
         onDispose {
             runCatching { recorder?.release() }
             recorder = null
+            releasePlayer()
             if (recording) runCatching { recordingFile?.delete() }
         }
     }
-    val waveform = rememberInfiniteTransition(label = "voice-waveform")
-    val bars = (0 until 24).map { index ->
-        waveform.animateFloat(
-            initialValue = 5f + (index % 4) * 2f,
-            targetValue = 13f + (index % 5) * 5f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 280 + index * 23, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "wave-$index"
-        )
-    }
-    Dialog(onDismissRequest = { if (recording) finishRecording(false); onDismiss() }) {
+
+    Dialog(onDismissRequest = {
+        if (recording) finishRecording(false)
+        releasePlayer()
+        recordedUri?.let { runCatching { java.io.File(it.path.orEmpty()).delete() } }
+        onDismiss()
+    }) {
         Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("VOICE NOTE", color = ShellCyan, fontWeight = FontWeight.Bold)
-                Text(if (recording) "Recording in progress" else "Record a private voice note.", color = ShellText, fontSize = 13.sp)
-                Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    bars.forEach { bar ->
-                        Box(Modifier.weight(1f).height(if (recording) bar.value.dp else 5.dp).background(if (recording) ShellCyan else ShellMuted, RoundedCornerShape(4.dp)))
+                Text(
+                    when {
+                        recording -> "Recording in progress — waveform follows microphone input"
+                        recordedUri != null -> "Preview your recording before sending"
+                        else -> "Record a private voice note."
+                    },
+                    color = ShellText,
+                    fontSize = 13.sp
+                )
+                Row(
+                    Modifier.fillMaxWidth().height(56.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    amplitudeSamples.forEach { sample ->
+                        Box(
+                            Modifier.weight(1f)
+                                .height((5f + sample * 46f).dp)
+                                .background(if (recording) ShellCyan else ShellMuted, RoundedCornerShape(4.dp))
+                        )
                     }
                 }
-                Text(String.format(java.util.Locale.ROOT, "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60), color = if (recording) ShellCyan else ShellMuted, fontWeight = FontWeight.Bold)
+                Text(
+                    String.format(java.util.Locale.ROOT, "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60),
+                    color = if (recording) ShellCyan else ShellMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                if (recordedUri != null && !recording) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = {
+                            val activePlayer = player
+                            if (activePlayer == null) {
+                                preparePlayback(recordedUri!!)
+                            } else if (playing) {
+                                runCatching { activePlayer.pause() }
+                                playing = false
+                            } else {
+                                runCatching {
+                                    if (playbackPosition >= playbackDuration && playbackDuration > 0) activePlayer.seekTo(0)
+                                    activePlayer.start()
+                                    playing = true
+                                }.onFailure { error = it.message ?: "Playback could not resume." }
+                            }
+                        }) { Text(if (playing) "PAUSE" else "PLAY", color = ShellCyan) }
+                        Text(
+                            String.format(
+                                java.util.Locale.ROOT, "%02d:%02d",
+                                (playbackPosition / 1000) / 60, (playbackPosition / 1000) % 60
+                            ),
+                            color = ShellMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Slider(
+                        value = if (playbackDuration > 0) playbackPosition.toFloat() / playbackDuration else 0f,
+                        onValueChange = { fraction ->
+                            val position = (fraction * playbackDuration).toInt().coerceIn(0, playbackDuration)
+                            playbackPosition = position
+                            runCatching { player?.seekTo(position) }
+                        },
+                        enabled = playbackDuration > 0
+                    )
+                    Text("Drag the progress control to seek through the recording.", color = ShellMuted, fontSize = 10.sp)
+                }
                 if (recording) {
                     Text(
-                        when { dragDistance < -70f -> "Release to cancel"; dragDistance > 70f -> "Release to send"; else -> "Slide left to cancel • slide right to send" },
+                        when {
+                            dragDistance < -70f -> "Release to cancel"
+                            dragDistance > 70f -> "Release to send"
+                            else -> "Slide left to cancel • slide right to send"
+                        },
                         color = if (kotlin.math.abs(dragDistance) > 70f) ShellCyan else ShellMuted,
                         fontSize = 11.sp,
                         modifier = Modifier.fillMaxWidth().pointerInput(recording) {
                             detectDragGestures(
                                 onDragEnd = {
                                     when {
-                                        dragDistance < -70f -> { finishRecording(false); dragDistance = 0f; error = "Recording discarded." }
-                                        dragDistance > 70f -> { val uri = finishRecording(true); dragDistance = 0f; if (uri != null) onRecorded(uri) else error = "Recording was too short. Try again." }
+                                        dragDistance < -70f -> {
+                                            finishRecording(false)
+                                            dragDistance = 0f
+                                            error = "Recording discarded."
+                                        }
+                                        dragDistance > 70f -> {
+                                            val uri = finishRecording(true)
+                                            dragDistance = 0f
+                                            if (uri != null) {
+                                                releasePlayer()
+                                                recordingFile = null
+                                                onRecorded(uri)
+                                            } else error = "Recording was too short. Try again."
+                                        }
                                         else -> dragDistance = 0f
                                     }
                                 },
@@ -1308,20 +1575,73 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
                 }
                 error?.let { Text(it, color = Color(0xFFFF8297), fontSize = 11.sp) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TextButton(onClick = { if (recording) finishRecording(false); onDismiss() }, modifier = Modifier.weight(1f)) { Text("CANCEL", color = ShellMuted) }
+                    TextButton(
+                        onClick = {
+                            if (recording) finishRecording(false)
+                            releasePlayer()
+                            recordedUri?.let { runCatching { java.io.File(it.path.orEmpty()).delete() } }
+                            recordedUri = null
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("CANCEL", color = ShellMuted) }
                     Button(
                         onClick = {
-                            if (!recording) startRecording()
-                            else { val uri = finishRecording(true); if (uri != null) onRecorded(uri) else error = "Recording was too short. Try again." }
+                            when {
+                                recording -> {
+                                    val uri = finishRecording(true)
+                                    if (uri != null) {
+                                        recordedUri = uri
+                                        preparePlayback(uri)
+                                    } else error = "Recording was too short. Try again."
+                                }
+                                recordedUri != null -> {
+                                    val uri = recordedUri!!
+                                    releasePlayer()
+                                    recordedUri = null
+                                    recordingFile = null
+                                    onRecorded(uri)
+                                }
+                                else -> startRecording()
+                            }
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = if (recording) Color(0xFFB9415B) else ShellBlue)
-                    ) { Text(if (recording) "STOP & SEND" else "RECORD") }
+                    ) {
+                        Text(when {
+                            recording -> "STOP & PREVIEW"
+                            recordedUri != null -> "SEND VOICE NOTE"
+                            else -> "RECORD"
+                        })
+                    }
                 }
             }
         }
     }
 }
+
+private fun startRecordingAfterPermission(
+    context: android.content.Context,
+    onStarted: (MediaRecorder, java.io.File) -> Unit,
+    onFailure: (String) -> Unit
+) {
+    runCatching {
+        val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
+        @Suppress("DEPRECATION")
+        val mediaRecorder = MediaRecorder()
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+        mediaRecorder.setOutputFile(file.absolutePath)
+        mediaRecorder.prepare()
+        mediaRecorder.start()
+        onStarted(mediaRecorder, file)
+    }.onFailure {
+        android.util.Log.w("VoiceAttachmentRecorder", "Could not start voice recording", it)
+        onFailure(it.message ?: "Could not start recording.")
+    }
+}
+
 private fun android.content.ContentResolver.getDisplayName(uri: Uri): String? {
     var cursor: Cursor? = null
     return try {

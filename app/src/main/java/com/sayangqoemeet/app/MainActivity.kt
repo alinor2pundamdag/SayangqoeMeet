@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
     private var isDarkTheme by mutableStateOf(true)
     private var isAuthenticated by mutableStateOf(false)
     private var openChatsOnStart by mutableStateOf(false)
+    private var initialConversationId by mutableStateOf<String?>(null)
     private var incomingCallId by mutableStateOf<String?>(null)
     private var callRecipientId by mutableStateOf<String?>(null)
     private var callType by mutableStateOf("voice")
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
 
                         isAuthenticated -> SignedInShell(
                             openChatsOnStart = openChatsOnStart,
+                            initialConversationId = initialConversationId,
                             initialCallId = incomingCallId,
                             initialCallRecipientId = callRecipientId,
                             initialCallType = callType,
@@ -68,6 +70,10 @@ class MainActivity : ComponentActivity() {
                                 if (incomingCallId == handledId) incomingCallId = null
                             },
                             onSignOut = {
+                                // Stop any incoming-call ringtone immediately. Its polling
+                                // cannot authenticate after sign-out and must not keep ringing
+                                // under a different account while the device is offline.
+                                runCatching { CallForegroundService.stop(this@MainActivity) }
                                 // Serialize logout against onResume/session restoration so a
                                 // late restore cannot put the signed-out account back on screen.
                                 authCallbackPending = true
@@ -89,6 +95,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                         isAuthenticated = false
                                         incomingCallId = null
+                                        initialConversationId = null
+                                        openChatsOnStart = false
+                                        getSharedPreferences("sayangqoemeet_local_settings", MODE_PRIVATE).edit()
+                                            .remove("floating_chat_conversation_id")
+                                            .remove("floating_chat_contact_name")
+                                            .apply()
+                                        stopService(Intent(this@MainActivity, FloatingChatBubbleService::class.java))
                                         if (remoteSignOutFailure != null) {
                                             Toast.makeText(
                                                 this@MainActivity,
@@ -163,7 +176,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNavigationIntent(intent: Intent?) {
-        if (intent?.getBooleanExtra("open_chats", false) == true) {
+        val conversationId = intent?.getStringExtra("open_conversation_id")?.takeIf { it.isNotBlank() }
+        if (conversationId != null) {
+            initialConversationId = conversationId
+            openChatsOnStart = false
+        } else if (intent?.getBooleanExtra("open_chats", false) == true) {
+            initialConversationId = null
             openChatsOnStart = true
         }
         if (intent?.getBooleanExtra("open_calls", false) == true) {
@@ -228,6 +246,7 @@ class MainActivity : ComponentActivity() {
         ) {
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(16, 9))
+                .setActions(CallPipController.createActions(this))
                 .build()
 
             enterPictureInPictureMode(params)
