@@ -966,6 +966,11 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 val conversation = SupabaseDataRepository.loadConversations().firstOrNull { it.id == conversationId }
                 otherUserId = conversation?.otherUserId
                 otherDisplayName = conversation?.displayLabel
+                context.getSharedPreferences("sayangqoemeet_local_settings", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("floating_chat_conversation_id", conversationId)
+                    .putString("floating_chat_contact_name", otherDisplayName ?: "SayangqoeMeet")
+                    .apply()
                 messages = SupabaseDataRepository.loadMessages(conversationId)
                 refreshMessageReactions()
                 hasOlderMessages = messages.size >= 100
