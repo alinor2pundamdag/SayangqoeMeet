@@ -133,7 +133,9 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         // Ringing is independent of notification permission; Android may suppress
         // the notification while the high-priority FCM data event still arrives.
         if (message.data["type"] == "incoming_call") {
-            val callId = message.data["call_id"]?.takeIf { it.isNotBlank() }
+            // Never start a ringing foreground service for a malformed or missing call ID.
+            // Server-side validation is authoritative; this is a defensive client boundary.
+            val callId = message.data["call_id"]?.takeIf(PushPayloadValidation::isUuid) ?: return
             runCatching { CallForegroundService.start(this, callId) }
             showIncomingCallNotification(message)
             return
@@ -143,7 +145,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         ) return
 
         MessageNotificationChannels.ensureCreated(this)
-        val conversationId = message.data["conversation_id"]?.takeIf { it.matches(Regex("^[0-9a-fA-F-]{36}$")) }
+        val conversationId = message.data["conversation_id"]?.takeIf(PushPayloadValidation::isUuid)
         val senderName = message.data["sender_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet"
         val bubbleIntent = if (conversationId != null) Intent(this, ChatBubbleActivity::class.java).apply {
             putExtra(ChatBubbleActivity.EXTRA_CONVERSATION_ID, conversationId)
@@ -234,7 +236,7 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
     ) return
 
-    val callId = message.data["call_id"]?.takeIf { it.isNotBlank() } ?: return
+    val callId = message.data["call_id"]?.takeIf(PushPayloadValidation::isUuid) ?: return
     val caller = message.data["caller_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
     val type = message.data["call_type"]?.takeIf { it == "video" } ?: "voice"
     CallNotificationChannels.ensureCreated(this)
@@ -275,9 +277,7 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
 
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val callId = intent.getStringExtra("call_id")?.takeIf {
-            it.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"))
-        } ?: return
+        val callId = intent.getStringExtra("call_id")?.takeIf(PushPayloadValidation::isUuid) ?: return
         if (intent.action != ACTION_DECLINE) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
