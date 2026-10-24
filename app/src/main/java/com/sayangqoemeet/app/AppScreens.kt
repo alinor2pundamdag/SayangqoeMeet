@@ -120,6 +120,20 @@ private fun formatRegistrationDate(value: String): String = runCatching {
     RegistrationDateFormatter.withZone(ZoneId.systemDefault()).format(Instant.parse(value))
 }.getOrElse { value.replace("T", " ").substringBefore(".").removeSuffix("Z") }
 
+private fun formatLastActive(value: String?): String {
+    if (value.isNullOrBlank()) return "Activity unavailable"
+    return runCatching {
+        val seconds = java.time.Duration.between(Instant.parse(value), Instant.now()).seconds.coerceAtLeast(0)
+        when {
+            seconds < 90 -> "Active now"
+            seconds < 3_600 -> "Active ${seconds / 60} minutes ago"
+            seconds < 86_400 -> "Active ${seconds / 3_600} hours ago"
+            seconds < 604_800 -> "Active ${seconds / 86_400} days ago"
+            else -> "Last active ${DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()).withZone(ZoneId.systemDefault()).format(Instant.parse(value))}"
+        }
+    }.getOrDefault("Activity unavailable")
+}
+
 private val ReligionOptions = listOf(
     "Prefer not to say", "Christianity", "Islam", "Buddhism", "Hinduism", "Judaism", "Other", "None"
 )
@@ -790,6 +804,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var currentUserId by remember { mutableStateOf<String?>(null) }
     var otherUserId by remember { mutableStateOf<String?>(null) }
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
+    var otherLastSeenAt by remember { mutableStateOf<String?>(null) }
     var showAttachmentSheet by remember { mutableStateOf(false) }
     var showLocalMediaPicker by remember { mutableStateOf(false) }
     var showVoiceRecorder by remember { mutableStateOf(false) }
@@ -863,6 +878,30 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         if (messages.isNotEmpty()) messageListState.animateScrollToItem(messages.lastIndex)
     }
 
+    LaunchedEffect(otherUserId) {
+        val contactId = otherUserId
+        otherLastSeenAt = if (contactId.isNullOrBlank()) null else runCatching {
+            SupabaseDataRepository.loadLastSeenAt(contactId)
+        }.getOrNull()
+    }
+
+    DisposableEffect(otherUserId) {
+        val contactId = otherUserId?.takeIf { it.isNotBlank() }
+            ?: return@DisposableEffect onDispose { }
+        val subscription = SupabaseDataRepository.subscribeToUserPresence(
+            targetUserId = contactId,
+            onChange = {
+                scope.launch {
+                    runCatching { SupabaseDataRepository.loadLastSeenAt(contactId) }
+                        .onSuccess { otherLastSeenAt = it }
+                        .onFailure { error -> status = error.message ?: "Could not refresh contact activity." }
+                }
+            },
+            onFailure = { reason -> scope.launch { status = reason } }
+        )
+        onDispose { subscription?.close() }
+    }
+
     DisposableEffect(conversationId) {
         if (conversationId.isNullOrBlank()) return@DisposableEffect onDispose { }
         val subscription = SupabaseDataRepository.subscribeToMessages(conversationId, onChange = { change ->
@@ -919,6 +958,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         currentUserId = SupabaseAuthRepository.currentUserId()
         otherUserId = null
         otherDisplayName = null
+        otherLastSeenAt = null
         if (conversationId.isNullOrBlank()) {
             status = "Select a real conversation first."
         } else {
@@ -971,7 +1011,15 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             Text("‹ BACK", color = ShellCyan, modifier = Modifier.clickable(onClick = onBack).padding(8.dp), fontSize = 11.sp)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(otherDisplayName ?: "PRIVATE CHAT", color = ShellText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (conversationId.isNullOrBlank()) "No conversation selected" else "Private conversation", color = ShellMuted, fontSize = 10.sp)
+                Text(
+                    when {
+                        conversationId.isNullOrBlank() -> "No conversation selected"
+                        otherUserId.isNullOrBlank() -> "Conversation"
+                        else -> formatLastActive(otherLastSeenAt)
+                    },
+                    color = if (otherLastSeenAt != null) ShellCyan else ShellMuted,
+                    fontSize = 10.sp
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { showChatInfo = true }, enabled = !conversationId.isNullOrBlank()) { Text("INFO", color = ShellCyan, fontSize = 9.sp) }
