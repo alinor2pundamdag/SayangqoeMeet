@@ -1141,20 +1141,42 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Presence membership predicate must be SECURITY DEFINER with hardened search_path';
   END IF;
+  IF has_function_privilege('anon', 'public.get_registered_online_user_ids()', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.get_registered_online_user_ids()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Directory online-status RPC grants are incorrect';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='get_registered_online_user_ids'
+      AND p.prosecdef AND p.proconfig @> ARRAY['search_path=public, pg_temp']
+      AND pg_get_function_result(p.oid) = 'TABLE(user_id uuid)'
+  ) THEN
+    RAISE EXCEPTION 'Directory presence RPC must expose only online user IDs with hardened search_path';
+  END IF;
 END $presence_policy_shape$;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 DO $presence_member_positive$
-DECLARE shared_count integer; unrelated_count integer;
+DECLARE shared_count integer; unrelated_count integer; directory_count integer;
 BEGIN
   SELECT count(*) INTO shared_count FROM public.user_presence
   WHERE user_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   SELECT count(*) INTO unrelated_count FROM public.user_presence
   WHERE user_id='77777777-7777-4777-8777-777777777777';
+  SELECT count(*) INTO directory_count FROM public.get_registered_online_user_ids()
+  WHERE user_id IN (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    '77777777-7777-4777-8777-777777777777'
+  );
   IF shared_count <> 1 OR unrelated_count <> 0 THEN
-    RAISE EXCEPTION 'Presence must be visible to conversation contacts but hidden from unrelated users';
+    RAISE EXCEPTION 'Raw presence timestamps must remain hidden from unrelated users';
+  END IF;
+  IF directory_count <> 3 THEN
+    RAISE EXCEPTION 'The directory online indicator must still work for all registered users';
   END IF;
 END $presence_member_positive$;
 SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
