@@ -76,7 +76,7 @@ CREATE OR REPLACE FUNCTION public.toggle_message_reaction(
 RETURNS boolean
 LANGUAGE plpgsql
 SET search_path = public, pg_temp
-AS $
+AS $toggle_message_reaction$
 DECLARE
     v_uid uuid := auth.uid();
 BEGIN
@@ -107,7 +107,7 @@ BEGIN
     VALUES (p_message_id, v_uid, p_reaction);
     RETURN true;
 END;
-$;
+$toggle_message_reaction$;
 
 REVOKE ALL ON FUNCTION public.toggle_message_reaction(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.toggle_message_reaction(uuid, text) TO authenticated;
