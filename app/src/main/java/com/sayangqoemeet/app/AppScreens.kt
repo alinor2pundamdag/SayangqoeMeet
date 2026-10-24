@@ -5,6 +5,7 @@ package com.sayangqoemeet.app
 import android.content.Intent
 import android.Manifest
 import android.media.MediaRecorder
+import android.media.MediaPlayer
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.provider.OpenableColumns
@@ -65,6 +66,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -1210,93 +1212,218 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
     val context = LocalContext.current
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var recordingFile by remember { mutableStateOf<java.io.File?>(null) }
+    var recordedUri by remember { mutableStateOf<Uri?>(null) }
+    var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var recording by remember { mutableStateOf(false) }
+    var playing by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableStateOf(0) }
+    var playbackDuration by remember { mutableStateOf(0) }
+    var playbackPosition by remember { mutableStateOf(0) }
     var dragDistance by remember { mutableStateOf(0f) }
     var error by remember { mutableStateOf<String?>(null) }
+    var amplitudeSamples by remember { mutableStateOf(listOf(0.08f)) }
+
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) error = "Microphone permission is required to record a voice note."
+        if (granted) startRecordingAfterPermission(context) { startedRecorder, file ->
+            recorder = startedRecorder
+            recordingFile = file
+            elapsedSeconds = 0
+            amplitudeSamples = listOf(0.08f)
+            recording = true
+            error = null
+        } else {
+            error = "Microphone permission is required to record a voice note."
+        }
     }
+
+    fun releasePlayer() {
+        runCatching { player?.stop() }
+        runCatching { player?.release() }
+        player = null
+        playing = false
+        playbackPosition = 0
+    }
+
     fun finishRecording(keepFile: Boolean): Uri? {
         val file = recordingFile
         val success = runCatching { recorder?.stop() }.isSuccess
         runCatching { recorder?.release() }
         recorder = null
         recording = false
-        return if (keepFile && success && file?.exists() == true && file.length() > 0L) Uri.fromFile(file) else {
+        return if (keepFile && success && file?.exists() == true && file.length() > 0L) {
+            Uri.fromFile(file)
+        } else {
             runCatching { file?.delete() }
+            recordingFile = null
             null
         }
     }
+
     fun startRecording() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        runCatching {
-            val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
-            @Suppress("DEPRECATION")
-            val mediaRecorder = MediaRecorder()
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            mediaRecorder.setOutputFile(file.absolutePath)
-            mediaRecorder.prepare()
-            mediaRecorder.start()
-            recorder = mediaRecorder
+        startRecordingAfterPermission(context) { startedRecorder, file ->
+            recorder = startedRecorder
             recordingFile = file
             elapsedSeconds = 0
+            amplitudeSamples = listOf(0.08f)
             recording = true
             error = null
-        }.onFailure { error = it.message ?: "Could not start recording." }
+        }
     }
+
+    fun preparePlayback(uri: Uri) {
+        releasePlayer()
+        runCatching {
+            val created = MediaPlayer.create(context, uri) ?: error("Could not prepare voice-note playback.")
+            player = created
+            playbackDuration = created.duration.coerceAtLeast(0)
+            playbackPosition = 0
+            created.setOnCompletionListener {
+                playing = false
+                playbackPosition = 0
+                runCatching { it.seekTo(0) }
+            }
+            created.start()
+            playing = true
+        }.onFailure {
+            releasePlayer()
+            error = it.message ?: "Could not play the recorded voice note."
+        }
+    }
+
     LaunchedEffect(recording) {
         while (recording) {
             kotlinx.coroutines.delay(1_000)
             elapsedSeconds += 1
         }
     }
+    LaunchedEffect(recording) {
+        while (recording) {
+            kotlinx.coroutines.delay(120)
+            val amplitude = runCatching { recorder?.maxAmplitude ?: 0 }.getOrDefault(0)
+            val normalized = (amplitude / 32767f).coerceIn(0.02f, 1f)
+            amplitudeSamples = (amplitudeSamples + normalized).takeLast(32)
+        }
+    }
+    LaunchedEffect(playing) {
+        while (playing) {
+            kotlinx.coroutines.delay(100)
+            playbackPosition = runCatching { player?.currentPosition ?: 0 }.getOrDefault(0)
+            if (player?.isPlaying != true) playing = false
+        }
+    }
     DisposableEffect(Unit) {
         onDispose {
             runCatching { recorder?.release() }
             recorder = null
+            releasePlayer()
             if (recording) runCatching { recordingFile?.delete() }
         }
     }
-    val waveform = rememberInfiniteTransition(label = "voice-waveform")
-    val bars = (0 until 24).map { index ->
-        waveform.animateFloat(
-            initialValue = 5f + (index % 4) * 2f,
-            targetValue = 13f + (index % 5) * 5f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 280 + index * 23, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "wave-$index"
-        )
-    }
-    Dialog(onDismissRequest = { if (recording) finishRecording(false); onDismiss() }) {
+
+    Dialog(onDismissRequest = {
+        if (recording) finishRecording(false)
+        releasePlayer()
+        recordedUri?.let { runCatching { java.io.File(it.path.orEmpty()).delete() } }
+        onDismiss()
+    }) {
         Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("VOICE NOTE", color = ShellCyan, fontWeight = FontWeight.Bold)
-                Text(if (recording) "Recording in progress" else "Record a private voice note.", color = ShellText, fontSize = 13.sp)
-                Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    bars.forEach { bar ->
-                        Box(Modifier.weight(1f).height(if (recording) bar.value.dp else 5.dp).background(if (recording) ShellCyan else ShellMuted, RoundedCornerShape(4.dp)))
+                Text(
+                    when {
+                        recording -> "Recording in progress — waveform follows microphone input"
+                        recordedUri != null -> "Preview your recording before sending"
+                        else -> "Record a private voice note."
+                    },
+                    color = ShellText,
+                    fontSize = 13.sp
+                )
+                Row(
+                    Modifier.fillMaxWidth().height(56.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    amplitudeSamples.forEach { sample ->
+                        Box(
+                            Modifier.weight(1f)
+                                .height((5f + sample * 46f).dp)
+                                .background(if (recording) ShellCyan else ShellMuted, RoundedCornerShape(4.dp))
+                        )
                     }
                 }
-                Text(String.format(java.util.Locale.ROOT, "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60), color = if (recording) ShellCyan else ShellMuted, fontWeight = FontWeight.Bold)
+                Text(
+                    String.format(java.util.Locale.ROOT, "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60),
+                    color = if (recording) ShellCyan else ShellMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                if (recordedUri != null && !recording) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = {
+                            val activePlayer = player
+                            if (activePlayer == null) {
+                                preparePlayback(recordedUri!!)
+                            } else if (playing) {
+                                runCatching { activePlayer.pause() }
+                                playing = false
+                            } else {
+                                runCatching {
+                                    if (playbackPosition >= playbackDuration && playbackDuration > 0) activePlayer.seekTo(0)
+                                    activePlayer.start()
+                                    playing = true
+                                }.onFailure { error = it.message ?: "Playback could not resume." }
+                            }
+                        }) { Text(if (playing) "PAUSE" else "PLAY", color = ShellCyan) }
+                        Text(
+                            String.format(
+                                java.util.Locale.ROOT, "%02d:%02d",
+                                (playbackPosition / 1000) / 60, (playbackPosition / 1000) % 60
+                            ),
+                            color = ShellMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Slider(
+                        value = if (playbackDuration > 0) playbackPosition.toFloat() / playbackDuration else 0f,
+                        onValueChange = { fraction ->
+                            val position = (fraction * playbackDuration).toInt().coerceIn(0, playbackDuration)
+                            playbackPosition = position
+                            runCatching { player?.seekTo(position) }
+                        },
+                        enabled = playbackDuration > 0
+                    )
+                    Text("Drag the progress control to seek through the recording.", color = ShellMuted, fontSize = 10.sp)
+                }
                 if (recording) {
                     Text(
-                        when { dragDistance < -70f -> "Release to cancel"; dragDistance > 70f -> "Release to send"; else -> "Slide left to cancel • slide right to send" },
+                        when {
+                            dragDistance < -70f -> "Release to cancel"
+                            dragDistance > 70f -> "Release to send"
+                            else -> "Slide left to cancel • slide right to send"
+                        },
                         color = if (kotlin.math.abs(dragDistance) > 70f) ShellCyan else ShellMuted,
                         fontSize = 11.sp,
                         modifier = Modifier.fillMaxWidth().pointerInput(recording) {
                             detectDragGestures(
                                 onDragEnd = {
                                     when {
-                                        dragDistance < -70f -> { finishRecording(false); dragDistance = 0f; error = "Recording discarded." }
-                                        dragDistance > 70f -> { val uri = finishRecording(true); dragDistance = 0f; if (uri != null) onRecorded(uri) else error = "Recording was too short. Try again." }
+                                        dragDistance < -70f -> {
+                                            finishRecording(false)
+                                            dragDistance = 0f
+                                            error = "Recording discarded."
+                                        }
+                                        dragDistance > 70f -> {
+                                            val uri = finishRecording(true)
+                                            dragDistance = 0f
+                                            if (uri != null) {
+                                                releasePlayer()
+                                                recordingFile = null
+                                                onRecorded(uri)
+                                            } else error = "Recording was too short. Try again."
+                                        }
                                         else -> dragDistance = 0f
                                     }
                                 },
@@ -1308,20 +1435,71 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
                 }
                 error?.let { Text(it, color = Color(0xFFFF8297), fontSize = 11.sp) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TextButton(onClick = { if (recording) finishRecording(false); onDismiss() }, modifier = Modifier.weight(1f)) { Text("CANCEL", color = ShellMuted) }
+                    TextButton(
+                        onClick = {
+                            if (recording) finishRecording(false)
+                            releasePlayer()
+                            recordedUri?.let { runCatching { java.io.File(it.path.orEmpty()).delete() } }
+                            recordedUri = null
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("CANCEL", color = ShellMuted) }
                     Button(
                         onClick = {
-                            if (!recording) startRecording()
-                            else { val uri = finishRecording(true); if (uri != null) onRecorded(uri) else error = "Recording was too short. Try again." }
+                            when {
+                                recording -> {
+                                    val uri = finishRecording(true)
+                                    if (uri != null) {
+                                        recordedUri = uri
+                                        preparePlayback(uri)
+                                    } else error = "Recording was too short. Try again."
+                                }
+                                recordedUri != null -> {
+                                    val uri = recordedUri!!
+                                    releasePlayer()
+                                    recordedUri = null
+                                    recordingFile = null
+                                    onRecorded(uri)
+                                }
+                                else -> startRecording()
+                            }
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = if (recording) Color(0xFFB9415B) else ShellBlue)
-                    ) { Text(if (recording) "STOP & SEND" else "RECORD") }
+                    ) {
+                        Text(when {
+                            recording -> "STOP & PREVIEW"
+                            recordedUri != null -> "SEND VOICE NOTE"
+                            else -> "RECORD"
+                        })
+                    }
                 }
             }
         }
     }
 }
+
+private fun startRecordingAfterPermission(
+    context: android.content.Context,
+    onStarted: (MediaRecorder, java.io.File) -> Unit
+) {
+    runCatching {
+        val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
+        @Suppress("DEPRECATION")
+        val mediaRecorder = MediaRecorder()
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+        mediaRecorder.setOutputFile(file.absolutePath)
+        mediaRecorder.prepare()
+        mediaRecorder.start()
+        onStarted(mediaRecorder, file)
+    }.onFailure {
+        android.util.Log.w("VoiceAttachmentRecorder", "Could not start voice recording", it)
+    }
+}
+
 private fun android.content.ContentResolver.getDisplayName(uri: Uri): String? {
     var cursor: Cursor? = null
     return try {
