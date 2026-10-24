@@ -4,7 +4,7 @@ package com.sayangqoemeet.app
  * MIME types deliberately accepted by the private chat-attachments bucket.
  * Keep this list in sync with the forward storage-bucket migration.
  */
-internal val SupportedChatAttachmentMimeTypes = setOf(
+internal val supportedChatAttachmentMimeTypes = setOf(
     "image/jpeg",
     "image/png",
     "image/webp",
