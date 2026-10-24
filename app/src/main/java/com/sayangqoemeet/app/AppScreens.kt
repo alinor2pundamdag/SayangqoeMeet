@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -780,6 +781,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var draft by remember { mutableStateOf("") }
     var pendingSendRequestId by remember { mutableStateOf<String?>(null) }
     var messages by remember { mutableStateOf<List<MessageRecord>>(emptyList()) }
+    var reactionsByMessage by remember { mutableStateOf<Map<String, List<MessageReactionRecord>>>(emptyMap()) }
     var status by remember { mutableStateOf("Loading message history…") }
     var loading by remember { mutableStateOf(false) }
     var loadingOlder by remember { mutableStateOf(false) }
@@ -796,6 +798,23 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var capturePreviewUri by remember { mutableStateOf<Uri?>(null) }
     var capturePreviewMime by remember { mutableStateOf<String?>(null) }
     var capturePreviewName by remember { mutableStateOf<String?>(null) }
+    suspend fun refreshMessageReactions() {
+        val id = conversationId?.takeIf { it.isNotBlank() } ?: return
+        val fresh = SupabaseDataRepository.loadMessageReactions(id)
+        reactionsByMessage = fresh.groupBy { it.messageId }
+    }
+
+    fun toggleMessageReaction(messageId: String, reaction: String) {
+        scope.launch {
+            try {
+                SupabaseDataRepository.toggleMessageReaction(messageId, reaction)
+                refreshMessageReactions()
+            } catch (error: Exception) {
+                status = error.message ?: "Could not update the message reaction."
+            }
+        }
+    }
+
     val messageListState = rememberLazyListState()
     val photoCapture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         if (!saved) { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
@@ -878,7 +897,20 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         }, onFailure = { reason ->
             scope.launch { status = reason }
         })
-        onDispose { subscription?.close() }
+        val reactionSubscription = SupabaseDataRepository.subscribeToMessageReactions(
+            onChange = {
+                scope.launch {
+                    runCatching { refreshMessageReactions() }.onFailure { error ->
+                        status = error.message ?: "Could not refresh message reactions."
+                    }
+                }
+            },
+            onFailure = { reason -> scope.launch { status = reason } }
+        )
+        onDispose {
+            subscription?.close()
+            reactionSubscription?.close()
+        }
     }
 
     LaunchedEffect(conversationId) {
@@ -895,6 +927,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 otherUserId = conversation?.otherUserId
                 otherDisplayName = conversation?.displayLabel
                 messages = SupabaseDataRepository.loadMessages(conversationId)
+                refreshMessageReactions()
                 hasOlderMessages = messages.size >= 100
                 status = if (messages.isEmpty()) "No messages yet. Say hello." else ""
             } catch (error: Exception) { status = error.message ?: "Could not load messages." }
@@ -963,6 +996,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                             val older = SupabaseDataRepository.loadOlderMessages(conversationId.orEmpty(), first)
                             messages = (older + messages).distinctBy { it.id }
                                 .sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
+                            refreshMessageReactions()
                             hasOlderMessages = older.size >= 50
                             status = if (older.isEmpty()) "You have reached the beginning of this conversation." else ""
                         } catch (error: Exception) {
@@ -979,6 +1013,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         ) {
             items(messages, key = { it.id }) { message ->
                 val mine = message.senderId == currentUserId
+                val messageReactions = reactionsByMessage[message.id].orEmpty()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                     Column(
                         Modifier.widthIn(max = 280.dp)
@@ -1031,6 +1066,23 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                                 }
                             }
                         }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("👍", "❤️", "😂", "😮", "😢", "🙏").forEach { emoji ->
+                                val matching = messageReactions.filter { it.reaction == emoji }
+                                val mineReaction = matching.any { it.userId == currentUserId }
+                                Text(
+                                    if (matching.isEmpty()) emoji else "$emoji ${matching.size}",
+                                    color = if (mineReaction) ShellCyan else ShellMuted,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.clickable { toggleMessageReaction(message.id, emoji) }
+                                        .padding(horizontal = 2.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
                         Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (mine) {
                             TextButton(onClick = { messageToDelete = message }, enabled = !loading) {
@@ -1059,6 +1111,12 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 enabled = !loading && !conversationId.isNullOrBlank()
             )
             Spacer(Modifier.width(8.dp))
+            IconButton(
+                onClick = { messages.lastOrNull()?.let { toggleMessageReaction(it.id, "👍") } },
+                enabled = !loading && messages.isNotEmpty() && !conversationId.isNullOrBlank()
+            ) {
+                Icon(Icons.Default.ThumbUp, contentDescription = "React to latest message with thumbs up", tint = ShellCyan)
+            }
             Button(
                 onClick = {
                     val content = draft.trim()
