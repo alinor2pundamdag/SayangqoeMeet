@@ -1058,7 +1058,7 @@ BEGIN
      OR NOT has_function_privilege('authenticated', 'public.toggle_message_reaction(uuid,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Reaction toggle RPC grants are incorrect';
   END IF;
-END $;
+END $reaction_policy_shape$;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
