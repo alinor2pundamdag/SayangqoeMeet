@@ -310,6 +310,52 @@ Do not describe the entire app as finished while any required feature remains un
 
 ---
 
+## 15A. Messenger-inspired profile, settings, menu, and compose flows — user-requested addendum
+
+**Status:** Approved requirement for research and implementation planning; individual features remain unverified until source, backend, tests, and supported-device behavior are audited.
+
+### Scope and exclusions
+
+Use the current public Messenger Android experience as a behavioral and visual reference, not as source code to copy. Preserve SayangqoeMeet's own name, original sci-fi cyan/blue identity, and accessible design tokens. Do not use Meta/Messenger logos or imply affiliation. Do not add Meta Account / Accounts Center settings. Marketplace and previously excluded Meta-specific features remain out of scope. Notifications are not to be expanded as part of this addendum unless an existing included flow technically depends on them.
+
+### Required feature inventory
+
+1. **Profile/account switcher:** Research Messenger's current account/profile switching behavior and supported constraints. For SayangqoeMeet, specify a secure in-app account/profile switcher only where the app's own authentication model supports it. Define account list, active-profile indicator, add/remove account, session restoration, switch confirmation/reauthentication where appropriate, per-account state isolation, error/offline handling, and sign-out behavior. Do not confuse multiple app accounts with Android OS multi-user profiles or Meta personal profiles.
+2. **Settings/menu entry and navigation:** Audit the current Messenger menu button, profile entry, settings hierarchy, section ordering, icons, labels, dividers, spacing, sheet/page transitions, back navigation, and accessibility. Implement a Messenger-inspired information architecture while retaining SayangqoeMeet branding and not importing excluded Meta Account/Marketplace entries.
+3. **Dark mode/theme:** Provide a real app-level theme setting with explicit preference persistence and deterministic application on app restart. Audit system/default, light, dark, and any existing project-specific theme requirement for conflicts before implementation. Theme changes must update all included screens consistently and preserve contrast/readability.
+4. **Editable username/profile:** Provide an authenticated profile-edit flow with validation, loading/success/error states, duplicate/invalid username handling, and persistence to the authoritative Supabase profile record. Confirm how username changes affect chat identity, search, existing conversations, and realtime UI. Never treat a local-only display-name change as a successful backend update.
+5. **App icon behavior:** Research what Messenger currently offers and distinguish the Android launcher icon/branding from an in-app icon setting. Document which behaviors Android actually permits. Only implement a supported SayangqoeMeet-owned launcher icon or icon-selection capability if technically appropriate; do not copy Meta's protected branding or claim that an in-app choice changes the launcher icon unless it really does.
+6. **Photo & Media settings:** Add a dedicated settings destination for the user's photos/media-related app preferences and media management that are genuinely supported by SayangqoeMeet. Audit existing chat attachments, image/video selection, preview, download/open, storage access, cache and cleanup behavior. Clearly separate per-device settings from server-stored media and from conversation-specific media. Any deletion must have explicit scope/confirmation and must not silently delete other users' shared content.
+7. **Log out:** Add a clearly discoverable logout action in Settings, with confirmation and correct session cleanup. Verify Supabase sign-out, local persisted session removal, active-account state reset, FCM token unregister best-effort behavior, navigation to authentication, and offline/server-failure behavior. Report local sign-out separately from server revocation if remote confirmation fails.
+8. **Header and menu styling:** Study current Messenger header/menu composition (layout, icon placement, typography hierarchy, touch targets, scrolling, status/navigation bar insets, surfaces and transitions). Adapt the useful patterns to SayangqoeMeet's established neon visual system. Do not replace the existing brand system with a generic or copied Meta theme.
+9. **New chat / new message:** Document and implement the complete flow from the chat-list action through recipient discovery/username lookup, recipient selection, direct-conversation open/create, pending invitation/acceptance where required by current product rules, conversation navigation, first-message compose/send, and visible result/error handling. Prevent duplicate direct conversations and unauthorized membership. Verify both users' view of the same conversation and message.
+10. **Cross-layer integration:** For every included feature, map UI event/state → ViewModel/repository or current equivalent → Supabase Auth/REST/Realtime/Edge Function/Storage as applicable → database tables/RLS/functions → response/error → UI update. Include backend-to-backend dependencies such as Edge Function authorization, service-role-only operations, FCM/media integrations only where the included feature requires them, retries/idempotency, and audit/security considerations.
+
+### File-by-file audit and implementation map
+
+Start by inspecting the actual current tree and call sites; the paths below are starting points, not an assertion that all behavior belongs in a single file.
+
+- `app/src/main/java/com/sayangqoemeet/app/AppScreens.kt`: inspect the signed-in navigation, chat list, profile/settings entry points, new-chat action and conversation route.
+- `app/src/main/java/com/sayangqoemeet/app/MainActivity.kt`: inspect app-level theme state/persistence, authentication/session restoration, navigation intents, and sign-out lifecycle.
+- `app/src/main/java/com/sayangqoemeet/app/SupabaseAuthRepository.kt`: inspect login/session restore/sign-out semantics and account switching boundaries.
+- `app/src/main/java/com/sayangqoemeet/app/SupabaseDataRepository.kt`: inspect profile reads/writes, username lookup, conversation/message operations, attachment metadata, and error mapping.
+- `app/src/main/java/com/sayangqoemeet/app/SupabaseRealtime.kt` and `MessageRealtimeReconciler.kt`: inspect realtime profile/conversation/message updates and duplicate/out-of-order reconciliation where relevant.
+- `app/src/main/AndroidManifest.xml` and `app/build.gradle.kts`: inspect launcher icon resources, supported SDK/permissions, activity/navigation configuration, media dependencies, and build/test setup.
+- `supabase/migrations/*.sql` and `supabase/tests/phase2_two_user_rls.sql`: inspect authoritative schema, RLS, uniqueness/idempotency, membership rules, and authorization tests before proposing any schema change.
+- `supabase/functions/create-conversation/index.ts`, `open-private-conversation/index.ts`, and `respond-conversation-invite/index.ts`: inspect the current secure new-chat/open/create/invitation path before altering it.
+- `supabase/functions/confirm-message-media-download/index.ts`, `cleanup-chat-media/index.ts`, attachment-related Kotlin files, and storage policies: inspect the existing media lifecycle before adding Photo & Media settings.
+- Relevant Compose UI, repository, Edge Function, SQL migration, unit/integration test, documentation, and CI files must be added to this map as the audit discovers them. Prefer focused changes and additive migrations; never rewrite applied migration history.
+
+### Required audit deliverables and completion gate
+
+- A source-backed feature matrix: Messenger behavior/reference, inclusion/exclusion decision, current SayangqoeMeet status, target behavior, exact files and backend dependencies, security/privacy risks, and tests.
+- A step-by-step user journey for profile switching, settings/menu, username editing, Photo & Media, logout, and new chat/message.
+- A per-feature frontend-to-backend sequence and, where applicable, backend-to-backend sequence, including payload/data shape, authorization boundary, failure cases, and state reconciliation.
+- A gap list that distinguishes already implemented, partially implemented, absent, blocked by platform/configuration, and not yet verified.
+- Focused implementation commits on a separate branch, with no unapproved changes to excluded scope.
+- Verification evidence: source review, available unit/static tests, Android build/CI result, backend/RLS tests, and physical-device/two-account checks where available. Never mark a feature complete based only on a screen or successful source edit.
+
+
 ## 16. Append-only master-plan completion history
 
 ### 2026-10-16 — Initial baseline established
@@ -392,3 +438,11 @@ Do not describe the entire app as finished while any required feature remains un
 - Updated `respond-conversation-invite` so the pending invitation is conditionally claimed before membership is added, reducing accept/decline race conditions; a failed membership write attempts to return the invite to pending.
 - Redeployed both Edge Functions with JWT verification still enabled.
 - This is source/deployment verification only; two-account runtime tests and rate-limit/abuse testing remain outstanding.
+
+
+### 2026-10-24 — Messenger-inspired settings and messaging-flow requirements added
+
+- Added the user's requested scope for profile/account switching, the settings/menu structure and styling, dark mode, username editing, supported app-icon behavior, Photo & Media, logout, header/menu styling, and the complete new-chat/new-message journey.
+- Explicitly excluded Meta Account/Accounts Center settings and retained previously excluded Marketplace and Meta-specific scope; the addendum preserves SayangqoeMeet's own brand identity.
+- Required a source-backed feature matrix and file-by-file, frontend-to-backend/backend-to-backend implementation map, with authorization, persistence, failure states, and test evidence.
+- This is a requirements/documentation update only. It does not claim that these features have been fully audited, implemented, built, or runtime-tested.
