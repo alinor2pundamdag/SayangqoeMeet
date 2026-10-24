@@ -25,6 +25,7 @@ import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import coil.compose.AsyncImage
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -805,6 +806,36 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "captured-video.mp4"
         } else { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
     }
+    // Android Photo Picker provides album/provider browsing without granting broad
+    // library access to the app. Upload selected images one at a time so each result
+    // follows the same authenticated attachment authorization path.
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+    ) { uris ->
+        if (uris.isNotEmpty() && !conversationId.isNullOrBlank()) {
+            scope.launch {
+                loading = true
+                var uploaded = 0
+                try {
+                    uris.forEach { uri ->
+                        val name = context.contentResolver.getDisplayName(uri) ?: "photo-${uploaded + 1}.jpg"
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        require(mime.startsWith("image/")) { "The photo picker returned a non-image item." }
+                        val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, mime, name)
+                        messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
+                        uploaded += 1
+                    }
+                    status = if (uploaded == 1) "Photo sent." else "$uploaded photos sent."
+                } catch (error: Exception) {
+                    status = if (uploaded > 0) "$uploaded photo(s) sent; remaining uploads stopped: ${error.message ?: "upload failed"}"
+                    else error.message ?: "Photo upload failed."
+                } finally {
+                    loading = false
+                }
+            }
+        }
+    }
+
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null && !conversationId.isNullOrBlank()) {
             scope.launch {
@@ -1111,6 +1142,10 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
             Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("SHARE WITH THIS CONVERSATION", color = ShellCyan, fontWeight = FontWeight.Bold)
                 TextButton(onClick = { showAttachmentSheet = false; beginPhotoCapture() }) { Text("📷  Take photo", color = ShellText) }
+                TextButton(onClick = {
+                    showAttachmentSheet = false
+                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) { Text("🖼  Browse photos & albums (up to 10)", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; beginVideoCapture() }) { Text("🎥  Record video", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; showVoiceRecorder = true }) { Text("🎙  Voice recording", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; videoPicker.launch("video/*") }) { Text("▶  Select video", color = ShellText) }
