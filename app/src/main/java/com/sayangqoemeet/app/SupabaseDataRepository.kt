@@ -282,9 +282,11 @@ internal object SupabaseDataRepository {
     }
 
     private suspend fun loadOnlineUserIds(): Set<String> {
-        val cutoff = java.time.Instant.now().minusSeconds(90).toString()
-        val query = "user_presence?select=user_id&last_seen_at=gte.${enc(cutoff)}"
-        val rows = JSONArray(runRequest { request("GET", query) })
+        // Read only the directory's binary online indicator through the scoped RPC.
+        // Raw last_seen_at timestamps remain restricted to conversation contacts.
+        val rows = JSONArray(runRequest {
+            request("POST", "rpc/get_registered_online_user_ids", JSONObject())
+        })
         return (0 until rows.length()).map { rows.getJSONObject(it).getString("user_id") }.toSet()
     }
 
