@@ -58,7 +58,9 @@ internal fun CameraXCaptureDialog(
 
     DisposableEffect(lifecycleOwner, previewView) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
+        var disposed = false
         providerFuture.addListener({
+            if (disposed) return@addListener
             try {
                 val provider = providerFuture.get()
                 val preview = Preview.Builder().build().also {
@@ -81,6 +83,7 @@ internal fun CameraXCaptureDialog(
             }
         }, mainExecutor)
         onDispose {
+            disposed = true
             imageCapture = null
             if (providerFuture.isDone) {
                 runCatching { providerFuture.get().unbindAll() }
