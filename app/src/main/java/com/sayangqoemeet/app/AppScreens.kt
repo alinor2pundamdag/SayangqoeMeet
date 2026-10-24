@@ -792,12 +792,14 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var showChatInfo by remember { mutableStateOf(false) }
     var showSharedMedia by remember { mutableStateOf(false) }
     var capturePreviewUri by remember { mutableStateOf<Uri?>(null) }
+    var showCameraXCapture by remember { mutableStateOf(false) }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) showCameraXCapture = true
+        else status = "Camera permission is required to take a photo."
+    }
     var capturePreviewMime by remember { mutableStateOf<String?>(null) }
     var capturePreviewName by remember { mutableStateOf<String?>(null) }
     val messageListState = rememberLazyListState()
-    val photoCapture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
-        if (!saved) { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
-    }
     val videoCapture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         if (result.resultCode == android.app.Activity.RESULT_OK && uri != null) {
@@ -927,17 +929,11 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     }
 
     fun beginPhotoCapture() {
-        runCatching {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "sayangqoemeet-${System.currentTimeMillis()}.jpg")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: error("Could not create a photo destination.")
-            capturePreviewUri = uri; capturePreviewMime = "image/jpeg"
-            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "photo.jpg"
-            photoCapture.launch(uri)
-        }.onFailure { status = it.message ?: "Could not open the camera." }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            showCameraXCapture = true
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
     }
     fun beginVideoCapture() {
         runCatching { videoCapture.launch(Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) }
@@ -1131,6 +1127,18 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 }
             }
         }
+    }
+
+    if (showCameraXCapture) {
+        CameraXCaptureDialog(
+            onDismiss = { showCameraXCapture = false },
+            onCaptured = { uri ->
+                showCameraXCapture = false
+                capturePreviewUri = uri
+                capturePreviewMime = "image/jpeg"
+                capturePreviewName = "camera-photo.jpg"
+            }
+        )
     }
 
     if (showAttachmentSheet) {
