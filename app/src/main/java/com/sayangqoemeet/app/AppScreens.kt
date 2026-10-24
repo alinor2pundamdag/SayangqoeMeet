@@ -800,11 +800,14 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
         if (!saved) { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
     }
     val videoCapture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.data
+        val data = result.data
+        val uri = data?.getStringExtra(CameraCaptureActivity.EXTRA_CAPTURE_URI)?.let(Uri::parse)
         if (result.resultCode == android.app.Activity.RESULT_OK && uri != null) {
             capturePreviewUri = uri
-            capturePreviewMime = context.contentResolver.getType(uri) ?: "video/mp4"
-            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "captured-video.mp4"
+            capturePreviewMime = data.getStringExtra(CameraCaptureActivity.EXTRA_CAPTURE_MIME)
+                ?: context.contentResolver.getType(uri) ?: "application/octet-stream"
+            capturePreviewName = data.getStringExtra(CameraCaptureActivity.EXTRA_CAPTURE_NAME)
+                ?: context.contentResolver.getDisplayName(uri) ?: "captured-media"
         } else { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }
     }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -899,20 +902,19 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
 
     fun beginPhotoCapture() {
         runCatching {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "sayangqoemeet-${System.currentTimeMillis()}.jpg")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: error("Could not create a photo destination.")
-            capturePreviewUri = uri; capturePreviewMime = "image/jpeg"
-            capturePreviewName = context.contentResolver.getDisplayName(uri) ?: "photo.jpg"
-            photoCapture.launch(uri)
-        }.onFailure { status = it.message ?: "Could not open the camera." }
+            videoCapture.launch(
+                Intent(context, CameraCaptureActivity::class.java)
+                    .putExtra(CameraCaptureActivity.EXTRA_START_MODE, CameraCaptureActivity.MODE_NORMAL)
+            )
+        }.onFailure { status = it.message ?: "Could not open the in-app camera." }
     }
     fun beginVideoCapture() {
-        runCatching { videoCapture.launch(Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) }
-            .onFailure { status = it.message ?: "Could not open video capture." }
+        runCatching {
+            videoCapture.launch(
+                Intent(context, CameraCaptureActivity::class.java)
+                    .putExtra(CameraCaptureActivity.EXTRA_START_MODE, CameraCaptureActivity.MODE_VIDEO)
+            )
+        }.onFailure { status = it.message ?: "Could not open in-app video capture." }
     }
     fun sendCapturedMedia() {
         val uri = capturePreviewUri ?: return
