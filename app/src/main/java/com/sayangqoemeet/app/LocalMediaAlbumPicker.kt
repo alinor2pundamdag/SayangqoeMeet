@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -148,7 +149,7 @@ internal fun LocalMediaAlbumPicker(
                     visibleItems.isEmpty() -> Text(error ?: "No supported media in this album.", color = Color.LightGray, fontSize = 12.sp)
                     else -> LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
-                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp),
                         contentPadding = PaddingValues(2.dp),
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
