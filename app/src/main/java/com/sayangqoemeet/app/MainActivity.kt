@@ -70,6 +70,10 @@ class MainActivity : ComponentActivity() {
                                 if (incomingCallId == handledId) incomingCallId = null
                             },
                             onSignOut = {
+                                // Stop any incoming-call ringtone immediately. Its polling
+                                // cannot authenticate after sign-out and must not keep ringing
+                                // under a different account while the device is offline.
+                                runCatching { CallForegroundService.stop(this@MainActivity) }
                                 // Serialize logout against onResume/session restoration so a
                                 // late restore cannot put the signed-out account back on screen.
                                 authCallbackPending = true
