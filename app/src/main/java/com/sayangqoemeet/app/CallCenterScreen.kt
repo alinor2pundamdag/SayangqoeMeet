@@ -322,6 +322,16 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                 Text("Incoming calls are delivered through the system call notification.", color = CallMuted)
             } else {
                 Text(status, color = CallCyan)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    Text(
+                        if (manager?.audioCaptureRestricted == true)
+                            "Call-audio capture restriction is active in Android."
+                        else
+                            "Call-audio capture restriction is not confirmed on this device.",
+                        color = if (manager?.audioCaptureRestricted == true) CallMuted else CallRed,
+                        fontSize = 10.sp
+                    )
+                }
                 if (activeCall?.type == "video") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AndroidView(
