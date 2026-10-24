@@ -313,6 +313,11 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             factory = { view -> SurfaceViewRenderer(view).also { remoteRenderer = it; manager?.attachRenderers(localRenderer, it) } }
                         )
                     }
+                    Text(
+                        "Privacy notice: Android screen recording may not capture call audio. Recording behavior is controlled by Android and the device manufacturer.",
+                        color = CallMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { muted = !muted; callUiStateStore.setMuted(muted); manager?.setMuted(muted) }) { Text(if (muted) "UNMUTE" else "MUTE") }
