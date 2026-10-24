@@ -1224,14 +1224,14 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
     var amplitudeSamples by remember { mutableStateOf(listOf(0.08f)) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startRecordingAfterPermission(context) { startedRecorder, file ->
+        if (granted) startRecordingAfterPermission(context, onStarted = { startedRecorder, file ->
             recorder = startedRecorder
             recordingFile = file
             elapsedSeconds = 0
             amplitudeSamples = listOf(0.08f)
             recording = true
             error = null
-        } else {
+        }, onFailure = { error = it }) else {
             error = "Microphone permission is required to record a voice note."
         }
     }
@@ -1264,20 +1264,20 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        startRecordingAfterPermission(context) { startedRecorder, file ->
+        startRecordingAfterPermission(context, onStarted = { startedRecorder, file ->
             recorder = startedRecorder
             recordingFile = file
             elapsedSeconds = 0
             amplitudeSamples = listOf(0.08f)
             recording = true
             error = null
-        }
+        }, onFailure = { error = it })
     }
 
     fun preparePlayback(uri: Uri) {
         releasePlayer()
         runCatching {
-            val created = MediaPlayer.create(context, uri) ?: error("Could not prepare voice-note playback.")
+            val created = checkNotNull(MediaPlayer.create(context, uri)) { "Could not prepare voice-note playback." }
             player = created
             playbackDuration = created.duration.coerceAtLeast(0)
             playbackPosition = 0
@@ -1482,7 +1482,8 @@ private fun VoiceAttachmentRecorder(onDismiss: () -> Unit, onRecorded: (Uri) -> 
 
 private fun startRecordingAfterPermission(
     context: android.content.Context,
-    onStarted: (MediaRecorder, java.io.File) -> Unit
+    onStarted: (MediaRecorder, java.io.File) -> Unit,
+    onFailure: (String) -> Unit
 ) {
     runCatching {
         val file = java.io.File(context.cacheDir, "voice-${java.util.UUID.randomUUID()}.m4a")
@@ -1497,6 +1498,7 @@ private fun startRecordingAfterPermission(
         onStarted(mediaRecorder, file)
     }.onFailure {
         android.util.Log.w("VoiceAttachmentRecorder", "Could not start voice recording", it)
+        onFailure(it.message ?: "Could not start recording.")
     }
 }
 
