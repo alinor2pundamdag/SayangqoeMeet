@@ -290,8 +290,13 @@ internal object SupabaseDataRepository {
         phoneNumber: String? = null
     ): ProfileRecord {
         val id = userId()
+        // Do not use PostgREST upsert here. The profiles table intentionally
+        // exposes only column-scoped SELECT grants to protect private fields;
+        // ON CONFLICT DO UPDATE can require additional SELECT privileges and
+        // fail with "permission denied for table profiles". Read via the
+        // caller-scoped RPC, then issue a plain UPDATE or INSERT as appropriate.
+        val existingProfile = loadProfile()
         val payload = JSONObject()
-            .put("id", id)
             .put("display_name", displayName.trim())
             .put("username", username.trim())
             .put("updated_at", java.time.Instant.now().toString())
@@ -302,11 +307,15 @@ internal object SupabaseDataRepository {
         payload.put("address", address?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
         payload.put("phone_number", phoneNumber?.trim().takeUnless { it.isNullOrBlank() } ?: JSONObject.NULL)
         runRequest {
-            request("POST", "profiles?on_conflict=id", payload, "resolution=merge-duplicates,return=minimal")
+            if (existingProfile != null) {
+                request("PATCH", "profiles?id=eq.${enc(id)}", payload, "return=minimal")
+            } else {
+                val insertPayload = JSONObject(payload.toString()).put("id", id)
+                request("POST", "profiles", insertPayload, "return=minimal")
+            }
         }
-        // The table-level SELECT grant no longer includes the sensitive columns
-        // (see migration 20261018120000), so re-read the saved row through the
-        // same RPC used by loadProfile() rather than the POST response body.
+        // Re-read through the caller-scoped RPC; never broaden direct SELECT
+        // grants to make profile editing work.
         return loadProfile() ?: error("Profile save appeared to succeed but could not be re-read.")
     }
 
@@ -503,6 +512,8 @@ internal object SupabaseDataRepository {
 
     suspend fun uploadChatAttachment(context: Context, conversationId: String, uri: Uri, mimeType: String, displayName: String): MessageRecord {
         val uid = userId()
+        val normalizedMimeType = supportedChatAttachmentMimeType(mimeType)
+            ?: error("Unsupported attachment type. Use an image, audio/video file, or plain-text .txt file.")
         val safeName = displayName.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(90).ifBlank { "attachment" }
         val objectPath = "$conversationId/$uid/${java.util.UUID.randomUUID()}_$safeName"
         val bytes = withContext(Dispatchers.IO) {
@@ -521,7 +532,7 @@ internal object SupabaseDataRepository {
                 doOutput = true
                 setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
                 setRequestProperty("Authorization", "Bearer $token")
-                setRequestProperty("Content-Type", mimeType.ifBlank { "application/octet-stream" })
+                setRequestProperty("Content-Type", normalizedMimeType)
                 setRequestProperty("x-upsert", "false")
             }
             try {
@@ -538,7 +549,7 @@ internal object SupabaseDataRepository {
             .put("sender_id", uid)
             .put("body", displayName.ifBlank { "Attachment" })
             .put("attachment_path", objectPath)
-            .put("attachment_mime_type", mimeType.ifBlank { "application/octet-stream" })
+            .put("attachment_mime_type", normalizedMimeType)
             .put("attachment_name", safeName)
         val response = try {
             runRequest { request("POST", "messages", payload, "return=representation") }
