@@ -31,4 +31,18 @@ CREATE POLICY user_presence_read_conversation_participants
     FOR SELECT TO authenticated
     USING (public.is_conversation_contact(user_id));
 
+DO $
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+          AND schemaname = 'public'
+          AND tablename = 'user_presence'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.user_presence;
+    END IF;
+END $;
+
 COMMIT;
