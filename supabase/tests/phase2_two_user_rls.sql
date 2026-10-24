@@ -109,6 +109,45 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Chat attachments bucket must remain private';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM storage.buckets
+    WHERE id = 'chat-attachments'
+      AND allowed_mime_types @> ARRAY['text/plain']::text[]
+      AND file_size_limit >= 26214400
+      AND public IS FALSE
+  ) THEN
+    RAISE EXCEPTION 'Private chat attachments must accept text/plain and retain the 25 MB client limit';
+  END IF;
+
+  IF NOT has_table_privilege('authenticated', 'public.profiles', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.profiles', 'UPDATE')
+     OR NOT has_column_privilege('authenticated', 'public.profiles', 'id', 'SELECT') THEN
+    RAISE EXCEPTION 'Authenticated profile insert/update or own-row lookup grants are missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'profiles'
+      AND policyname = 'users update own profile'
+      AND cmd = 'UPDATE'
+      AND qual LIKE '%auth.uid%'
+      AND qual LIKE '%id%'
+      AND with_check LIKE '%auth.uid%'
+      AND with_check LIKE '%id%'
+      AND roles @> ARRAY['authenticated']::name[]
+  ) THEN
+    RAISE EXCEPTION 'Profile UPDATE must remain scoped to auth.uid() = id for authenticated users';
+  END IF;
+
+  IF has_column_privilege('authenticated', 'public.profiles', 'bio', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'birthday', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'religion', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'address', 'SELECT')
+     OR has_column_privilege('authenticated', 'public.profiles', 'phone_number', 'SELECT') THEN
+    RAISE EXCEPTION 'Profile repair must not grant direct SELECT access to sensitive profile fields';
+  END IF;
   IF (
     SELECT count(*) FROM pg_publication_tables
     WHERE pubname='supabase_realtime' AND schemaname='public'
