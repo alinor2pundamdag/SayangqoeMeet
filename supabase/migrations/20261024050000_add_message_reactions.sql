@@ -112,7 +112,7 @@ $toggle_message_reaction$;
 REVOKE ALL ON FUNCTION public.toggle_message_reaction(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.toggle_message_reaction(uuid, text) TO authenticated;
 
-DO $
+DO $reaction_publication$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
@@ -125,6 +125,6 @@ BEGIN
     ) THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
     END IF;
-END $;
+END $reaction_publication$;
 
 COMMIT;
