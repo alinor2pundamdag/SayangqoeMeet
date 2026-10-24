@@ -1000,28 +1000,32 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                                     fontSize = 11.sp
                                 )
                             } else {
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            try {
-                                                val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
-                                                    context = context,
-                                                    messageId = message.id,
-                                                    senderId = message.senderId,
-                                                    objectPath = message.attachmentPath,
-                                                    mimeType = message.attachmentMimeType,
-                                                    displayName = message.attachmentName ?: message.body
-                                                )
-                                                val openIntent = Intent(Intent.ACTION_VIEW).apply {
-                                                    setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                    clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
-                                                }
-                                                context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
-                                            } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                                if (message.attachmentMimeType?.startsWith("audio/") == true) {
+                                    InlineVoiceNotePlayer(message = message, onError = { status = it })
+                                } else {
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                try {
+                                                    val cachedUri = SupabaseDataRepository.downloadAttachmentToCache(
+                                                        context = context,
+                                                        messageId = message.id,
+                                                        senderId = message.senderId,
+                                                        objectPath = message.attachmentPath,
+                                                        mimeType = message.attachmentMimeType,
+                                                        displayName = message.attachmentName ?: message.body
+                                                    )
+                                                    val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(cachedUri, message.attachmentMimeType ?: "*/*")
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                        clipData = android.content.ClipData.newUri(context.contentResolver, "SayangqoeMeet attachment", cachedUri)
+                                                    }
+                                                    context.startActivity(Intent.createChooser(openIntent, "Open attachment"))
+                                                } catch (error: Exception) { status = error.message ?: "Could not open attachment." }
+                                            }
                                         }
-                                    }
-                                ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                                    ) { Text("OPEN FILE", color = ShellCyan, fontSize = 10.sp) }
+                                }
                             }
                         }
                         Text(if (mine) "YOU" else (otherDisplayName ?: "CONTACT"), color = ShellMuted, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
