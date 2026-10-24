@@ -31,7 +31,7 @@ CREATE POLICY user_presence_read_conversation_participants
     FOR SELECT TO authenticated
     USING (public.is_conversation_contact(user_id));
 
-DO $
+DO $presence_publication$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
