@@ -63,6 +63,14 @@ internal data class MessageRecord(
     val attachmentPurgedAt: String? = null
 )
 
+internal data class MessageReactionRecord(
+    val id: String,
+    val messageId: String,
+    val userId: String,
+    val reaction: String,
+    val createdAt: String
+)
+
 internal data class InvitationRecord(
     val id: String,
     val conversationId: String,
@@ -423,6 +431,52 @@ internal object SupabaseDataRepository {
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { messageFromRow(rows.getJSONObject(it)) }.asReversed()
     }
+
+    suspend fun loadMessageReactions(conversationId: String): List<MessageReactionRecord> {
+        require(conversationId.isNotBlank()) { "Select a valid conversation." }
+        val query = "message_reactions?select=id,message_id,user_id,reaction,created_at,messages!inner(conversation_id,deleted_at)" +
+            "&messages.conversation_id=eq.${enc(conversationId)}&messages.deleted_at=is.null&order=created_at.asc"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            MessageReactionRecord(
+                id = row.getString("id"),
+                messageId = row.getString("message_id"),
+                userId = row.getString("user_id"),
+                reaction = row.getString("reaction"),
+                createdAt = row.getString("created_at")
+            )
+        }
+    }
+
+    /** Atomic, RLS-scoped toggle; returns true when added and false when removed. */
+    suspend fun toggleMessageReaction(messageId: String, reaction: String): Boolean {
+        require(messageId.isNotBlank()) { "A message is required." }
+        require(reaction in setOf("👍", "❤️", "😂", "😮", "😢", "🙏")) { "Unsupported message reaction." }
+        val response = runRequest {
+            request(
+                "POST",
+                "rpc/toggle_message_reaction",
+                JSONObject().put("p_message_id", messageId).put("p_reaction", reaction)
+            )
+        }
+        return when (response.trim()) {
+            "true" -> true
+            "false" -> false
+            else -> error("The server returned an invalid reaction result.")
+        }
+    }
+
+    fun subscribeToMessageReactions(
+        onChange: () -> Unit,
+        onFailure: (String) -> Unit = {}
+    ): SupabaseRealtime.Subscription? =
+        SupabaseRealtime.subscribeChanges(
+            "message_reactions",
+            "",
+            { onChange() },
+            onFailure
+        )
 
     /** Fetches one older page using a stable (created_at, id) cursor. */
     suspend fun loadOlderMessages(conversationId: String, before: MessageRecord, pageSize: Int = 50): List<MessageRecord> {
