@@ -1,6 +1,10 @@
 package com.sayangqoemeet.app
 
 import android.Manifest
+import android.app.Activity
+import android.app.PictureInPictureParams
+import android.os.Build
+import android.util.Rational
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -77,6 +81,22 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
     var pendingPermissionIsCaller by remember { mutableStateOf(false) }
     var pendingPermissionRequiresCamera by remember { mutableStateOf(false) }
     val callUiStateStore = remember { CallUiStateStore.shared }
+
+    // Keep the framework PiP action labels and automatic Home/gesture transition
+    // synchronized with the actual call state. PiP is video-call-only.
+    LaunchedEffect(activeCall?.id, activeCall?.type, muted, videoOn) {
+        val activity = context as? Activity ?: return@LaunchedEffect
+        val videoCallActive = activeCall?.type == "video" && CallPipController.isVideoCallActive
+        val params = PictureInPictureParams.Builder()
+        if (videoCallActive) {
+            params.setAspectRatio(Rational(16, 9))
+            params.setActions(CallPipController.createActions(context))
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setAutoEnterEnabled(videoCallActive)
+        }
+        runCatching { activity.setPictureInPictureParams(params.build()) }
+    }
 
     LaunchedEffect(Unit) {
         try {
