@@ -76,6 +76,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 
     implementation("androidx.core:core-ktx:1.15.0")
+    // CameraX is local-only; use the stable release for current Android compatibility.
+    implementation("androidx.camera:camera-camera2:1.6.2")
+    implementation("androidx.camera:camera-lifecycle:1.6.2")
+    implementation("androidx.camera:camera-view:1.6.2")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
