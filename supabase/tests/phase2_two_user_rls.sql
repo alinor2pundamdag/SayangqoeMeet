@@ -1014,6 +1014,103 @@ BEGIN
   END IF;
 END $$;
 
+-- Message reactions are private to live messages in conversations the
+-- current authenticated user belongs to. Exercise both the direct table policy
+-- and the atomic toggle RPC using two separate users.
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'message_reactions'
+      AND c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'message_reactions must have RLS enabled';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.message_reactions', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.message_reactions', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.message_reactions', 'DELETE')
+     OR has_table_privilege('authenticated', 'public.message_reactions', 'UPDATE')
+     OR has_table_privilege('anon', 'public.message_reactions', 'SELECT')
+     OR has_table_privilege('anon', 'public.message_reactions', 'INSERT')
+     OR has_table_privilege('anon', 'public.message_reactions', 'DELETE') THEN
+    RAISE EXCEPTION 'message_reactions grants exceed the intended authenticated minimum';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='message_reactions'
+      AND policyname='message_reactions_select_live_member' AND cmd='SELECT'
+      AND qual LIKE '%deleted_at%' AND qual LIKE '%conversation_members%'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='message_reactions'
+      AND policyname='message_reactions_insert_own_live_member' AND cmd='INSERT'
+      AND with_check LIKE '%auth.uid%' AND with_check LIKE '%deleted_at%'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='message_reactions'
+      AND policyname='message_reactions_delete_own_live_member' AND cmd='DELETE'
+      AND qual LIKE '%auth.uid%' AND qual LIKE '%deleted_at%'
+  ) THEN
+    RAISE EXCEPTION 'Message reaction policies must scope reads/writes to own identity, membership, and live messages';
+  END IF;
+  IF has_function_privilege('anon', 'public.toggle_message_reaction(uuid,text)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.toggle_message_reaction(uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Reaction toggle RPC grants are incorrect';
+  END IF;
+END $;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+INSERT INTO public.message_reactions (message_id, user_id, reaction)
+VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '👍');
+DO $reaction_member_positive$
+DECLARE visible_count integer; toggled_on boolean; toggled_off boolean;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM public.message_reactions
+  WHERE message_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' AND reaction='👍';
+  IF visible_count <> 1 THEN
+    RAISE EXCEPTION 'A conversation member could not read their own live-message reaction';
+  END IF;
+  toggled_on := public.toggle_message_reaction('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '❤️');
+  toggled_off := public.toggle_message_reaction('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '❤️');
+  IF toggled_on IS DISTINCT FROM true OR toggled_off IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'Reaction toggle must atomically add then remove the same reaction';
+  END IF;
+END $reaction_member_positive$;
+
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+DO $reaction_non_member_negative$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM public.message_reactions
+  WHERE message_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'A non-member could read another conversation reaction';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.message_reactions (message_id, user_id, reaction)
+    VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '😂');
+    RAISE EXCEPTION 'A non-member inserted a reaction into another conversation' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  BEGIN
+    PERFORM public.toggle_message_reaction('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '😂');
+    RAISE EXCEPTION 'A non-member bypassed reaction RLS through the toggle RPC' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+END $reaction_non_member_negative$;
+RESET ROLE;
+
 -- Actual Storage RLS behavior: only a live message attachment in a member's
 -- conversation is readable. A known object path is not sufficient by itself.
 RESET ROLE;
