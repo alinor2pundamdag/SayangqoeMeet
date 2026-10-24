@@ -1017,7 +1017,7 @@ END $$;
 -- Message reactions are private to live messages in conversations the
 -- current authenticated user belongs to. Exercise both the direct table policy
 -- and the atomic toggle RPC using two separate users.
-DO $
+DO $reaction_policy_shape$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class c
