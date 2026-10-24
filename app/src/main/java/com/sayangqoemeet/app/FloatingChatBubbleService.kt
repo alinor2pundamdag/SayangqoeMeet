@@ -42,12 +42,26 @@ class FloatingChatBubbleService : Service() {
                 val maxY = (resources.displayMetrics.heightPixels - view.height).coerceAtLeast(0)
                 params.x = (originX + (event.rawX - startX).toInt()).coerceIn(0, maxX)
                 params.y = (originY + (event.rawY - startY).toInt()).coerceIn(0, maxY)
+                val dismissing = params.y >= (maxY - (72 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
+                view.text = if (dismissing) "×" else "S"
+                view.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(if (dismissing) Color.rgb(255, 83, 106) else Color.rgb(85, 244, 255))
+                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
+                }
                 runCatching { manager?.updateViewLayout(view, params) }
                 true
             }
-            MotionEvent.ACTION_UP -> { if (kotlin.math.abs(event.rawX-startX)<8 && kotlin.math.abs(event.rawY-startY)<8) {
-                packageManager.getLaunchIntentForPackage(packageName)?.let { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); it.putExtra("open_chats",true); startActivity(it) }
-            }; true }
+            MotionEvent.ACTION_UP -> {
+                val maxY = (resources.displayMetrics.heightPixels - view.height).coerceAtLeast(0)
+                val dismissing = params.y >= (maxY - (72 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
+                if (dismissing && (kotlin.math.abs(event.rawX - startX) >= 8 || kotlin.math.abs(event.rawY - startY) >= 8)) {
+                    stopSelf()
+                } else if (kotlin.math.abs(event.rawX-startX)<8 && kotlin.math.abs(event.rawY-startY)<8) {
+                    packageManager.getLaunchIntentForPackage(packageName)?.let { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP); it.putExtra("open_chats",true); startActivity(it) }
+                }
+                true
+            }
             else -> false
         } }
         bubble=view; manager?.addView(view,params)
