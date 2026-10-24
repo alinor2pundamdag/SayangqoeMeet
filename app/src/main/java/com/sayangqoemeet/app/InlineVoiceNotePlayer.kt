@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -34,7 +35,6 @@ internal fun InlineVoiceNotePlayer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var player by remember(message.id) { mutableStateOf<MediaPlayer?>(null) }
-    var cachedUri by remember(message.id) { mutableStateOf<Uri?>(null) }
     var isPlaying by remember(message.id) { mutableStateOf(false) }
     var durationMs by remember(message.id) { mutableStateOf(0) }
     var positionMs by remember(message.id) { mutableStateOf(0) }
@@ -111,7 +111,6 @@ internal fun InlineVoiceNotePlayer(
                                     mimeType = message.attachmentMimeType,
                                     displayName = message.attachmentName ?: "voice-note"
                                 )
-                                cachedUri = uri
                                 startPlayback(uri)
                             } catch (error: Exception) {
                                 onError(error.message ?: "Could not download this voice note.")
