@@ -9,7 +9,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
-AS $
+AS $is_conversation_contact$
     SELECT p_target_user_id = (SELECT auth.uid())
         OR EXISTS (
             SELECT 1
@@ -19,7 +19,7 @@ AS $
             WHERE viewer_member.user_id = (SELECT auth.uid())
               AND target_member.user_id = p_target_user_id
         );
-$;
+$is_conversation_contact$;
 
 REVOKE ALL ON FUNCTION public.is_conversation_contact(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_conversation_contact(uuid) TO authenticated;
@@ -43,6 +43,6 @@ BEGIN
     ) THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.user_presence;
     END IF;
-END $;
+END $presence_publication$;
 
 COMMIT;
