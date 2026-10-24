@@ -789,6 +789,7 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
     var otherUserId by remember { mutableStateOf<String?>(null) }
     var otherDisplayName by remember { mutableStateOf<String?>(null) }
     var showAttachmentSheet by remember { mutableStateOf(false) }
+    var showLocalMediaPicker by remember { mutableStateOf(false) }
     var showVoiceRecorder by remember { mutableStateOf(false) }
     var showChatInfo by remember { mutableStateOf(false) }
     var showSharedMedia by remember { mutableStateOf(false) }
@@ -1122,11 +1123,33 @@ internal fun ConversationScreen(conversationId: String?, onBack: () -> Unit, onC
                 TextButton(onClick = { showAttachmentSheet = false; beginVideoCapture() }) { Text("🎥  Record video", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; showVoiceRecorder = true }) { Text("🎙  Voice recording", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; videoPicker.launch("video/*") }) { Text("▶  Select video", color = ShellText) }
+                TextButton(onClick = { showAttachmentSheet = false; showLocalMediaPicker = true }) { Text("▦  Browse albums", color = ShellText) }
                 TextButton(onClick = { showAttachmentSheet = false; filePicker.launch("*/*") }) { Text("▤  Select file", color = ShellText) }
                 Spacer(Modifier.height(18.dp))
             }
         }
     }
+    if (showLocalMediaPicker) {
+        LocalMediaAlbumPicker(
+            onClose = { showLocalMediaPicker = false },
+            onSelected = { uri, mime, name ->
+                showLocalMediaPicker = false
+                if (!conversationId.isNullOrBlank()) scope.launch {
+                    loading = true
+                    try {
+                        val sent = SupabaseDataRepository.uploadChatAttachment(context, conversationId, uri, mime, name)
+                        messages = (messages + sent).distinctBy { it.id }.sortedWith(compareBy<MessageRecord> { it.createdAt }.thenBy { it.id })
+                        status = ""
+                    } catch (error: Exception) {
+                        status = error.message ?: "Selected media upload failed."
+                    } finally {
+                        loading = false
+                    }
+                }
+            }
+        )
+    }
+
     if (capturePreviewUri != null && capturePreviewMime != null) {
         Dialog(onDismissRequest = { capturePreviewUri = null; capturePreviewMime = null; capturePreviewName = null }) {
             Surface(shape = RoundedCornerShape(22.dp), color = ShellPanel) {
