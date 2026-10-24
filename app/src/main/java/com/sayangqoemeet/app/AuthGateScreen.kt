@@ -103,14 +103,14 @@ internal fun AuthGateScreen(onAuthenticated: () -> Unit) {
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .matchParentSize()
                         .offset(x = 8.dp, y = 9.dp)
                         .clip(RoundedCornerShape(28.dp))
                         .background(Color(0xFF14213A))
                 )
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .matchParentSize()
                         .offset(x = 4.dp, y = 5.dp)
                         .clip(RoundedCornerShape(28.dp))
                         .background(Color(0xFF101B30))
@@ -325,7 +325,7 @@ private fun SlotInputSurface(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .offset(x = 3.dp, y = 3.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Color(0xFF132139))
