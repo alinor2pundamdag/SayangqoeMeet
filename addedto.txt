@@ -1,0 +1,92 @@
+Oo, kaya kong gawin ang deep research at systematic technical audit ng Meta Messenger bilang reference para sa SayangqoeMeet. Ang target natin ay hindi basta kopyahin ang itsura ng Messenger, kundi tukuyin kung paano gumagana ang bawat feature, anong architecture ang kailangan, anong code at Android APIs ang posibleng gamitin, at paano natin ito maiaangkop sa existing repository mo.
+
+May isang mahalagang pagkakaiba: kaya kong magsaliksik sa public technical documentation, repositories, developer discussions, tech forums, at mga video na may accessible na transcript o technical details. Hindi ko direktang makikita ang private source code o internal infrastructure ng Meta, at hindi rin dapat magkunwaring napanood ko ang isang video kung hindi ko talaga ma-access ang nilalaman nito. Pero puwede nating buuin ang isang evidence-based implementation plan mula sa available na impormasyon.
+
+### Ano ang nakita ko sa initial research
+
+May sapat nang public technical evidence para magsimula, at sinilip ko na rin ang aktuwal na `SayangqoeMeet` repository mo. Hindi pa ito ang final audit; preliminary findings pa lang ito.
+
+![Google Pixel 8 (GKWS6) - Video Calling with Google Duo - AT&T](https://images.openai.com/static-rsc-4/ccRjcMPuWhwQFuCu4O6gtwI71eDIcdn9CyDqIRubeeZS3ygf6Li5_5J2qFegD4S9cKJqlliJi3QwM1gn9sQ2y-GVXWRHqBljkEf9d0JxxOS6QaMUEIc0XhxXuERRj--2ta_KYoAEj8qmD9zMkIHMCWaIyEJz6bO8n6h7IRdkNO6XkC1WygdogAIkYXnfEeyq?purpose=fullsize)
+
+1\. Video-call Picture-in-Picture (PiP)
+
+Ito ang feature na gusto mong mangyari kapag nag-Home o lumipat ng app habang may ongoing video call. May official Android PiP API para rito; sa Android 12 pataas, may smoother automatic transition, resize, drag, at window controls. Hindi kailangang gumamit ng generic overlay permission para sa system PiP.
+
+Sa SayangqoeMeet: naka-enable na ang `supportsPictureInPicture` sa `AndroidManifest.xml`, at may `CallPipActionReceiver`. Kailangan pang i-audit ang Kotlin implementation at aktuwal na call lifecycle para malaman kung kumpleto at gumagana talaga.
+
+![How to manage incoming video call for every Android OS version with FCM notifications | by Jaydeep Parmar | Simform Engineering | Medium](https://images.openai.com/static-rsc-4/yM2EctPdEsrAVcIJzU8eRvrl_iyI9uK9Rap34DSS5TZJLc9yPcKIPw4AG9KzBGxb0AQnFqx0xztcfVE8HXq1arMWkY-bizwqo0EmYk4xd2M79FsLS0bJPPGNR_yG-k9vq27brkb22x65rKtFFV68otsNnGD8PVS1iWi-wi-zvM2jvAbqf5EQaZj2YQDUejzG?purpose=fullsize)
+
+2\. Notifications at incoming calls
+
+Kailangang paghiwalayin ang ordinaryong message notifications, incoming-call alerts, ongoing-call notification, quick actions, notification channels, tap-to-open navigation, at behavior kapag naka-lock ang device. Android 13 pataas ay may runtime notification permission; may dagdag ding foreground-service restrictions sa modern Android versions.
+
+Sa SayangqoeMeet: mayroon nang FCM client code at notification service. Pero hindi sapat ang source code lang para patunayang dumarating ang push notifications sa totoong device.
+
+![Facebook Messenger được cập nhật 4 tính năng gọi điện mới, sẽ ra mắt vào vài tuần tới | Viết bởi PTW_Dark](https://images.openai.com/static-rsc-4/b_UnzbQaMJRO09d-zs0JMetyPCFcnQEyJ31YlCa68WyRD8L-2nW5urPfcmMbcdZ3sUALnYM1ghoerQIrkO_6iGKkdITxPIlltRenhAZDyW9sCkQdSFG2waL5C_uKyGf5jj2V-6WueDi6-6kXxl5hTBh5F14QHpSkT9zwbPeP9JuY3ZcXGsJ-tiD0bsalsEYM?purpose=fullsize)
+
+3\. Calling experience at call quality
+
+Kasama sa research ang mute, camera on/off, camera switching, call controls, reconnection, network changes, audio focus, video quality adaptation, noise suppression, at group-call layouts. Ipinapakita ng public engineering article ng Meta na mahalaga ang adaptive codec selection at latency monitoring para sa real-time calls.
+
+Sa SayangqoeMeet: may WebRTC signaling at TURN credential flow sa source, pero kailangan pa ring i-verify ang dalawang physical device, media flow, at TURN relay.
+
+![Wyszukiwarka emoji w Messengerze i nowy motyw czatu](https://images.openai.com/static-rsc-4/bhYS-aVVz-jv6DkBpeycWb0bS-90icy7lXdmWMhMH4QxuzbTy9G2bGwOLu98fHiIB-Uiof-m2zlI1ZtuNwe9VEIOfBzOtyEtfBXlnMFLR5XmX1mMcc0fUJTvXC5lYnFYszmBhRir6zpJ8HUTxTHc_iHSnZIUq_qJHIwSGEltdyRpNrHj-JY6pIGvYlGRbq9x?purpose=fullsize)
+
+4\. Messaging at chat UX
+
+Ire-research ang message delivery states, replies, reactions, typing indicators, presence, media attachments, conversation list behavior, pagination, retries, at offline handling. Publicly documented ang ilan sa mga feature na ito ng Meta, pero hindi ibig sabihin na available ang internal implementation nito.
+
+Sa SayangqoeMeet: mayroon nang conversation history at message sending. Ang susunod ay i-map ang existing implementation laban sa target behavior, sa halip na magdagdag agad ng duplicate systems.
+
+### Saklaw ng full audit
+
+Ito ang systematic checklist na gagamitin ko. Hindi ko ipagpapalagay na lahat ay kailangan mong i-integrate; iko-classify muna natin bawat item.
+
+| Area | Mga susuriin |
+| --- | --- |
+| Chat interface | Conversation list, message bubbles, timestamps, replies, reactions, edit/delete, typing, presence |
+| Media | Photo/video sharing, previews, downloads, upload progress, failure recovery |
+| Voice at video calls | 1:1 at group calls, call controls, call states, reconnect, device switching |
+| PiP | Automatic entry, Home gesture, app switching, resize, drag, restore, close, lifecycle |
+| Floating UI | Chat heads/bubbles, permission flow, drag behavior, tap-to-open, background restrictions |
+| Notifications | Message, incoming call, missed call, ongoing call, actions, channels, deep links |
+| Reliability | Offline/reconnect, duplicate events, expired sessions, process death, network switching |
+| Privacy at security | Authentication, authorization, private media, session handling, encryption boundaries |
+| UX at accessibility | Dark mode, responsive layouts, keyboard, screen reader, reduced motion |
+| Performance | Memory, battery, CPU, video bitrate, startup, rendering, network overhead |
+
+Mahalaga ang paghihiwalay ng system PiP at chat-head-style overlay. Magkaibang Android mechanisms ang mga ito. Ang PiP ay system-managed window para sa ongoing video content; ang floating chat bubble ay ibang UI at permission model. Hindi dapat ipagpalit ang dalawa para lang makuha ang parehong visual effect.
+
+### Mga source na gagamitin
+
+* Official Android documentation: platform APIs, permissions, lifecycle, PiP at foreground services.
+
+* Meta Engineering at Meta Newsroom: publicly disclosed Messenger architecture at feature behavior.
+
+* GitHub: open-source WebRTC implementations, Android PiP samples, libraries, issue reports at reproducible fixes.
+
+* Tech forums at Reddit: actual-device bugs, manufacturer-specific behavior, workarounds at edge cases.
+
+* YouTube, Instagram at TikTok: demonstrations ng UI behavior. Gagamitin lang ang mga video bilang technical evidence kapag naa-access ang mismong content o transcript; hindi ko ituturing na source-code proof ang isang demo video.
+
+Isang mahalagang reference ang [Project LightSpeed ng Meta](https://engineering.fb.com/2020/03/02/data-infrastructure/messenger/?utm_source=chatgpt.com): inilalarawan nito kung bakit pinasimple nila ang Messenger architecture at gumamit ng native OS capabilities at reusable UI. Hindi natin kailangang gayahin ang private backend nila para makuha ang kaparehong user-facing behavior.
+
+### Paano natin ito iaangkop sa repository mo
+
+Ang repository ay may umiiral nang `masterplan.md`, na siyang requirements source of truth ng SayangqoeMeet. Susundin natin iyon at hindi ko babaguhin ang approved scope nang walang pahintulot mo.
+
+* Feature inventory: ililista ang Messenger behavior na nakikita ng user, kasama ang exclusions mo.
+
+* Technical evidence: bawat feature ay may source, confidence level, at paliwanag kung ano ang alam at hindi alam tungkol sa implementation.
+
+* Repository mapping: tutukuyin ang existing Kotlin files, Android manifest declarations, Compose screens, WebRTC components, FCM code, at missing functionality.
+
+* Implementation blueprint: ilalagay ang recommended APIs, dependencies, data flow, lifecycle rules, security requirements, at test cases.
+
+* Verification: ihihiwalay ang source-level checks, successful builds, automated tests, at tunay na physical-device results.
+
+* Implementation: magsisimula lamang ayon sa napagkasunduang scope; walang tahimik na deletion o unrelated refactor.
+
+Isang mahalagang limitasyon: hindi natin makukuha ang literal na buong Messenger source code o garantisadong eksaktong internal algorithm ng Meta mula sa public research. Ang target ay isang maayos na engineered implementation ng mga behavior na gusto mo, gamit ang available na evidence at Android-supported mechanisms.
+
+Ikaw naman: ilista mo lang ang mga Messenger feature na hindi mo gustong isama. Hindi mo kailangang ilista ang lahat ng gusto mo—gagamitin ko ang public feature inventory para tukuyin ang mga posibleng kasama, saka natin ihihiwalay ang excluded features bago gumawa ng final implementation checklist.
