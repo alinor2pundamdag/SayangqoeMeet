@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
 CREATE INDEX IF NOT EXISTS message_reactions_message_created_idx
     ON public.message_reactions (message_id, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS message_reactions_user_created_idx
+    ON public.message_reactions (user_id, created_at DESC);
+
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.message_reactions FROM PUBLIC, anon, authenticated;
