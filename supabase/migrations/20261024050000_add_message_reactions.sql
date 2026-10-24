@@ -69,7 +69,50 @@ CREATE POLICY message_reactions_delete_own_live_member
         )
     );
 
-DO $$
+CREATE OR REPLACE FUNCTION public.toggle_message_reaction(
+    p_message_id uuid,
+    p_reaction text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $
+DECLARE
+    v_uid uuid := auth.uid();
+BEGIN
+    IF v_uid IS NULL THEN
+        RAISE EXCEPTION 'Sign in to react to a message'
+            USING ERRCODE = '42501';
+    END IF;
+    IF p_reaction NOT IN ('👍', '❤️', '😂', '😮', '😢', '🙏') THEN
+        RAISE EXCEPTION 'Unsupported reaction'
+            USING ERRCODE = '22023';
+    END IF;
+
+    -- Serialize toggles for this user/message/reaction to prevent duplicate
+    -- rows and inconsistent double-tap behavior under concurrent requests.
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(p_message_id::text || ':' || v_uid::text || ':' || p_reaction, 0)
+    );
+
+    DELETE FROM public.message_reactions
+    WHERE message_id = p_message_id
+      AND user_id = v_uid
+      AND reaction = p_reaction;
+    IF FOUND THEN
+        RETURN false;
+    END IF;
+
+    INSERT INTO public.message_reactions (message_id, user_id, reaction)
+    VALUES (p_message_id, v_uid, p_reaction);
+    RETURN true;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.toggle_message_reaction(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.toggle_message_reaction(uuid, text) TO authenticated;
+
+DO $
 BEGIN
     IF EXISTS (
         SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
@@ -82,6 +125,6 @@ BEGIN
     ) THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
     END IF;
-END $$;
+END $;
 
 COMMIT;
