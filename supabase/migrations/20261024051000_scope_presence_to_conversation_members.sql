@@ -24,6 +24,26 @@ $is_conversation_contact$;
 REVOKE ALL ON FUNCTION public.is_conversation_contact(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_conversation_contact(uuid) TO authenticated;
 
+-- The directory UI needs a binary online indicator for every registered user.
+-- Expose only currently-online user IDs through a narrow authenticated RPC;
+-- do not restore broad direct reads of raw last_seen_at timestamps.
+CREATE OR REPLACE FUNCTION public.get_registered_online_user_ids()
+RETURNS TABLE(user_id uuid)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $get_registered_online_user_ids$
+    SELECT presence.user_id
+    FROM public.user_presence AS presence
+    JOIN public.profiles AS profile ON profile.id = presence.user_id
+    WHERE auth.uid() IS NOT NULL
+      AND presence.last_seen_at >= now() - interval '90 seconds';
+$get_registered_online_user_ids$;
+
+REVOKE ALL ON FUNCTION public.get_registered_online_user_ids() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_registered_online_user_ids() TO authenticated;
+
 DROP POLICY IF EXISTS user_presence_read_authenticated ON public.user_presence;
 DROP POLICY IF EXISTS user_presence_read_conversation_participants ON public.user_presence;
 CREATE POLICY user_presence_read_conversation_participants
