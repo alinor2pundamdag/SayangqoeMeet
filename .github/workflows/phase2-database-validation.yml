@@ -46,6 +46,9 @@ jobs:
       - name: Test permanent FCM token error classification
         run: deno test supabase/functions/_shared/fcm-token-errors_test.ts
 
+      - name: Test cleanup secret comparison
+        run: deno test supabase/functions/_shared/constant-time-equals_test.ts
+
       - name: Set up Supabase CLI
         id: setup-supabase-cli
         uses: supabase/setup-cli@v1
