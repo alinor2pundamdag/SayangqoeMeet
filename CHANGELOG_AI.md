@@ -186,3 +186,12 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Inspected push Edge Functions count successful/failed provider responses but do not yet implement confirmed-invalid-token cleanup. Call/ICE retention requires exact schema and migration-led review.
 - PR #61/#62/#64 remain separate open/unmerged changes at the inspected snapshot; their exact heads and CI must be refreshed before integration.
 - Documentation-only changes in this audit pass. No Android behavior, live schema, deployed functions, secrets, or production data were changed. Findings listed as fixes remain open until implementation and acceptance evidence exist.
+
+
+## 2026-10-25 — Implementation and verification status update
+
+- PR #61's source branch now contains one incoming-call notification identity, notification Accept/Decline routing and server-state checks, active-call foreground-service wiring, FCM UNREGISTERED-token cleanup, cleanup-secret comparison tests, and call/ICE retention code with terminal deletion disabled by default.
+- Added forward migrations for call-retention indexes and minimal service-role cleanup grants, plus SQL assertions for indexes, ICE cascade, and privileges.
+- Replaced the admin-console static preview with a read-only live overview/audit client and an AAL2 TOTP challenge flow. The Edge Function requires Supabase-verified identity, AAL2, and active admin membership. Moderation/report/suspension actions remain disabled pending policy/schema approval.
+- Latest source head recorded at this update: 0758ea05110fa63ee30329781cca587240199e43. Secret History Scan passed; Android CI and Phase 2 database validation were pending. Later source commits or workflow results must be re-fetched before treating this as current.
+- No live database migration, Edge Function deployment, Firebase Console change, secret rotation, or production data deletion was performed.
