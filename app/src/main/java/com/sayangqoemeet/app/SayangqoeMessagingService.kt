@@ -155,10 +155,22 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
             val callId = message.data["call_id"]?.takeIf { PushPayloadValidation.isUuid(it) } ?: return
             // FCM can be delayed or delivered more than once. Re-check the authenticated
             // recipient and authoritative call state before starting any local alert.
-            val call = runCatching { CallSignalingRepository.getCall(callId) }.getOrNull() ?: return
-            if (call.calleeId != currentUserId || call.status != "ringing") return
+            val call = try {
+                CallSignalingRepository.getCall(callId)
+            } catch (networkFailure: java.io.IOException) {
+                // The sender Edge Function already authenticated the caller and checked
+                // the ringing state. If the recipient is temporarily offline, preserve
+                // the short-lived FCM alert; the local ring remains bounded and actions
+                // still require server authorization when connectivity returns.
+                null
+            } catch (_: Exception) {
+                // A confirmed missing/unauthorized call or other server rejection is not
+                // a reason to show a stale alert.
+                return
+            }
+            if (call != null && (call.calleeId != currentUserId || call.status != "ringing")) return
             val callerName = message.data["caller_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
-            val callType = if (call.type == "video") "video" else "voice"
+            val callType = if (call?.type == "video" || message.data["call_type"] == "video") "video" else "voice"
             // The foreground service owns the single call notification and the ringtone.
             // Posting a second notification here caused duplicate visible alerts per call.
             runCatching { CallForegroundService.start(this, callId, callerName, callType) }
