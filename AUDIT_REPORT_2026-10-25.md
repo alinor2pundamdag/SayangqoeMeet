@@ -8,9 +8,9 @@
 
 ## 1. Executive result
 
-**Release readiness: NOT ESTABLISHED.** This audit confirms several source-level integration risks and documentation/PR inconsistencies. It does not certify production deployment parity, database security, live push delivery, or two-device calling.
+**Release readiness: NOT ESTABLISHED.** This audit and follow-up source work address several source-level integration risks and documentation/PR inconsistencies. It does not certify production deployment parity, database security, live push delivery, or two-device calling.
 
-The audited documentation branch is based on `main` and does not include the application changes in PRs #61 and #62. Those PRs are still open and unmerged. Their successful CI runs are evidence only for their respective exact head commits—not for `main`, PR #64, deployed Supabase functions, or real devices.
+The audit documentation branch is based on `main` and does not contain the application source changes in PR #61. PR #61 is still open/unmerged. PR #62 overlaps UUID-validation changes now incorporated into #61's branch and should be closed as superseded only after the latest combined-head checks pass. CI evidence applies only to the exact tested head, not to main, deployed Supabase functions, or real devices.
 
 ### Scope and evidence boundaries
 
