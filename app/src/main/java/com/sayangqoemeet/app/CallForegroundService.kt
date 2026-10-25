@@ -137,9 +137,15 @@ internal class CallForegroundService : Service() {
             (if (callType == "video") ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA else 0)
 
     private fun startForegroundWithType(notification: Notification, serviceTypes: Int) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val hasCameraOrMicrophoneType = serviceTypes and (
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        ) != 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasCameraOrMicrophoneType)
+        ) {
             ServiceCompat.startForeground(this, foregroundNotificationId, notification, serviceTypes)
         } else {
+            // Camera/microphone FGS type flags are supported from Android 11.
             startForeground(foregroundNotificationId, notification)
         }
     }
