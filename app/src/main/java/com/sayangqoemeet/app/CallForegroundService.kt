@@ -197,6 +197,15 @@ internal class CallForegroundService : Service() {
             .setContentText(callerName)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
+            // Native Android call UI gives incoming calls the expected system
+            // treatment on Android 12+, with NotificationCompat fallback behavior.
+            .setStyle(
+                NotificationCompat.CallStyle.forIncomingCall(
+                    androidx.core.app.Person.Builder().setName(callerName).build(),
+                    declinePending,
+                    acceptPending
+                )
+            )
             .setContentIntent(acceptPending)
             .setOngoing(true)
             .setAutoCancel(false)
