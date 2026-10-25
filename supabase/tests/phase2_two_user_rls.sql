@@ -1383,4 +1383,27 @@ BEGIN
   END IF;
 END $call_retention_and_token_cleanup_grants$;
 
+
+DO $media_cleanup_retry_schema$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.message_media_cleanup_queue'::regclass
+      AND attname = 'attempts' AND NOT attisdropped
+  ) THEN
+    RAISE EXCEPTION 'Media cleanup attempts counter is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.message_media_cleanup_queue'::regclass
+      AND conname = 'message_media_cleanup_queue_status_check'
+      AND position('failed' in pg_get_constraintdef(oid)) > 0
+  ) THEN
+    RAISE EXCEPTION 'Media cleanup queue must support terminal failed jobs';
+  END IF;
+  IF to_regclass('public.message_media_cleanup_retry_idx') IS NULL THEN
+    RAISE EXCEPTION 'Media cleanup retry index is missing';
+  END IF;
+END $media_cleanup_retry_schema$;
+
 ROLLBACK;
