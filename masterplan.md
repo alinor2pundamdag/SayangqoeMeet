@@ -400,7 +400,7 @@ Do not describe the entire app as finished while any required feature remains un
 
 ## 15. Current plan, verified baseline, and decisions — 2026-10-25
 
-This section is the latest approved plan and supersedes contradictory earlier requirements/status statements. Keep prior completion history intact.
+This section is the latest approved plan and supersedes contradictory earlier requirements/status statements. Keep prior completion history intact. **When an older requirement conflicts with an explicitly newer user-approved requirement, the newer requirement wins.** Edit or replace the old requirement so the operative plan is unambiguous; retain old completion records only as historical facts, not active requirements.
 
 ### 15.1 Verified baseline from the 2026-10-25 audit summary
 
@@ -430,7 +430,7 @@ This section is the latest approved plan and supersedes contradictory earlier re
 ### 15.4 Approved visual and interaction direction
 
 - The canonical visual direction remains the premium sci-fi/neon design defined in Sections 3.x: dark midnight/navy surfaces, cyan/electric-blue as the dominant brand lighting, restrained indigo/violet accents, readable typography, accessible contrast, centralized design tokens, reduced-motion support, and no rapid distracting flashing.
-- Do **not** implement a literal blue → green → yellow → pink → red rainbow sweep as the brand's default header. That proposal conflicts with the canonical design and is retired.
+- **Latest decision (2026-10-25): implement the literal local infinite-looping rainbow header.** This explicitly supersedes the older cyan/blue-only restriction for the header animation. The animation must run locally on the Android UI/rendering pipeline, require no network/backend calls, loop continuously and smoothly through neon blue → neon green → neon yellow → neon pink → neon red, and avoid unnecessary recomposition/work. Keep other surfaces and typography readable; do not imply that the rainbow is required on every UI component. Respect reduced-motion preferences with a restrained/static fallback if required for accessibility, while keeping the default header's approved infinite loop.
 - Integrate compatible interaction ideas only where they improve usability and remain consistent with the canonical design: polished card-like auth fields, clear loading/verification state, accessible focus/error/disabled states, media album selection, CameraX capture where needed, voice-note waveform/scrubbing and cancel gesture, message reactions, profile/settings, and user-enabled chat bubble plus PiP calling. These are planned requirements, not claims that every feature already exists.
 - Do not promise that Android screen recording will never capture call audio. Capture behavior is OS/device/API dependent and cannot be guaranteed by the app. Explain any supported privacy controls accurately.
 - FCM/Firebase is an intentional service dependency for push notifications. Therefore do not claim “zero third-party services” or “zero telemetry” as an absolute guarantee. Avoid adding analytics/ad-tracking SDKs; document Firebase/FCM data handling and any unavoidable platform/service processing transparently.
@@ -480,3 +480,12 @@ For each engineering task:
 - Recorded free-tier scope: leaked-password protection is intentionally deferred and must not be pursued as a task.
 - Replaced stale current-state claims in summary documents with a single-source-of-truth policy.
 - This is a documentation/governance change only. It does not claim that the listed engineering backlog has been implemented or that unverified device behavior now passes.
+
+
+## 15.9 Latest user direction — 2026-10-25 (supersedes earlier conflicting plan)
+
+- Apply the latest approved feature decisions even when they conflict with older master-plan text. Edit or replace stale requirements; do not leave contradictory active rules. Historical records remain intact only as history.
+- Implement the **literal local infinite-looping rainbow header** by default: neon blue → neon green → neon yellow → neon pink → neon red, continuously and smoothly animated entirely on-device with no network/backend requests. Preserve accessibility and readability.
+- Treat incoming-call notification deduplication/actions, correct foreground-service lifecycle and types, invalid/stale FCM token cleanup, and call-session/ICE retention as implementation work to complete—not merely backlog bullets. Make focused changes, test, and report actual results; do not mark complete without verification.
+- Free-tier constraint remains binding. Supabase leaked-password protection remains intentionally excluded.
+- This latest decision supersedes the prior 15.4 statement that rejected literal rainbow branding. The prior wording is corrected by this addendum; the latest requirement is operative.
