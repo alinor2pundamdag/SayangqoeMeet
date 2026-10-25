@@ -92,6 +92,25 @@ internal object MessageNotificationChannels {
     }
 }
 
+internal object CallNotificationChannels {
+    const val CHANNEL_ID = "incoming_calls"
+
+    fun ensureCreated(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Incoming voice and video call alerts"
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            )
+        }
+    }
+}
+
 class SayangqoeMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -143,6 +162,9 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
             // The foreground service owns the single call notification and the ringtone.
             // Posting a second notification here caused duplicate visible alerts per call.
             runCatching { CallForegroundService.start(this, callId, callerName, callType) }
+            // Same channel + notification ID as the foreground service: this updates
+            // one notification and also provides a fallback if FGS startup is rejected.
+            showIncomingCallNotification(callId, callerName, callType)
             return
         }
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -211,6 +233,50 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
             NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
         }
     }
+}
+
+private fun SayangqoeMessagingService.showIncomingCallNotification(
+    callId: String,
+    caller: String,
+    type: String
+) {
+    if (Build.VERSION.SDK_INT >= 33 &&
+        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) return
+    CallNotificationChannels.ensureCreated(this)
+    val acceptIntent = Intent(this, MainActivity::class.java).apply {
+        action = "com.sayangqoemeet.app.OPEN_INCOMING_CALL"
+        putExtra("open_calls", true)
+        putExtra("incoming_call_id", callId)
+        putExtra("call_type", type)
+        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    }
+    val acceptPending = PendingIntent.getActivity(
+        this, callId.hashCode(), acceptIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val declineIntent = Intent(this, CallActionReceiver::class.java).apply {
+        action = CallActionReceiver.ACTION_DECLINE
+        putExtra("call_id", callId)
+    }
+    val declinePending = PendingIntent.getBroadcast(
+        this, callId.hashCode() xor 0x51A, declineIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val notification = NotificationCompat.Builder(this, CallNotificationChannels.CHANNEL_ID)
+        .setSmallIcon(android.R.drawable.sym_call_incoming)
+        .setContentTitle("Incoming $type call")
+        .setContentText(caller)
+        .setCategory(NotificationCompat.CATEGORY_CALL)
+        .setPriority(NotificationCompat.PRIORITY_MAX)
+        .setContentIntent(acceptPending)
+        .setOngoing(true)
+        .setAutoCancel(false)
+        .setOnlyAlertOnce(true)
+        .addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
+        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
+        .build()
+    runCatching { NotificationManagerCompat.from(this).notify(callId.hashCode(), notification) }
 }
 
 class CallActionReceiver : BroadcastReceiver() {
