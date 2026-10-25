@@ -1,3 +1,11 @@
+> **Current audit addendum — 2026-10-25 (PR #61 branch snapshot)**
+>
+> PR #61 (`feat/messenger-inspired-media-call-ux`) is OPEN and DRAFT; it is not merged into `main`. The source snapshot `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22` passed Android CI #659, Phase 2 Database Validation #303, and Secret History Scan #239. Two audit-document corrections followed; CI was restarted for those documentation commits and must be checked against the final branch head before calling the latest head green.
+>
+> **Do not treat older status/handoff statements below as current evidence when they conflict with this addendum.** Automated migration replay/SQL tests are not proof of hosted Supabase parity. Still requires owner/device/provider evidence: live migration/function parity, two-account RLS/Realtime/media checks, live FCM, Android notification/foreground-service behavior, two-device WebRTC, admin MFA/AAL2 and Firebase console restrictions. No production migration/deployment/data deletion has been performed by this audit. Do not enable call-retention deletion until dry-run and owner approval. Keep Supabase leaked-password protection excluded.
+
+---
+
 # AI Development Changelog
 
 This file records meaningful project milestones. Entries must reflect verified actions, not assumptions. Keep older entries intact and append new entries.
