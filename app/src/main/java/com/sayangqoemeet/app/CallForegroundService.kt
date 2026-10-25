@@ -56,8 +56,8 @@ internal class CallForegroundService : Service() {
             stopAlertAndSelf()
             return START_NOT_STICKY
         }
-        callerName = intent?.getStringExtra(EXTRA_CALLER_NAME)?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
-        callType = intent?.getStringExtra(EXTRA_CALL_TYPE)?.takeIf { it == "video" } ?: "voice"
+        callerName = intent?.getStringExtra(EXTRA_CALLER_NAME)?.takeIf { it.isNotBlank() } ?: callerName
+        callType = intent?.getStringExtra(EXTRA_CALL_TYPE)?.takeIf { it == "video" || it == "voice" } ?: callType
         foregroundNotificationId = activeCallId.hashCode()
         activeCallMode = intent?.action == ACTION_START_ACTIVE_CALL
         if (activeCallMode) {
