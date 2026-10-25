@@ -195,3 +195,10 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Replaced the admin-console static preview with a read-only live overview/audit client and an AAL2 TOTP challenge flow. The Edge Function requires Supabase-verified identity, AAL2, and active admin membership. Moderation/report/suspension actions remain disabled pending policy/schema approval.
 - Latest source head recorded at this update: 0758ea05110fa63ee30329781cca587240199e43. Secret History Scan passed; Android CI and Phase 2 database validation were pending. Later source commits or workflow results must be re-fetched before treating this as current.
 - No live database migration, Edge Function deployment, Firebase Console change, secret rotation, or production data deletion was performed.
+
+
+## 2026-10-25 — Media cleanup hardening
+
+- Added a dedicated object-path validator and tests rejecting wrong buckets, cross-conversation prefixes, absolute paths, traversal, encoded traversal/separators, malformed segments, query/hash characters, and control characters.
+- Added an attempts counter and terminal failed status to the media cleanup queue. The worker now quarantines jobs after five failed attempts rather than retrying unsafe/permanently failing jobs indefinitely; dry-run output reports failed queue rows.
+- Added a forward-only migration and SQL assertions for the retry counter/status constraint/index. The latest source head is 5b1e96be25092775016f7804fea055f665a95641; Android CI and fresh migration replay are still running, so this update does not claim those latest checks passed.
