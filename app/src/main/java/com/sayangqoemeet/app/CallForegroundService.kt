@@ -194,6 +194,7 @@ internal class CallForegroundService : Service() {
             .setContentIntent(acceptPending)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
             .addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
             .build()
