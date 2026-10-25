@@ -54,7 +54,6 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
   let accessToken = null;
   let projectUrl = "";
   let publishableKey = "";
-  let currentUser = null;
   const $ = (id) => document.getElementById(id);
   function notice(id, message, kind = "error") {
     const el = $(id); el.textContent = message; el.className = "notice show " + kind;
@@ -123,16 +122,20 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
       notice("dashboardNotice", "Server authorization and audit write succeeded. Data is live as of the timestamp shown.", "ok");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not load admin data.";
-      if ($("dashboardSection").classList.contains("hidden")) notice("loginNotice", message);
-      else notice("dashboardNotice", message);
-      if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
+      if ($("dashboardSection").classList.contains("hidden")) {
         signOutLocal();
         notice("loginNotice", message);
+      } else {
+        notice("dashboardNotice", message);
+        if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
+          signOutLocal();
+          notice("loginNotice", message);
+        }
       }
     } finally { $("refresh").disabled = false; $("reloadAudit").disabled = false; }
   }
   function signOutLocal() {
-    accessToken = null; currentUser = null;
+    accessToken = null;
     $("password").value = "";
     $("dashboardSection").classList.add("hidden");
     $("loginSection").classList.remove("hidden");
@@ -150,7 +153,6 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
       const auth = await request("/auth/v1/token?grant_type=password", { email, password });
       if (typeof auth.access_token !== "string" || !auth.access_token) throw new Error("Supabase did not return an access token.");
       accessToken = auth.access_token;
-      currentUser = auth.user || null;
       $("password").value = "";
       await refreshData();
     } catch (error) {
