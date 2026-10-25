@@ -166,3 +166,32 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Restricted enqueue_message_media_cleanup RPC execution to service_role after advisor inspection. Verified attachment columns, RLS enabled/no client policies for cleanup tables, and service-role-only execution grants for cleanup RPCs.
 - Renamed atomic RPC migration file to version 20261017175440 to match the live ledger. Other migration drift remains and must be reconciled before any blanket db push.
 - PR #10 is open; CI run 260 was queued/in progress at last check. Android post-download confirmation integration and physical media/WebRTC tests remain outstanding.
+
+
+\n## 2026-10-25 — Audit consolidation and free-tier scope correction
+
+- Updated `masterplan.md` as the sole source of truth for the latest audit baseline, approved design direction, free-tier constraints, and prioritized engineering backlog.
+- Updated README, project status, and AI handoff to remove stale current-state claims and point to the master plan.
+- Retired the conflicting `addedto.txt` proposal after incorporating compatible features and explicitly rejecting literal-rainbow branding and impossible screen-recording guarantees.
+- Explicitly deferred Supabase leaked-password protection because the project is constrained to the free tier; it is not an action item.
+- Documentation-only change. No app code, database schema, deployed functions, secrets, or production data were changed. Engineering backlog items remain unimplemented/unverified unless separate evidence says otherwise.
+
+
+## 2026-10-25 — Audit conflict correction and deduplicated fix register
+
+- Added `AUDIT_REPORT_2026-10-25.md` as the single deduplicated findings/evidence register, including frontend/backend integration mapping, owner/action/location fields, PR/CI reconciliation, and acceptance gates.
+- Corrected the active master-plan branding rule: the user's latest approved local infinite-looping rainbow header supersedes earlier text rejecting it. Earlier rejection is marked historical/superseded rather than an active rule.
+- Updated AI handoff, project status, and README to link to the authoritative plan/report and remove competing status/backlog wording.
+- Inspected source shows separate incoming-call notification paths and a foreground service declared as `mediaPlayback` whose inspected code is focused on incoming ringing; active-call FGS compliance remains a fix/verification task, not a claimed fix.
+- Inspected push Edge Functions count successful/failed provider responses but do not yet implement confirmed-invalid-token cleanup. Call/ICE retention requires exact schema and migration-led review.
+- PR #61/#62/#64 remain separate open/unmerged changes at the inspected snapshot; their exact heads and CI must be refreshed before integration.
+- Documentation-only changes in this audit pass. No Android behavior, live schema, deployed functions, secrets, or production data were changed. Findings listed as fixes remain open until implementation and acceptance evidence exist.
+
+
+## 2026-10-25 — Implementation and verification status update
+
+- PR #61's source branch now contains one incoming-call notification identity, notification Accept/Decline routing and server-state checks, active-call foreground-service wiring, FCM UNREGISTERED-token cleanup, cleanup-secret comparison tests, and call/ICE retention code with terminal deletion disabled by default.
+- Added forward migrations for call-retention indexes and minimal service-role cleanup grants, plus SQL assertions for indexes, ICE cascade, and privileges.
+- Replaced the admin-console static preview with a read-only live overview/audit client and an AAL2 TOTP challenge flow. The Edge Function requires Supabase-verified identity, AAL2, and active admin membership. Moderation/report/suspension actions remain disabled pending policy/schema approval.
+- Latest source head recorded at this update: 0758ea05110fa63ee30329781cca587240199e43. Secret History Scan passed; Android CI and Phase 2 database validation were pending. Later source commits or workflow results must be re-fetched before treating this as current.
+- No live database migration, Edge Function deployment, Firebase Console change, secret rotation, or production data deletion was performed.

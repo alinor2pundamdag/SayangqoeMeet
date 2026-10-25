@@ -1,10 +1,12 @@
 # SayangqoeMeet — Master Plan
 
-**Document status:** Baseline requirements, version 1.0  
-**Established:** 2026-10-16  
+**Document status:** Living requirements source of truth; updated 2026-10-25  
+**Established:** 2026-10-16; current decisions appended below  
 **Repository:** `alinor2pundamdag/SayangqoeMeet`  
 **Project type:** Android communication application  
-**Authority:** This document is the project's requirements source of truth. Implementation and tests must follow it.
+**Authority:** This document is the sole authoritative product/technical plan. README, PROJECT_STATUS, and AI_HANDOFF are summaries, not competing plans.
+
+> **Current-state rule (2026-10-25):** Older completion-history entries are historical records, not current status. Use the latest dated status and decision addendum below whenever an older statement conflicts with it. Never claim a feature is verified from source presence alone.
 
 ---
 
@@ -85,11 +87,12 @@ The sign-in and registration UI must feel integrated with the sci-fi brand rathe
 
 ### 3.4 Distinctive per-letter app branding — required
 
-The SayangqoeMeet brand should use a custom **sci-fi spectral neon** color treatment for individual letters, not a conventional literal rainbow.
+The SayangqoeMeet brand should use a custom **sci-fi spectral neon** treatment for individual letters, with the approved animated rainbow header treated as a separate, explicit UI requirement.
 
-- Choose a coordinated palette using cyan, ice blue, electric blue, teal, and restrained violet/magenta highlights. The result should feel futuristic and premium, not like a basic rainbow gradient.
-- Apply per-letter colors or a carefully composed multicolor wordmark in the app's splash/welcome/authentication branding and other suitable in-app brand surfaces.
-- Keep the treatment coherent with the cyan/blue luminous shadow and overall design tokens.
+- Use the coordinated cyan, ice blue, electric blue, teal, violet/magenta palette for static wordmark/per-letter branding where appropriate.
+- The header animation must follow the later approved requirement in section 15.4/15.9: local, continuous, smooth neon blue → neon green → neon yellow → neon pink → neon red. This supersedes any earlier prohibition on literal rainbow animation.
+- Keep the treatment coherent with the dark sci-fi surfaces, readable contrast, reduced-motion accessibility, and centralized design tokens.
+- Do not infer that every screen or every wordmark must animate; apply the looping sweep to the approved header component(s).
 - Ensure sufficient contrast and provide a readable static fallback.
 
 **Android platform limitation:** The OS-controlled app label shown under the launcher icon or in system installation/settings screens is normally plain text styled by Android, the launcher, or the device manufacturer. An app cannot reliably force each letter of that external system label to have its own color. Do not promise or attempt to override system UI. Instead, apply the custom per-letter neon treatment to the app icon artwork where supported and to the in-app splash/welcome/brand wordmark. Keep the actual package/application label correct and recognizable.
@@ -392,3 +395,115 @@ Do not describe the entire app as finished while any required feature remains un
 - Updated `respond-conversation-invite` so the pending invitation is conditionally claimed before membership is added, reducing accept/decline race conditions; a failed membership write attempts to return the invite to pending.
 - Redeployed both Edge Functions with JWT verification still enabled.
 - This is source/deployment verification only; two-account runtime tests and rate-limit/abuse testing remain outstanding.
+
+
+---
+
+## 15. Current plan, verified baseline, and decisions — 2026-10-25
+
+This section is the latest approved plan and supersedes contradictory earlier requirements/status statements. Keep prior completion history intact. **When an older requirement conflicts with an explicitly newer user-approved requirement, the newer requirement wins.** Edit or replace the old requirement so the operative plan is unambiguous; retain old completion records only as historical facts, not active requirements.
+
+### 15.1 Verified baseline from the 2026-10-25 audit summary
+
+- Repository: public GitHub repository `alinor2pundamdag/SayangqoeMeet`, default branch `main`.
+- Live Supabase project reference: `phjwzrrsaemgcedwpyyp`.
+- The audit reports 32 repository migrations and 32 matching live migration versions, 14 public tables with RLS enabled, and 10 active Edge Functions. Treat these as audit-reported results as of 2026-10-25; re-check the exact current head/live state before any migration or release.
+- WebRTC call sessions and dynamic TURN credential retrieval exist in source; repeated HTTP 200 responses were observed from `get-turn-credentials`. This does not by itself prove reliable two-device audio/video, background behavior, or push delivery.
+- Cleanup workers returned HTTP 200 in the reported dry-run. This is not proof that all retention edge cases are handled.
+- FCM push delivery and UI responsiveness remain unverified end-to-end unless a dated test record provides device-level evidence.
+- The repo's old README/status/handoff statements about 31 migrations, six tables, three functions, private visibility, or no WebRTC are superseded by this current baseline. Historical changelog entries remain historical.
+
+### 15.2 Governance and documentation consolidation
+
+- This file is the single source of truth for product requirements, priority, constraints, and plan changes.
+- `README.md` is only an accurate user-facing overview/build guide. `PROJECT_STATUS.md` is only a concise snapshot of verified state and open risks. `AI_HANDOFF.md` is only an execution handoff pointing back here. `CHANGELOG_AI.md` records dated, evidence-based changes; it must not define a separate roadmap.
+- The conflicting standalone `addedto.txt` feature proposal is retired and its compatible requirements are incorporated here. Do not recreate it or treat it as an authority.
+- New requirements must be added to this file and recorded in its completion history. Do not delete prior completion records; add corrections when facts change.
+- Never say a change is implemented, deployed, secure, or tested until the relevant source, deployment, and verification evidence has been inspected.
+- Preserve existing functionality, authorization, validation, and RLS. Prefer additive, reviewable changes. Do not run blanket migration pushes against a live database without checking ledger parity, dependencies, and the exact migration plan.
+
+### 15.3 Free-tier constraint
+
+- The project must remain within available free-tier services wherever practical. Do not propose a paid-plan upgrade as a prerequisite.
+- **Do not pursue Supabase leaked-password protection.** It is intentionally out of scope because the project is on the free tier. Record this as a consciously deferred plan-dependent control, not as an unnoticed task or release blocker. Continue to use strong password handling, secure Auth flows, and all other available security controls.
+- Do not paste secrets, service-account JSON, access tokens, or private credentials into chat, commits, issue comments, or client-side Android code.
+
+### 15.4 Approved visual and interaction direction
+
+- The canonical visual direction remains the premium sci-fi/neon design defined in Sections 3.x: dark midnight/navy surfaces, cyan/electric-blue as the dominant brand lighting, restrained indigo/violet accents, readable typography, accessible contrast, centralized design tokens, reduced-motion support, and no rapid distracting flashing.
+- **Latest decision (2026-10-25): implement the literal local infinite-looping rainbow header.** This explicitly supersedes the older cyan/blue-only restriction for the header animation. The animation must run locally on the Android UI/rendering pipeline, require no network/backend calls, loop continuously and smoothly through neon blue → neon green → neon yellow → neon pink → neon red, and avoid unnecessary recomposition/work. Keep other surfaces and typography readable; do not imply that the rainbow is required on every UI component. Respect reduced-motion preferences with a restrained/static fallback if required for accessibility, while keeping the default header's approved infinite loop.
+- Integrate compatible interaction ideas only where they improve usability and remain consistent with the canonical design: polished card-like auth fields, clear loading/verification state, accessible focus/error/disabled states, media album selection, CameraX capture where needed, voice-note waveform/scrubbing and cancel gesture, message reactions, profile/settings, and user-enabled chat bubble plus PiP calling. These are planned requirements, not claims that every feature already exists.
+- Do not promise that Android screen recording will never capture call audio. Capture behavior is OS/device/API dependent and cannot be guaranteed by the app. Explain any supported privacy controls accurately.
+- FCM/Firebase is an intentional service dependency for push notifications. Therefore do not claim “zero third-party services” or “zero telemetry” as an absolute guarantee. Avoid adding analytics/ad-tracking SDKs; document Firebase/FCM data handling and any unavoidable platform/service processing transparently.
+
+### 15.5 Prioritized engineering backlog
+
+**P0 — call reliability and privacy**
+1. Inspect current call notification code and manifest. Consolidate duplicate incoming-call channels/notifications into one user-visible incoming-call experience with a valid tap action and Accept/Decline actions, following Android API/permission constraints. Avoid duplicate ringtone playback.
+2. Ensure an active call has a correctly declared and started foreground service for the actual microphone/camera/media use cases, with Android 14+ foreground-service types and permissions matching current platform rules. Do not claim reliability until tested with screen locked/backgrounded on supported Android versions.
+3. Add bounded lifecycle/retention handling for `call_sessions` and `call_ice_candidates`, including stale ringing, accepted, connecting, and abandoned states; minimize retention of SDP and IP-bearing ICE records. Use a new reviewed migration and idempotent cleanup function/scheduler. Never delete production data without a tested dry-run and explicit reviewed retention policy.
+4. In both `send-message-push` and `notify-incoming-call`, handle provider responses for invalid/unregistered FCM tokens and remove only tokens conclusively reported as invalid. Keep transient provider failures retryable; do not delete tokens on generic errors.
+
+**P1 — notifications, build/release, and integration**
+5. Fix notification permission rationale/denial handling and provide a graceful non-push fallback.
+6. Inspect `ChatBubbleActivity` and call/message notification behavior. Implement only the Android manifest launch modes/resize/embed properties that are actually supported and needed; use `MessagingStyle` where appropriate. Verify on devices rather than relying on manifest guesses.
+7. Review CI signing/build outputs. Keep CI debug APKs clearly labeled as debug. Define a separate release-signing path only when the owner supplies secrets; never commit a keystore. Verify install/upgrade behavior and Firebase SHA fingerprints for the signing configuration actually used.
+8. Consider server-originated push triggering (database webhook/trigger or another trusted backend path) so delivery does not depend solely on the sender app remaining alive. Design idempotency, authorization, and retry behavior before implementing.
+9. Test Android notification permission denial, attachment download/cleanup, network changes, call timeout/ICE failure, and two-device voice/video calling across Wi-Fi and mobile data.
+
+**P2 — admin, quality, and maintainability**
+10. Admin console: inspect current web and Android code before changes. Keep all privileged operations server-authorized; build user lookup, reports/moderation, operational health, and audit history only with a defined schema, RLS, and backend enforcement. Do not grant admin access by guessing a UUID or running an unreviewed SQL statement.
+11. Expand unit/integration/UI tests around auth, RLS, notification routing, call state transitions, media cleanup, and responsive Compose UI. Inspect `AppScreens.kt`, repository, call screen, resources, docs, Supabase tests, workflows, and open PRs before asserting coverage is complete.
+12. Evaluate call polling/ICE restart and notification grouping after reliability issues are fixed. Keep existing indexes unless query plans and evidence justify a change; unused-index notices alone are not sufficient reason to drop them.
+13. Consolidate duplicate FCM logic only after behavior parity and tests are established. Use constant-time secret comparison for cleanup endpoints where applicable.
+
+### 15.6 Owner-only console/configuration work
+
+- Firebase Android API-key restrictions, signing fingerprints, and service-account setup require access to the appropriate Firebase/Google Cloud console and a verified signing identity. Do not invent the SHA-1 or lock the key to a guessed certificate.
+- Supabase Auth redirect configuration and secrets require dashboard access. Do not expose secret values.
+- Admin membership provisioning requires confirming the owner's authenticated UUID and the exact schema/policy. Do not execute a guessed UUID or blanket privilege grant.
+- GitHub collaborator access and branch protection require the correct repository owner/admin authority. A connected account with push permission does not imply admin permission.
+
+### 15.7 Required execution protocol
+
+For each engineering task:
+1. Inspect current source, relevant tests, migrations, latest CI, and open PR dependencies.
+2. State exact scope, risk, and rollback before editing.
+3. Make one focused branch/commit-sized change; preserve existing features and security controls.
+4. Run the narrowest relevant tests first, then the required full validation on the exact resulting commit.
+5. Report changed files, commit/PR, actual test commands/results, unresolved blockers, and rollback. Separate verified facts from assumptions.
+6. Never merge or apply a production migration merely because the source compiles. Require review and explicit evidence of the relevant checks.
+
+### 15.8 Change record — 2026-10-25
+
+- Consolidated the latest audit findings and current priorities into the master plan.
+- Historical note (superseded by the user's later explicit approval in section 15.9): this entry previously said literal rainbow branding was not approved. That prohibition is no longer operative for the header animation. Keep the remaining cyan/electric-blue sci-fi brand system for other surfaces.
+- Recorded free-tier scope: leaked-password protection is intentionally deferred and must not be pursued as a task.
+- Replaced stale current-state claims in summary documents with a single-source-of-truth policy.
+- This is a documentation/governance change only. It does not claim that the listed engineering backlog has been implemented or that unverified device behavior now passes.
+
+
+## 15.9 Latest user direction — 2026-10-25 (supersedes earlier conflicting plan)
+
+- Apply the latest approved feature decisions even when they conflict with older master-plan text. Edit or replace stale requirements; do not leave contradictory active rules. Historical records remain intact only as history.
+- Implement the **literal local infinite-looping rainbow header** by default: neon blue → neon green → neon yellow → neon pink → neon red, continuously and smoothly animated entirely on-device with no network/backend requests. Preserve accessibility and readability.
+- Treat incoming-call notification deduplication/actions, correct foreground-service lifecycle and types, invalid/stale FCM token cleanup, and call-session/ICE retention as implementation work to complete—not merely backlog bullets. Make focused changes, test, and report actual results; do not mark complete without verification.
+- Free-tier constraint remains binding. Supabase leaked-password protection remains intentionally excluded.
+- This latest decision supersedes the prior 15.4 statement that rejected literal rainbow branding. The prior wording is corrected by this addendum; the latest requirement is operative.
+
+
+## 15.10 Deduplicated audit register and execution ownership — 2026-10-25
+
+The evidence register and consolidated fix list are maintained in [AUDIT_REPORT_2026-10-25.md](AUDIT_REPORT_2026-10-25.md). It is a findings/evidence register, not a second product roadmap. This master plan remains the requirements authority.
+
+- Duplicate symptom reports must map to one canonical finding ID, with one accountable owner, one implementation location, explicit dependencies, and one acceptance-test set.
+- The current open PRs #61, #62, and #64 are separate unmerged proposals. Compare overlapping files and dependency order before merge; green CI on one PR does not validate another PR's head or prove live service/device behavior.
+- Initial audit found two incoming-call notification paths. PR #61 now updates the foreground service and messaging path to share one call-specific notification ID/channel and Accept/Decline actions; this is source-implemented but still needs latest CI and physical-device verification.
+- Initial audit found no active-call foreground service. PR #61 now adds an active-call service mode with microphone/camera types and permissions and ties it to the WebRTC call lifecycle. Android CI and Android 11–16 background/lock-screen tests are still required.
+- Initial audit found no provider-confirmed invalid-token cleanup. PR #61 now removes only the exact token owner row for an explicit HTTP 404 FCM UNREGISTERED response, with Deno tests; latest tests and live provider behavior remain unverified.
+- PR #61 now adds retention indexes/grants and a cleanup path: stale ringing becomes missed, accepted/connecting sessions abandoned for over 24 hours become failed, and terminal sessions are eligible for 30-day retention with ICE cascade. Actual deletion is disabled by default and requires CALL_RETENTION_ENABLED=true only after dry-run evidence, rollback review, and owner approval.
+- PR #61 now includes equivalent UUID validation from PR #62. PR #62 has been closed as superseded because equivalent UUID-validation changes are incorporated into #61; do not merge the duplicate path.
+- The web admin console now supports real server-verified read-only overview and audit history and requires a completed TOTP MFA challenge (AAL2). User/report moderation, suspension, and live media review remain disabled until an approved schema, authorization model, participant-notice process, and retention policy exist.
+- Latest source branch head at this update is 0758ea05110fa63ee30329781cca587240199e43. Android CI run 633 passed, Phase 2 Database Validation run 294 passed (fresh migration replay, two-user RLS isolation, Deno checks/tests, and admin-console script syntax), and Secret History Scan run 213 passed. Physical-device, live-provider, and owner-side gates remain.
+- The free-tier exclusion for Supabase leaked-password protection remains unchanged; do not include it in fixes, blockers, or owner action lists.
+- The latest user-approved rainbow header requirement is operative. Earlier prohibition text is explicitly superseded, not a competing current rule.
