@@ -85,12 +85,13 @@ The sign-in and registration UI must feel integrated with the sci-fi brand rathe
 
 ### 3.4 Distinctive per-letter app branding — required
 
-The SayangqoeMeet brand should use a custom **sci-fi spectral neon** color treatment for individual letters, not a conventional literal rainbow.
+The approved SayangqoeMeet in-app header wordmark uses a **smooth, continuously animated local rainbow gradient** in this order: blue → green → yellow → pink → red.
 
-- Choose a coordinated palette using cyan, ice blue, electric blue, teal, and restrained violet/magenta highlights. The result should feel futuristic and premium, not like a basic rainbow gradient.
-- Apply per-letter colors or a carefully composed multicolor wordmark in the app's splash/welcome/authentication branding and other suitable in-app brand surfaces.
-- Keep the treatment coherent with the cyan/blue luminous shadow and overall design tokens.
-- Ensure sufficient contrast and provide a readable static fallback.
+- The animation must be rendered locally by the app; it must not call a network service, backend, or external image.
+- Use the same approved rainbow identity consistently on the primary in-app brand header and any welcome/authentication wordmark where that brand is shown.
+- Keep the wordmark readable against both dark and light surfaces; avoid glow effects that reduce text contrast.
+- Keep the animation lightweight and avoid making layout dimensions change as colors move. Provide a stable readable fallback when animation is disabled or unavailable.
+- Do not replace this explicit requirement with the older cyan/blue/violet-only spectral palette.
 
 **Android platform limitation:** The OS-controlled app label shown under the launcher icon or in system installation/settings screens is normally plain text styled by Android, the launcher, or the device manufacturer. An app cannot reliably force each letter of that external system label to have its own color. Do not promise or attempt to override system UI. Instead, apply the custom per-letter neon treatment to the app icon artwork where supported and to the in-app splash/welcome/brand wordmark. Keep the actual package/application label correct and recognizable.
 
