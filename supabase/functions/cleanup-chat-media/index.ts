@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { constantTimeEquals } from "../_shared/constant-time-equals.ts";
+import { isSafeChatMediaObjectPath } from "../_shared/chat-media-path.ts";
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json; charset=utf-8"}});
 Deno.serve(async(req:Request)=>{
  if(req.method!=="POST")return json(405,{error:"Method not allowed"});
@@ -20,7 +21,7 @@ Deno.serve(async(req:Request)=>{
  let purged=0,failed=0,claimed=0;
  for(const job of jobs??[]){
   claimed++; const path=typeof job.object_path==="string"?job.object_path:"";
-  if(job.bucket_id!=="chat-attachments"||!path.startsWith(String(job.conversation_id)+"/")||path.startsWith("/")||path.split("/").some((p:string)=>p==="."||p==="..")||path.split("/").length<3){
+  if(!isSafeChatMediaObjectPath(String(job.bucket_id),String(job.conversation_id),path)){
    failed++;await admin.rpc("finish_chat_media_cleanup",{p_message_id:job.message_id,p_success:false,p_error:"Rejected unsafe bucket/path"});continue;
   }
   const {error:removeError}=await admin.storage.from("chat-attachments").remove([path]);
