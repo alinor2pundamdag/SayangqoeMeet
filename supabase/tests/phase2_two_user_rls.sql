@@ -1343,4 +1343,31 @@ BEGIN
   END IF;
 END $edge_function_minimal_grants$;
 
+
+-- Call signaling retention must be indexed and ICE candidates must cascade with
+-- their parent session, while the worker's delete predicate is terminal-only.
+DO $call_retention_schema$
+BEGIN
+  IF to_regclass('public.call_sessions_terminal_retention_idx') IS NULL
+     OR to_regclass('public.call_sessions_negotiating_retention_idx') IS NULL THEN
+    RAISE EXCEPTION 'Call retention indexes are missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint fk
+    JOIN pg_class child ON child.oid = fk.conrelid
+    JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+    JOIN pg_class parent ON parent.oid = fk.confrelid
+    JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+    WHERE fk.contype = 'f'
+      AND child_ns.nspname = 'public'
+      AND child.relname = 'call_ice_candidates'
+      AND parent_ns.nspname = 'public'
+      AND parent.relname = 'call_sessions'
+      AND fk.confdeltype = 'c'
+  ) THEN
+    RAISE EXCEPTION 'Deleting a terminal call must cascade to its ICE candidates';
+  END IF;
+END $call_retention_schema$;
+
 ROLLBACK;
