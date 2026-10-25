@@ -1370,4 +1370,17 @@ BEGIN
   END IF;
 END $call_retention_schema$;
 
+
+DO $call_retention_and_token_cleanup_grants$
+BEGIN
+  IF NOT has_table_privilege('service_role', 'public.device_tokens', 'DELETE') THEN
+    RAISE EXCEPTION 'service_role must be able to delete provider-confirmed invalid device tokens';
+  END IF;
+  IF NOT has_table_privilege('service_role', 'public.call_sessions', 'DELETE')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'answered_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'ended_at', 'SELECT') THEN
+    RAISE EXCEPTION 'Call retention worker privileges are incomplete';
+  END IF;
+END $call_retention_and_token_cleanup_grants$;
+
 ROLLBACK;
