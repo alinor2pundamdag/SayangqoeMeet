@@ -1,6 +1,7 @@
 /** FCM v1 error classification. Never remove tokens for transient/auth/payload errors. */
 export function isUnregisteredFcmToken(statusCode: number, payload: unknown): boolean {
-  if (statusCode < 400) return false;
+  // FCM v1 reports UNREGISTERED as HTTP 404. Ignore even contradictory details on other statuses.
+  if (statusCode !== 404) return false;
   if (!payload || typeof payload !== "object") return false;
   const root = payload as { error?: { details?: unknown } };
   const details = root.error?.details;
