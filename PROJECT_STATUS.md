@@ -36,5 +36,8 @@ PR #61's source branch now contains the following changes, not yet merged or rel
 5. Review retention dry-run counts and rollback, approve the 30-day policy, and only then set CALL_RETENTION_ENABLED=true if appropriate.
 6. Owner verifies Firebase configuration/signing restrictions, server-only credentials, cleanup scheduler/secret, and provisions an intended admin Auth UUID out-of-band.
 
+## Latest exact-head validation
+For PR #61 source head 0758ea05110fa63ee30329781cca587240199e43, Phase 2 Database Validation run 294 passed, including a fresh empty-database migration replay, two-user RLS isolation, Deno type-check/unit tests, and admin-console JavaScript syntax validation. Secret History Scan run 213 passed. Android CI run 633 (lint, unit tests, debug APK assembly) was still in progress at the last check.
+
 ## Verification limits
-This is not a full re-audit of every source file, migration, deployed function, workflow, console setting, or physical device. See the audit report for the exact inspected scope, evidence boundaries, owner-only actions, and release gates. Do not mark unverified features complete.
+This is not a full re-audit of every source file, deployed function, workflow, console setting, or physical device. See the audit report for the exact inspected scope, evidence boundaries, owner-only actions, and release gates. Do not mark unverified features complete.
