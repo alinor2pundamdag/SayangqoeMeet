@@ -29,7 +29,7 @@ Inspect exact source, branch, open PRs, and current CI first. Consolidate duplic
 ## Current implementation snapshot (2026-10-25)
 
 - PR #61 source branch `feat/messenger-inspired-media-call-ux` now contains call-notification consolidation, UUID and server-state validation, active-call foreground-service mode, FCM invalid-token cleanup, call-retention code/indexes/grants, cleanup-secret comparison tests, and a live read-only admin overview/audit console.
-- Latest verified source head recorded in the audit report: `0758ea05110fa63ee30329781cca587240199e43`. Android CI run 633, Phase 2 Database Validation run 294, and Secret History Scan run 213 passed on that exact head.
+- Prior verified source head 0758ea05110fa63ee30329781cca587240199e43 passed Android CI run 633, Phase 2 Database Validation run 294, and Secret History Scan run 213. Latest source head 5b1e96be25092775016f7804fea055f665a95641 adds safe media object-path validation and bounded retry quarantine; Secret History Scan run 234 passed, while Android CI run 654 and Phase 2 Database Validation run 299 are pending.
 - Latest Secret History Scan passed on the immediately preceding source head; Android CI and Phase 2 migration replay/RLS validation must pass on the newest exact head before calling the source fixes verified.
 - Terminal-call deletion remains disabled unless the owner explicitly sets `CALL_RETENTION_ENABLED=true` after reviewing the dry-run counts and approving the 30-day retention policy.
 - PR #62's UUID-validation changes are incorporated in PR #61's source branch. Do not merge both overlapping PRs separately; after PR #61 validation passes, close #62 as superseded.
