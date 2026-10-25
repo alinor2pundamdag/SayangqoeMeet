@@ -84,7 +84,7 @@ The following code changes have been committed to PR #61's source branch, but th
 | F-14 | Added forward migrations for retention indexes and required least-privilege cleanup privileges. | Latest fresh migration replay, SQL lint, RLS tests and live ledger comparison remain pending. |
 | F-15 | Existing idempotent message request handling and Realtime reconciliation remain in scope. | Execute duplicate-send/lost-response and delayed/out-of-order Realtime tests; do not infer these from source presence alone. |
 
-Current latest-head checks: PR #61 head 0758ea05110fa63ee30329781cca587240199e43; Android CI run 633 and Phase 2 Database Validation run 294 are pending, Secret History Scan run 213 passed. A prior head's Phase 2 run is still in progress; latest-head validation is not yet complete.
+Current latest-head checks: PR #61 head 0758ea05110fa63ee30329781cca587240199e43; Phase 2 Database Validation run 294 passed (fresh migration replay, two-user RLS isolation, Deno type-check/unit tests, and admin-console JS syntax), Secret History Scan run 213 passed, and Android CI run 633 is still in progress. Do not call the whole source branch successful until Android CI completes.
 
 
 ## 4. Cross-layer integration map
