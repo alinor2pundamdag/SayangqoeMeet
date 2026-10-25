@@ -17,7 +17,7 @@ The audited documentation branch is based on `main` and does not include the app
 Inspected in this pass:
 - PR metadata and changed-file lists for #61, #62, and #64.
 - Documentation files (masterplan.md, README.md, PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG_AI.md) on the audit branch.
-- Android call/push source, Edge Functions, migrations, tests, and workflow files on PR #61's feat/messenger-inspired-media-call-ux branch. The latest source branch head at the latest edit was 3b0182199d78dc9d9ff18de1a1a95cfbdbc3c0dd.
+- Android call/push source, Edge Functions, migrations, tests, and workflow files on PR #61's feat/messenger-inspired-media-call-ux branch. The latest source branch head at the latest edit was 0758ea05110fa63ee30329781cca587240199e43.
 - Exact-head workflow runs for the latest source head are still pending at the time of this update; earlier runs were used to diagnose and fix the FCM error-classification test failure.
 
 Not fully re-audited in this pass: every Kotlin file/resource/test/workflow, the entire migration history and live schema, every deployed Edge Function's byte parity, current Firebase/Supabase console configuration, live logs, and physical devices. Those remain explicit verification tasks below; no absence is inferred where source was not inspected.
@@ -75,7 +75,7 @@ The following code changes have been committed to PR #61's source branch, but th
 | F-05 | Added indexes and least-privilege grants; stale ringing calls become missed; abandoned accepted/connecting calls older than 24 hours become failed; terminal rows are eligible for 30-day cleanup with ICE cascade. Actual terminal deletion is gated behind CALL_RETENTION_ENABLED=true, default disabled. | Fresh migration replay, dry-run review, owner-approved retention window, configured scheduler/secret, and explicit enablement before production deletion. |
 | F-06 | Equivalent UUID validation from PR #62 is incorporated in PR #61's branch, reducing the need to merge the overlapping MainActivity.kt/messaging-service changes separately. | Latest exact-head checks must pass; then close #62 as superseded or otherwise reconcile it before merging. |
 | F-07 | Latest masterplan/handoff rules approve the local infinite-looping rainbow header; PR #61 retains the source implementation. | Verify actual UI animation on device and ensure no network dependency; latest docs branch still needs to be merged. |
-| F-08 | The web admin console now authenticates through Supabase Auth and requests live overview/audit data from the server-verified Edge Function; access token stays in memory. | Browser smoke test using an already-provisioned admin and a non-admin account. Moderation, user reports, suspensions, and live media review remain intentionally disabled until the owner-approved policy/schema exists. |
+| F-08 | The web admin console now authenticates through Supabase Auth, completes TOTP MFA to obtain AAL2, and requests live overview/audit data from the server-verified Edge Function; access token stays in memory. | Browser smoke test using an already-provisioned admin and a non-admin account. Moderation, user reports, suspensions, and live media review remain intentionally disabled until the owner-approved policy/schema exists. |
 | F-09 | Added database assertions for the new service-role cleanup grants, retention indexes, and ICE cascade. | Fresh empty-database replay and complete two-user RLS suite must pass; recheck live migration ledger before deployment. |
 | F-10 | Cleanup endpoint secret comparison now uses a no-early-exit constant-work helper with unit tests. | Latest Deno checks, real scheduler/secret configuration, and end-to-end media cleanup/Storage verification. |
 | F-11 | No source-side console credentials or Firebase service account were changed. | Owner must verify Firebase package/signing/API restrictions and server-only credentials without sharing secrets. |
@@ -84,7 +84,7 @@ The following code changes have been committed to PR #61's source branch, but th
 | F-14 | Added forward migrations for retention indexes and required least-privilege cleanup privileges. | Latest fresh migration replay, SQL lint, RLS tests and live ledger comparison remain pending. |
 | F-15 | Existing idempotent message request handling and Realtime reconciliation remain in scope. | Execute duplicate-send/lost-response and delayed/out-of-order Realtime tests; do not infer these from source presence alone. |
 
-Current latest-head checks: PR #61 head 3b0182199d78dc9d9ff18de1a1a95cfbdbc3c0dd; Android CI run 620 and Phase 2 Database Validation run 285 are pending, Secret History Scan run 200 is queued. These are not successes yet.
+Current latest-head checks: PR #61 head 0758ea05110fa63ee30329781cca587240199e43; Android CI run 633 and Phase 2 Database Validation run 294 are pending, Secret History Scan run 213 passed. A prior head's Phase 2 run is still in progress; latest-head validation is not yet complete.
 
 
 ## 4. Cross-layer integration map
