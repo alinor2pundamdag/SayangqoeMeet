@@ -12,7 +12,7 @@ SayangqoeMeet is an Android communication app built with Kotlin/Jetpack Compose,
 - FCM device-token registration and push-notification functions.
 - WebRTC call signaling and temporary Cloudflare TURN credential retrieval.
 - Private media handling and cleanup workflows.
-- An admin-console shell; full administrative functionality remains subject to backend authorization and the current plan.
+- A read-only web operations console for live overview and audit history, gated by Supabase Auth, server-verified admin membership, and MFA AAL2. User/report moderation and account suspension remain disabled until the required schema and policy are approved.
 
 Source presence or a successful HTTP response does not alone prove end-to-end behavior. Review the current status document and latest CI/device-test evidence before relying on any feature. Two-device push/call behavior, background/locked-screen calling, responsive UI coverage, and other open items are tracked in the master plan.
 
