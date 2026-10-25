@@ -29,6 +29,14 @@ All three automated workflows passed on this exact head:
 
 These are repository automation results only. They do not prove live Supabase schema/deployment parity, live FCM delivery, real-device behavior, two-account authorization in the hosted project, or two-device WebRTC. PR #61 remains open and draft; main does not yet contain its unmerged source changes.
 
+## UI/UX correction pass — 2026-10-25
+
+- Corrected the masterplan's conflicting brand specification to the user's approved continuous local rainbow gradient order: blue → green → yellow → pink → red.
+- Added AnimatedBrandWordmark() to the signed-in shell header. This is a source-level correction only; it is not yet a visual/device pass.
+- Remaining UI acceptance checks are explicit and must not be silently marked complete: authentication/welcome brand consistency; static/reduced-motion fallback; contrast; screen sizes/insets/keyboard/font scale/orientation; tap-target/accessibility audit; screenshots of each primary screen on a running APK.
+- The repository does not contain sufficient current device screenshot evidence to claim a full UI/UX pass. Automated CI can compile/test code but cannot prove visual correctness on the user's device.
+- Readiness rule: mark a UI item PASS only after a named automated test or a recorded manual screenshot/device result exists.
+
 ## Feature matrix
 
 | ID | Required feature (masterplan) | Evidence inspected | Current status | Required closure evidence |
@@ -36,7 +44,7 @@ These are repository automation results only. They do not prove live Supabase sc
 | V-01 | Android project identity, reproducible build, package | Android manifest; Android CI workflow | PARTIAL | Current-head CI passes; install APK and launch on real supported device. |
 | V-02 | Responsive layouts, insets, keyboard, font scaling, orientation | MainActivity and Compose call screen inspected; no full UI matrix | NOT VERIFIED | Compact/standard/large screens, landscape, keyboard, cutouts, gesture nav and large font screenshots/tests. |
 | V-03 | Branded login/register, accessible fields, validation and error/loading states | Masterplan §§3–4; complete auth UI inventory not yet verified | NOT VERIFIED | Verify labels, password toggle, focus/error/disabled/loading states, autofill, IME, contrast and reduced-motion. |
-| V-04 | Continuous local rainbow header: blue→green→yellow→pink→red | Approved requirement in masterplan; all header instances not yet inventoried | NOT VERIFIED | Trace target components; verify continuous local animation, no network dependency, static reduced-motion fallback and contrast. |
+| V-04 | Continuous local rainbow header: blue→green→yellow→pink→red | AnimatedBrandWordmark() added to the signed-in shell header in AppScreens.kt; gradient is rendered locally | PARTIAL — source change made, build/device rendering pending | Confirm latest-head CI; inspect all brand surfaces including auth/welcome; verify contrast, reduced-motion behavior and screenshots on device. |
 | V-05 | Supabase registration, login, logout, session restore, profiles | MainActivity and auth repository references | PARTIAL | Run lifecycle tests against configured project using test accounts; verify token expiry, profile access and logout. |
 | V-06 | Backend validation, privacy, no privileged client secrets | Auth/backend code and secret-scan workflow | PARTIAL | Inspect client assets/history; verify no service-role or FCM private credential; test denied access and privacy-safe logs. |
 | V-07 | Secure conversations and membership authorization | Repositories, migrations, two-user RLS test | PARTIAL | Compare live schema/ledger; test two unrelated users and anon across select/insert/update/delete. |
