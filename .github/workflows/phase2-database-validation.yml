@@ -52,6 +52,9 @@ jobs:
       - name: Test admin JWT assurance parsing
         run: deno test supabase/functions/_shared/jwt-assurance_test.ts
 
+      - name: Test safe media cleanup object paths
+        run: deno test supabase/functions/_shared/chat-media-path_test.ts
+
       - name: Validate admin console JavaScript syntax
         run: |
           node <<'NODE'
