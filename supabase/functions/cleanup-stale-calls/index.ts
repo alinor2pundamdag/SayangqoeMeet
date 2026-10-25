@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { constantTimeEquals } from "../_shared/constant-time-equals.ts";
 
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), {
@@ -12,7 +13,7 @@ Deno.serve(async (req: Request) => {
 
   const expected = Deno.env.get("MEDIA_CLEANUP_CRON_SECRET");
   const supplied = req.headers.get("x-cleanup-secret");
-  if (!expected || !supplied || supplied.length !== expected.length || supplied !== expected) {
+  if (!expected || !supplied || !constantTimeEquals(supplied, expected)) {
     return json(401, { error: "Unauthorized" });
   }
 
