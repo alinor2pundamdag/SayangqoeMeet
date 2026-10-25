@@ -134,8 +134,12 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         // the notification while the high-priority FCM data event still arrives.
         if (message.data["type"] == "incoming_call") {
             val callId = message.data["call_id"]?.takeIf { PushPayloadValidation.isUuid(it) } ?: return
+            // FCM can be delayed or delivered more than once. Re-check the authenticated
+            // recipient and authoritative call state before starting any local alert.
+            val call = runCatching { CallSignalingRepository.getCall(callId) }.getOrNull() ?: return
+            if (call.calleeId != currentUserId || call.status != "ringing") return
             val callerName = message.data["caller_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
-            val callType = message.data["call_type"]?.takeIf { it == "video" } ?: "voice"
+            val callType = if (call.type == "video") "video" else "voice"
             // The foreground service owns the single call notification and the ringtone.
             // Posting a second notification here caused duplicate visible alerts per call.
             runCatching { CallForegroundService.start(this, callId, callerName, callType) }
@@ -220,8 +224,16 @@ class CallActionReceiver : BroadcastReceiver() {
                 runCatching { CallForegroundService.stop(context, callId) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
                 val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
-                if (restored && SupabaseAuthRepository.currentUserId() != null) {
-                    runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                if (restored) {
+                    val currentUserId = SupabaseAuthRepository.currentUserId()
+                    if (currentUserId != null) {
+                        runCatching {
+                            val call = CallSignalingRepository.getCall(callId)
+                            if (call.calleeId == currentUserId && call.status == "ringing") {
+                                CallSignalingRepository.setStatus(callId, "declined")
+                            }
+                        }
+                    }
                 }
             } finally {
                 pending.finish()
