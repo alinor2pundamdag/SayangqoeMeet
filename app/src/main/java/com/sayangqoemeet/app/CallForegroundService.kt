@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
@@ -17,6 +18,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +37,7 @@ internal class CallForegroundService : Service() {
     private var foregroundNotificationId: Int = NOTIFICATION_ID
     private var callerName: String = "SayangqoeMeet user"
     private var callType: String = "voice"
+    private var activeCallMode: Boolean = false
     private val handler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var statusPollJob: Job? = null
@@ -56,10 +59,19 @@ internal class CallForegroundService : Service() {
         callerName = intent?.getStringExtra(EXTRA_CALLER_NAME)?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
         callType = intent?.getStringExtra(EXTRA_CALL_TYPE)?.takeIf { it == "video" } ?: "voice"
         foregroundNotificationId = activeCallId.hashCode()
-        startForeground(foregroundNotificationId, buildIncomingCallNotification(activeCallId!!))
-        startRinging()
-        scheduleBoundedStop()
-        startStatusPolling()
+        activeCallMode = intent?.action == ACTION_START_ACTIVE_CALL
+        if (activeCallMode) {
+            timeoutRunnable?.let(handler::removeCallbacks)
+            timeoutRunnable = null
+            stopRinging()
+            startForegroundWithType(buildActiveCallNotification(activeCallId!!), activeCallTypeFlags())
+            startStatusPolling()
+        } else {
+            startForegroundWithType(buildIncomingCallNotification(activeCallId!!), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            startRinging()
+            scheduleBoundedStop()
+            startStatusPolling()
+        }
         return START_NOT_STICKY
     }
 
