@@ -2,7 +2,7 @@
 
 SayangqoeMeet is an Android communication app built with Kotlin/Jetpack Compose, Supabase, Firebase Cloud Messaging, and WebRTC.
 
-**Requirements and roadmap:** [masterplan.md](masterplan.md) is the single source of truth. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the latest verified snapshot and [AI_HANDOFF.md](AI_HANDOFF.md) for the execution protocol.
+**Requirements authority:** [masterplan.md](masterplan.md). See [AUDIT_REPORT_2026-10-25.md](AUDIT_REPORT_2026-10-25.md) for the deduplicated cross-layer audit, issue ownership, fix list, dependencies, and acceptance gates; [PROJECT_STATUS.md](PROJECT_STATUS.md) for a concise snapshot; and [AI_HANDOFF.md](AI_HANDOFF.md) for execution rules.
 
 ## Current implementation areas
 
