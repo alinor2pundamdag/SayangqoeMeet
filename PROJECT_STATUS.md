@@ -18,13 +18,23 @@ The audit-reported baseline is 32 repository migrations matching 32 live migrati
 
 Re-fetch current PR head SHAs and CI immediately before merge. Green CI on an older/different head is not proof for the current main branch, live deployment, or physical-device behavior.
 
+## Current implementation progress
+PR #61's source branch now contains the following changes, not yet merged or release-verified:
+1. One call-specific notification identity with Accept/Decline actions, strict payload validation, and authoritative recipient/ringing-state checks.
+2. Active-call foreground-service mode with microphone/camera declarations and lifecycle wiring.
+3. Provider-confirmed FCM UNREGISTERED token cleanup, plus Deno tests that reject transient and ambiguous errors.
+4. Call-signaling indexes/grants and bounded cleanup: stale ringing calls become missed, abandoned accepted/connecting calls become failed, and terminal retention is opt-in (30 days; CALL_RETENTION_ENABLED must remain false/unset until reviewed).
+5. Equivalent UUID-validation changes from PR #62 are incorporated into PR #61's source branch.
+6. The web admin console now performs real server-verified read-only overview/audit requests; moderation/suspension/live media review remain disabled pending approved policies/schema.
+7. Cleanup endpoints use a no-early-exit secret comparison helper with unit tests.
+
 ## Current highest-priority actions
-1. Consolidate incoming-call notifications and verify one-tap Accept/Decline end to end.
-2. Correctly separate incoming-ring and active-call foreground-service lifecycle/types for supported Android versions.
-3. Handle FCM provider-confirmed invalid tokens without deleting tokens on transient errors.
-4. Design/test bounded call-session and ICE retention after verifying actual schema, RLS, grants, and migration parity.
-5. Reconcile #61/#62 overlapping files and run checks on the combined exact head.
-6. Verify Firebase configuration/signing restrictions, media cleanup scheduling, admin authorization, and Android device behavior.
+1. Pass latest exact-head Android CI, Phase 2 fresh migration replay/RLS suite, and Secret History Scan.
+2. Fix any newly reported CI failures; do not treat the earlier FCM helper test failure as current once the corrected head's run is complete.
+3. After PR #61 checks pass, close #62 as superseded and reconcile/merge documentation PR #64 without conflicting source changes.
+4. Run physical-device notification/Accept/Decline and two-device voice/video tests on supported Android versions.
+5. Review retention dry-run counts and rollback, approve the 30-day policy, and only then set CALL_RETENTION_ENABLED=true if appropriate.
+6. Owner verifies Firebase configuration/signing restrictions, server-only credentials, cleanup scheduler/secret, and provisions an intended admin Auth UUID out-of-band.
 
 ## Verification limits
 This is not a full re-audit of every source file, migration, deployed function, workflow, console setting, or physical device. See the audit report for the exact inspected scope, evidence boundaries, owner-only actions, and release gates. Do not mark unverified features complete.
