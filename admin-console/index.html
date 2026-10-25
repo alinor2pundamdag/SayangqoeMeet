@@ -18,7 +18,7 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
 <header><div class="brand">SayangqoeMeet <small>Secure operations console</small></div><span class="badge">SERVER-VERIFIED ACCESS</span></header>
 <section id="loginSection">
 <h1>Administrator sign-in<span style="color:var(--cyan)">.</span></h1>
-<p class="sub">Sign in with an existing Supabase Auth account. The server verifies the account against <code>admin_memberships</code>; a valid password alone never grants admin access. Credentials and the access token are not stored in browser storage.</p>
+<p class="sub">Sign in with an existing Supabase Auth account. The server verifies the account against <code>admin_memberships</code> and requires completed MFA (AAL2); a valid password alone never grants admin access. Credentials and the access token are not stored in browser storage.</p>
 <div class="panel">
 <div class="form-grid">
 <div class="field"><label for="projectUrl">Supabase project URL</label><input id="projectUrl" type="url" autocomplete="url" value="https://phjwzrrsaemgcedwpyyp.supabase.co" required></div>
