@@ -1,394 +1,144 @@
-# SayangqoeMeet — Master Plan
+# SayangqoeMeet — Unified Master Plan (v2.0)
 
-**Document status:** Baseline requirements, version 1.0  
-**Established:** 2026-10-16  
-**Repository:** `alinor2pundamdag/SayangqoeMeet`  
-**Project type:** Android communication application  
-**Authority:** This document is the project's requirements source of truth. Implementation and tests must follow it.
+**Updated:** 2026-10-25 · **Repo:** `alinor2pundamdag/SayangqoeMeet` (public, branch `main`) · **Package:** `com.sayangqoemeet.app`
+**Supabase:** `phjwzrrsaemgcedwpyyp` (Free tier) · **Firebase:** `sayangqoemeet-6b008` (Spark/free)
 
----
-
-## 1. Project identity and mission
-
-**Project name:** SayangqoeMeet
-
-Build a polished, privacy-conscious Android communication app with a distinctive futuristic visual identity and dependable everyday communication features. The project must be real software, not a collection of decorative screens, placeholder buttons, fake authentication, simulated messages presented as real, or call screens that pretend to connect.
-
-The new GitHub repository is a clean start for new source code. Do not require copying the old app's implementation. Use verified requirements in this master plan to design a new implementation.
-
-### Core product goals
-
-- Account registration and sign-in.
-- User profiles.
-- Private conversations and real-time messaging.
-- Voice and video calling using WebRTC.
-- Push notifications using Firebase Cloud Messaging (FCM).
-- Supabase-backed authentication and application data, with proper authorization and Row Level Security (RLS).
-- Responsive layouts that fit different supported screen sizes, orientations, densities, font scales, and system insets.
-- A recognizable sci-fi neon identity with accessible contrast and restrained motion.
-- Maintainable architecture, meaningful error states, tests, and reliable handoff documentation.
-
-### Product integrity rule
-
-Never mark a feature complete just because a screen or button exists. A feature is complete only when its actual behavior is implemented, its failure states are handled, and the relevant checks/tests have passed. Clearly identify external configuration or credentials required for live integration.
+This is the ONLY planning/status document. It replaces the former `PROJECT_STATUS.md`, `AI_HANDOFF.md`, `CHANGELOG_AI.md` and `addedto.txt` (their full text remains in Git history). Update this file after every milestone; never claim a result without evidence.
 
 ---
 
-## 2. Requirements governance and change control
+## 0. Quick start for the next person/AI
 
-This document is the baseline specification.
+1. Read this file top to bottom, then inspect the latest GitHub Actions run and `supabase/migrations/`.
+2. Work from section 7 (backlog) in order. Section 6 (new plan) has priority over older items.
+3. Never commit service-role keys, Firebase service-account JSON, keystore passwords or TURN tokens. Secret *names* only (section 9).
+4. Do not run a blanket `supabase db push`; compare migrations with the live ledger first.
+5. After finishing work: update sections 5, 7 and append to section 12.
 
-1. Treat the current approved requirements as stable. Do not casually rewrite, remove, weaken, or reinterpret them.
-2. When the user explicitly requests a new requirement or a change, update the relevant section of this master plan and record the change in the completion history at the end of this file.
-3. If a requirement is technically impossible, platform-controlled, unsafe, or incompatible with another requirement, explain the limitation and document the closest truthful supported behavior. Do not promise impossible behavior.
-4. Do not make unrelated requirement changes merely because a new implementation idea seems attractive.
-5. Keep requirements, implementation, tests, and project status aligned. If implementation reveals a conflict or missing decision, document it and ask only when a decision genuinely belongs to the user.
-6. A request to improve implementation does not authorize deleting historical completion records.
-7. Before major changes, inspect the relevant source and Git history. Prefer focused, reviewable commits.
+## 1. Mission and integrity rule
 
-### Completion records
+Build a polished, privacy-conscious Android communication app (sci-fi neon identity): registration/sign-in, profiles, private 1:1 chat with realtime, voice/video calls (WebRTC), push notifications (FCM), Supabase backend with RLS, and a separate admin console. No fake screens, simulated messages or pretend calls. A feature is **done** only when behaviour is implemented, failure states are handled, and checks/tests actually passed. A green CI run proves only what it runs.
 
-Append new dated entries at the end of this document. Do not edit or delete previous completion entries; append a correction if needed. Use the actual available date/time and timezone when recording timestamps. Do not invent timestamps, test results, or completion claims.
+## 2. Governance and fixed decisions
 
----
+- This file is the requirements source of truth. Changes requested by the owner are recorded here (section 12) — no silent rewrites.
+- **Free-tier decision (owner, 2026-10-25):** the project stays on Supabase Free and Firebase Spark. **Leaked-password protection will NOT be enabled** (paid feature); accepted risk. Mitigation: enforce a strong minimum password length/strength in the app UI and keep email confirmation on. Do not re-raise this item. Design everything to fit free-tier limits (Edge Function invocations, 500 MB DB, 1 GB storage, no pg_cron — scheduled jobs use GitHub Actions).
+- **Privacy wording (truthful):** no ads, no analytics/telemetry SDKs, no AI features. Push uses Firebase Cloud Messaging (Google) — this is the one external service on the device and must be disclosed, not described as "zero Google".
+- Android cannot guarantee that screen recording excludes call audio. Use `FLAG_SECURE` where appropriate and show an honest privacy notice; do not promise OS-level audio blocking.
+- The launcher/app label is OS-controlled; the per-letter neon treatment applies to in-app branding and icon artwork only.
 
-## 3. Visual identity and brand system
+## 3. Visual identity (v2)
 
-### 3.1 Overall style
+- Midnight/navy surfaces, cyan/electric-blue light, restrained violet accents; design tokens centralized (colors, spacing, type, shapes, glow, motion timing) in a single Theme/tokens file.
+- **Wordmark:** per-letter spectral neon (cyan, ice blue, electric blue, teal, restrained violet/magenta) with luminous shadow; static fallback.
+- **Header animation (NEW, supersedes the old "no literal rainbow" rule for the animated header only):** continuous left-to-right gradient sweep Neon Blue → Neon Green → Neon Yellow → Neon Pink → Neon Red, infinite smooth loop, fully client-side (no network/Supabase load). Must honour Android reduced-motion (static gradient), keep text contrast, never flash rapidly.
+- **Auth panel:** dark rounded fields, visible labels, cyan focus glow, distinct error/disabled/valid states, password toggle, IME actions, autofill, scroll with keyboard open.
+- **Card-deck slot inputs (NEW):** email/username and password fields presented as fluid stacked/slotting cards (inspired by the owner's OTP-card video reference); must stay accessible (≥48dp targets, TalkBack labels).
+- **Green verification state (NEW):** on tapping Sign in, the form morphs into a rounded verification state; border and spinner glow neon green with the text "Verifying credentials securely…"; on failure return to the form with a recoverable error. The state must reflect the real Auth call, never a fake delay.
+- Launcher icon: adaptive, readable at small sizes. Splash via Android SplashScreen API, no fake blocking loader.
 
-Use a premium futuristic sci-fi interface: deep midnight/navy surfaces, controlled cyan and electric-blue light, subtle indigo/violet accents, restrained gradients, soft luminous edges, and readable typography. The interface should feel distinctive and polished rather than like a generic template or an oversaturated gaming dashboard.
+## 4. Product requirements (kept, condensed)
 
-Design tokens should be centralized (colors, spacing, typography, shapes, elevations, glow strengths, animation timing) so the visual system can be tuned consistently without scattered magic values.
+**Responsive UI (mandatory):** window-size-aware layouts, insets/cutouts/gesture nav, keyboard handling, portrait/landscape, font scaling, long text, ≥48dp touch targets. Record which configurations were actually tested.
 
-### 3.2 Brand wordmark and glowing headers — required
+**Auth/profile:** Supabase Auth (register, sign-in, sign-out, session restore, deep link `com.sayangqoemeet.app://login-callback`). Private profile fields (address, birthday, phone, religion, bio) are readable only by their owner (via `get_my_profile`). Never log credentials/tokens/message text.
 
-The app name **SayangqoeMeet** must be visually prominent in branded UI, especially the app's welcome/sign-in experience and key top-level screens.
+**Messaging:** authenticated 1:1 conversations via invitation (recipient joins only after accepting); history, realtime, idempotent send (`client_request_id`), retry without duplicates, pagination, pinned messages, soft delete, attachments (images, audio, video, text/plain) in the private `chat-attachments` bucket with download-confirmation + TTL cleanup (14 days).
 
-- Use a custom sci-fi wordmark treatment with a cool cyan-to-electric-blue glow, soft luminous shadow, and carefully controlled bloom.
-- A subtle indigo/violet secondary highlight may be used to add depth, but cyan/blue remains the primary light identity.
-- Use restrained pulse/shimmer animation where it improves the experience; never make text continuously flash rapidly or distract from reading.
-- Preserve legibility and adequate contrast over the background.
-- Provide a reduced-motion or static treatment when Android's animation preferences indicate that motion should be reduced, and avoid relying on glow alone to communicate information.
-- Keep brand typography consistent across the sign-in, registration, profile, conversation, and calling experiences.
+**Calls:** real WebRTC, signaling via `call_sessions` / `call_ice_candidates`, short-lived TURN from `get-turn-credentials` (participant-checked), accept/decline/end/timeout, cleanup of camera/mic/audio resources, never show "Connected" before a real ICE connection. Release gate = real two-device test over different networks.
 
-### 3.3 Login and registration panel — required
+**Notifications:** FCM data-only push with recipient guard; separate channels for messages and calls; default notification sound + vibration (respect DND/silent); incoming call uses the system default ringtone, stops on answer/decline/cancel/timeout, no duplicate ringing; content must stay private on the lock screen.
 
-The sign-in and registration UI must feel integrated with the sci-fi brand rather than like unstyled default form fields.
+**Architecture:** separate UI / domain / data / platform layers; no 85 KB single-file screens; centralized theme, navigation, config, errors; lifecycle-aware coroutines; tests for critical logic and RLS.
 
-- Username/email and password fields must have a polished dark surface, clear borders, rounded corners, and subtle cyan/blue luminous focus states.
-- Focused, error, disabled, and valid states must be visually distinct and accessible.
-- The application name in the authentication panel should use the same custom neon wordmark as the rest of the app.
-- Provide visible labels or accessible equivalents; do not depend on placeholder text alone.
-- Password visibility controls, validation feedback, loading state, and recoverable error messages should be included where appropriate.
-- Keyboard appearance, IME actions, autofill, password managers, and scrolling when the keyboard is open must work properly.
-- Visual effects must not reduce field readability, tap target size, or accessibility.
+**Admin console (separate, access-controlled):** server-verified roles (`admin_memberships`), user lookup, reports/moderation queue with reasons, operational health, append-only audit log (`admin_audit_log`), pagination, destructive-action safeguards, role assignment only by the owner. Never ship the service-role key to Android/browser.
 
-### 3.4 Distinctive per-letter app branding — required
+**Repo/release:** focused branches/PRs, GitHub Actions for build/test/migration replay/secret scan, no secrets in Git, no publishing or visibility change without owner approval.
 
-The SayangqoeMeet brand should use a custom **sci-fi spectral neon** color treatment for individual letters, not a conventional literal rainbow.
+## 5. Verified state (audit 2026-10-25)
 
-- Choose a coordinated palette using cyan, ice blue, electric blue, teal, and restrained violet/magenta highlights. The result should feel futuristic and premium, not like a basic rainbow gradient.
-- Apply per-letter colors or a carefully composed multicolor wordmark in the app's splash/welcome/authentication branding and other suitable in-app brand surfaces.
-- Keep the treatment coherent with the cyan/blue luminous shadow and overall design tokens.
-- Ensure sufficient contrast and provide a readable static fallback.
+| Area | State |
+|---|---|
+| Migrations | 32 in repo = 32 in live ledger (exact versions) |
+| Database | 14/14 public tables RLS-enabled with policies; private profile columns not SELECT-able by other users |
+| Edge Functions | 10 ACTIVE (create-conversation, respond-conversation-invite, open-private-conversation, send-message-push, notify-incoming-call, get-turn-credentials, confirm-message-media-download, cleanup-chat-media, cleanup-stale-calls, admin-console) |
+| Storage | `profile-avatars` public (8 MB, jpeg/png/webp); `chat-attachments` private (50 MB, image/audio/video/text) |
+| Realtime publication | messages, user_presence, call_sessions, pinned_messages |
+| CI | Android lint+unit+debug APK; migration replay + RLS tests; secret-history scan; daily cleanup workflow (03:30 UTC) |
+| Real usage | 3 auth users; 70 call sessions (27 ended, 23 cancelled, 12 missed, 8 declined); TURN credential calls return HTTP 200 from a physical Android 16 device |
+| Admin | read-only overview + audit feed only; `admin_memberships` has 0 rows |
+| Advisors | 3 intentional authenticated SECURITY DEFINER RPCs; 13 unused-index INFO (do not drop yet); leaked-password = accepted risk (section 2) |
 
-**Android platform limitation:** The OS-controlled app label shown under the launcher icon or in system installation/settings screens is normally plain text styled by Android, the launcher, or the device manufacturer. An app cannot reliably force each letter of that external system label to have its own color. Do not promise or attempt to override system UI. Instead, apply the custom per-letter neon treatment to the app icon artwork where supported and to the in-app splash/welcome/brand wordmark. Keep the actual package/application label correct and recognizable.
+**Not yet evidenced:** FCM delivery on devices, call media over restrictive networks, responsive/keyboard matrix, Android 13–16 matrix, release build. Whole app is **not production-ready**.
 
-### 3.5 App icon and launch experience
+## 6. NEW PLAN (priority 1) — owner-requested features
 
-Create original, clean launcher icon assets that match the sci-fi neon identity and remain recognizable at small sizes. Respect Android adaptive-icon and launcher requirements. The system may crop, mask, tint, or otherwise render launcher icons according to device settings, so verify on supported configurations where possible.
+Status key: ☐ not started · ◐ partial/unverified · ✔ verified
 
-Use an intentional launch/splash experience consistent with Android's supported splash-screen APIs. Do not use a fake loading screen that blocks access unnecessarily.
+1. ☐ Neon sweep header animation (section 3), reduced-motion fallback.
+2. ☐ Card-deck slot sign-in/registration inputs.
+3. ☐ Green "Verifying credentials securely…" state tied to the real Auth request.
+4. ◐ Floating chat head overlay (`SYSTEM_ALERT_WINDOW`, user-enabled, draggable, opens Chats) and PiP for video calls exist in source; device-verify and show the honest screen-recording notice.
+5. ☐ Dynamic multi-album media picker (All, Messenger, Screenshots, Camera, Pictures, Viber, Download).
+6. ☐ In-app CameraX capture (photo/video).
+7. ☐ Voice notes: live waveform, scrubbing, slide-to-cancel.
+8. ☐ Rich chat header (avatar, name, presence, call buttons).
+9. ☐ Quick reactions (default 👍) — needs a `message_reactions` table with RLS + tests.
+10. ☐ Settings screen (theme, notifications, bubble toggle, profile management).
+11. ☐ No ad/tracker/analytics SDKs; keep dependency list minimal and documented.
 
----
+Acceptance for each: implemented behaviour, empty/error/offline states, responsive check, unit/UI test where practical, evidence recorded in section 12.
 
-## 4. Responsive UI and screen fitting — mandatory
+## 7. Backlog from the 2026-10-25 audit (priority 2, in order)
 
-Every app screen must detect and respond to the available layout space so content fits the user's device instead of being designed for only one fixed screen.
+**P1 — calls & notifications (AI agent)**
+- B1. Merge the two incoming-call notifications into ONE (Accept/Decline actions, tap action, full-screen intent where permitted); a single ringing source (either channel sound OR `Ringtone`, not both); give the two channels distinct names.
+- B2. Active-call foreground service with proper types (`microphone`, `camera`, `phoneCall` as applicable + matching permissions) so audio/video survive background/lock; keep it running until the call ends.
+- B3. Prune stale FCM tokens: delete a token when FCM returns UNREGISTERED/invalid; cap tokens per user; share FCM code in `_shared/` instead of duplicating in two functions. (Live DB currently holds 15 tokens for 2 users.)
+- B4. Notification-permission rationale + denial handling (replace deprecated `requestPermissions`).
 
-### Requirements
+**P2 — data retention & server robustness (AI agent)**
+- B5. Extend `cleanup-stale-calls`: close calls stuck in accepted/connecting/connected after N hours, null out SDP and delete ICE candidates for terminal calls after 24 h, purge old terminal sessions; run it more often than daily (GitHub cron every ~15 min, or on-demand). Add a retention note per table.
+- B6. Send push from a database trigger/webhook instead of relying on the sender's app staying alive.
+- B7. Chat bubbles from notifications: `allowEmbedded`, `resizeableActivity`, `documentLaunchMode=always` on `ChatBubbleActivity` + MessagingStyle; otherwise remove the dead code.
 
-- Use responsive/adaptive Android layouts and window-size-aware decisions rather than hard-coded assumptions for one phone resolution.
-- Support the range of Android screen sizes and densities targeted by the project, including compact phones and larger phones/tablets where the chosen architecture supports them.
-- Respect system bars, display cutouts/notches, edge-to-edge insets, gesture navigation, and safe content areas.
-- Ensure headers, forms, buttons, conversation lists, message composer, profile controls, and call controls do not become clipped or overlap.
-- Support portrait and landscape where appropriate; preserve usable controls and hierarchy when the available width or height changes.
-- Handle the on-screen keyboard opening and closing. Forms and chat composers must remain reachable, and important actions must not be hidden behind the keyboard.
-- Avoid fixed pixel dimensions. Use density-independent sizing, constraints, flexible containers, scrolling when needed, and appropriate minimum/maximum widths.
-- Handle long names, long messages, translated/large text, Android font scaling, and accessibility settings without clipping essential content.
-- Respect Android's display and font scaling; do not force the user's device to a fixed resolution or disable system scaling.
-- Maintain adequate touch targets and contrast across screen sizes.
-- Use reusable responsive components and shared layout rules so screens behave consistently.
+**P3 — build/release (AI agent + owner)**
+- B8. Fixed debug keystore (or keystore secret) so CI APKs update in place and a stable SHA-1 exists; then add the SHA-1 to Firebase.
+- B9. Release build: signing config, `isMinifyEnabled` + ProGuard rules, `versionCode` bump, verify Play's required target API before any store release, release workflow (publish only with owner approval).
+- B10. Split `AppScreens.kt` into feature packages; central Theme/tokens; add UI tests and a first batch of instrumentation tests; keep adding unit tests with every fix.
 
-### Verification and acceptance criteria
+**P4 — admin (owner + AI agent)**
+- B11. Provision the first admin (owner step, section 8). Then build: user lookup, `reports` table + RLS, report/block actions in the app, moderation queue, ops-health view, wired web console (replace static `admin-console/index.html`).
 
-A screen is not considered responsive merely because it compiles. Verify layouts at a minimum across representative compact, standard, and large/window-size configurations, different density settings where practical, portrait/landscape where supported, and with the keyboard visible. Use Android emulator/device screenshots or UI tests when available. Record which configurations were actually tested; never claim tests that were not run.
+**P5 — polish**
+- B12. Voice calls default to earpiece (speaker for video), audio focus/Bluetooth routing, ICE restart + disconnect timeout, notification grouping/replace and foreground suppression, constant-time secret compare, narrower CORS on JWT functions, subscribe to `call_ice_candidates` via Realtime instead of 1.5 s polling, optional "hide last seen" setting, confirm whether `bio` should be public.
 
----
+## 8. Owner-only checklist (no code)
 
-## 5. Authentication, profiles, and account security
+1. Restrict the Firebase Android API key in Google Cloud Credentials to package `com.sayangqoemeet.app` + SHA-1 (after B8) and to FCM/Installations APIs. The key is in a public file, so this is required.
+2. Confirm Supabase Edge secret *names* exist: `FIREBASE_SERVICE_ACCOUNT_JSON`, `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN`, `MEDIA_CLEANUP_CRON_SECRET`; GitHub secret `MEDIA_CLEANUP_CRON_SECRET` (cleanup dry-run already returned 200).
+3. Supabase Auth → URL Configuration: add redirect `com.sayangqoemeet.app://login-callback`.
+4. Provision the first admin: `insert into public.admin_memberships (user_id, role, granted_by) values ('<YOUR_AUTH_UUID>','super_admin','<YOUR_AUTH_UUID>');`
+5. GitHub: review collaborator `Bannerism1` (write access) and enable branch protection on `main` (require CI).
+6. Optional token cleanup until B3 ships: keep only the 2 newest tokens per user in `device_tokens`.
 
-- Use Supabase Auth for real registration, sign-in, sign-out, and session restoration.
-- Validate user input both in the UI and at the trusted backend boundary where applicable.
-- Store only the minimum profile data required by the product.
-- Enforce user ownership and access rules on the backend, not only by hiding UI controls.
-- Configure Supabase Row Level Security policies for every exposed table and verify both allowed and denied access paths.
-- Never embed a Supabase service-role key, private API secret, FCM server credential, or other privileged secret in the Android client or repository.
-- Public client configuration must be clearly separated from server-only secrets; use environment/secrets management for CI and backend deployment.
-- Provide useful loading, empty, success, and recoverable error states.
-- Protect private profile and account information and avoid logging credentials, tokens, message contents, or other sensitive data unnecessarily.
+## 9. Secret names (values never in Git)
 
----
-
-## 6. Messaging and conversation behavior
+Supabase Edge: `FIREBASE_SERVICE_ACCOUNT_JSON`, `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN`, `MEDIA_CLEANUP_CRON_SECRET` (+ platform `SUPABASE_*`). GitHub Actions: `MEDIA_CLEANUP_CRON_SECRET`. Android build: optional `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (publishable key is public by design; RLS is the protection).
 
-- Implement actual authenticated one-to-one conversation creation and messaging backed by the selected Supabase data model.
-- Provide conversation history and real-time updates with clear loading, empty, offline, sending, sent, and failure states appropriate to the implementation.
-- Verify conversation membership and message access with RLS. A user must not be able to read or write another user's private conversations by changing client requests.
-- Use stable IDs and timestamps from trusted data sources; handle pagination and ordering consistently.
-- Provide retry behavior for recoverable send failures without silently duplicating messages.
-- Render long messages and different text sizes without breaking the responsive layout.
-- Do not present local demo data or a simulated response as a real remote message.
+## 10. Two-device release test matrix (record real results)
 
----
-
-## 7. Voice and video calls — WebRTC
-
-- Use a real WebRTC implementation for audio/video media.
-- Implement authenticated call signaling, call state transitions, accept/decline/end behavior, permission handling, and connection/error states.
-- Use STUN/TURN configuration appropriate for reliable connections across different networks. TURN service credentials must not be hard-coded as long-lived secrets in the app.
-- Handle network changes, failed negotiation, disconnection, timeouts, cancellation, and resource cleanup.
-- Request camera and microphone access only when needed and explain the relevant permission context.
-- Ensure the user can clearly see call status and can end a call reliably.
-- Do not label a call as connected until a real connection state supports that claim.
-- Test real calls between two authorized devices for release readiness; a single-device build or mock call screen does not verify end-to-end calling.
+Sign-up + email confirm + deep link · session restore · invite accept/decline · message send/history/realtime · push with app killed · voice + video on Wi-Fi vs mobile data (TURN relay) · incoming call on locked screen · decline from notification · ringtone start/stop, no double ring · attachment upload/download/expiry · PiP · overlay bubble · notification/camera/mic permission denial · font scale, landscape, keyboard · Android 13/14/15/16.
 
----
+## 11. Roadmap order
 
-## 8. Notifications, vibration, notification sound, and ringtone — required
+A. New plan (section 6) → B. Backlog P1 → P2 → P3 → P4 → P5 → C. Matrix (section 10) → D. Release readiness (owner approval to publish).
 
-The application must provide useful notifications while respecting Android permissions and the user's system settings.
-
-### 8.1 Message and general notifications
+## 12. Completion history (append-only)
 
-- Use Firebase Cloud Messaging for remote push notifications where configured.
-- Use appropriate Android notification channels for message notifications and other distinct notification categories.
-- Use the device's **default notification sound** for message/general notifications by default, unless the user chooses a supported in-app alternative.
-- Enable vibration for relevant notifications by default where Android's notification channel and user settings permit it.
-- Respect notification permission requirements, channel settings, device vibration settings, silent mode, Do Not Disturb, and other system controls. Do not try to bypass the user's choices.
-- Do not assume a sound or vibration will occur when the user or system has disabled it.
-- Keep notification content privacy-conscious; allow sensitive previews to be controlled where appropriate.
-- Ensure notification taps open the correct conversation or relevant screen and handle stale/deep links safely.
-
-### 8.2 Incoming-call ringtone
-
-- Incoming calls should use a recognizable ringtone, defaulting to the device's **system default ringtone** unless the user selects a supported alternative.
-- Treat call ringing separately from ordinary message notification sound and configure the implementation according to Android's current notification/call APIs and permission rules.
-- Respect silent mode, Do Not Disturb, notification permissions, and platform restrictions. Do not promise audible ringing in situations where Android or the user settings suppress it.
-- Stop ringing promptly when the call is answered, declined, cancelled, or times out.
-- Prevent duplicate ringing for the same incoming call and clean up sound/vibration resources after every terminal call state.
-- Test the behavior on supported Android versions and document limitations for foreground/background states.
-
-### 8.3 Verification
-
-Test notification permission grant/denial, channel settings, default sound behavior, vibration enabled/disabled, and incoming-call start/stop behavior where device/emulator capabilities permit. Record actual test results. Do not claim FCM delivery works until the Firebase project and server-side sending path are configured and tested.
-
----
-
-## 9. Architecture and code quality
-
-- Prefer a clear separation between UI, domain/business logic, data access, and platform integrations.
-- Use maintainable Kotlin code and Android-supported APIs; avoid unnecessary dependencies.
-- Centralize theme/design tokens, navigation, configuration, and error handling.
-- Keep asynchronous work lifecycle-aware and avoid leaking activities, views, audio sessions, camera, microphone, or WebRTC resources.
-- Include automated tests for critical logic and security-sensitive behavior where practical.
-- Use clear naming, small focused components, and documented setup requirements.
-- Pin or constrain dependency versions intentionally and avoid adding libraries without a concrete need.
-- Do not create empty placeholder modules or dummy implementations merely to make the project look complete.
-- If a service requires credentials or external infrastructure, implement the integration path and document the exact setup required without committing secrets.
-
----
-
-## 10. Data model and backend requirements
-
-The final schema must be derived from actual product flows and security requirements. At minimum, evaluate the need for:
-- User profile records linked to Supabase Auth identities.
-- Conversations and conversation membership.
-- Messages with sender, conversation, content, and timestamps.
-- Call/signaling records or a suitable secure signaling transport.
-- Notification/device registration records only where needed.
-
-For each table or backend endpoint:
-- Define ownership, relationships, constraints, indexes, and retention expectations.
-- Enable RLS on exposed tables and write least-privilege policies.
-- Verify that unauthorized users cannot access or mutate records.
-- Never rely solely on client-side filtering for privacy.
-- Do not invent a schema and claim it is deployed; record migration files and deployment/verification status separately.
-
----
-
-## 11. Admin console — required operations capability
-
-The product requires a separate, access-controlled admin console for authorized operations and safety work. This console is distinct from the public Android user experience; an Android navigation item or hidden button is not an admin security boundary.
-
-### Required capabilities
-- Server-verified administrator authentication and role checks; never trust a client-side boolean or user-editable profile field as proof of admin status.
-- User/account lookup and account-state overview with least-privilege access to personal data.
-- User reports and moderation queue, with reasoned actions and an auditable action history.
-- Operational health view for Supabase, messaging, notification delivery, and call infrastructure without exposing secrets.
-- Clear permission-denied, loading, empty, and failure states; pagination and safeguards for destructive actions.
-- Admin actions must run through trusted server-side endpoints/Edge Functions with explicit authorization checks. Never ship the service-role key to Android or a browser.
-- Audit log records who performed an action, what was changed, when, and the reason, while minimizing sensitive content retention.
-- Admin role assignment must be restricted to a trusted owner/operator workflow, not self-service registration.
-
-### Verification and rollout
-- Define admin-role storage/claims and least-privilege policies before exposing real admin data.
-- Test both authorized and unauthorized access to every privileged endpoint.
-- Keep admin console deployment separate from the Android app; do not show demo data as real operational data.
-- The current Android admin entry is only a locked navigation placeholder, not a production admin console. A separate web console and its secure backend remain to be implemented.
-
-## 12. Repository, secrets, and release workflow
-
-- Keep source code and useful setup documentation in GitHub.
-- Use branches and focused commits for coherent changes when practical.
-- Review diffs and check that no secrets, private signing files, generated build output, or unrelated user files are committed.
-- Use GitHub Actions for build/test automation when a suitable workflow is configured and the environment supports the required Android toolchain.
-- A green workflow proves only the checks it actually runs; it does not prove real-world messaging, FCM delivery, or two-device WebRTC behavior unless those are explicitly tested.
-- Keep build and setup instructions reproducible.
-- Do not publish a release or change repository visibility without explicit authorization.
-- Record dependency setup, external service setup, required secrets by name only (never values), and known limitations.
-
----
-
-## 13. Required project records
-
-Maintain these documents as implementation progresses:
-
-- `masterplan.md`: stable requirements and append-only completion history.
-- `PROJECT_STATUS.md`: current verified state, completed/in-progress/blocked work, tests run, and next priority.
-- `AI_HANDOFF.md`: exact continuation instructions for the next session.
-- `CHANGELOG_AI.md`: chronological record of meaningful development changes.
-
-Update the status and handoff after significant milestones. Append changelog and master-plan completion entries without rewriting old history. Avoid claiming a milestone is complete unless the implementation and evidence support it.
-
----
-
-## 14. Sequential implementation roadmap
-
-Work in dependency order, adapting only when source/build evidence requires it.
-
-1. **Foundation:** Android Gradle project, package/application identity, buildable app entry point, theme tokens, adaptive layouts, navigation, launcher icon and launch branding.
-2. **Authentication:** Supabase setup, registration/sign-in/session lifecycle, profile flow, backend schema and RLS.
-3. **Messaging:** conversation data model, secure queries, send/history/realtime behavior, pagination and error/retry states.
-4. **Notifications:** FCM registration and delivery path, notification channels, default notification sound and vibration, privacy-aware tap routing.
-5. **Calls:** WebRTC media, secure signaling, default system ringtone behavior, permissions, cleanup and failure recovery.
-6. **Quality and security:** unit/UI/integration tests, RLS authorization tests, responsive-layout checks, dependency review and secret scanning.
-7. **Admin console:** separate web operations console, server-verified administrator roles, user/report management, operational health, audit history, and authorization tests.
-8. **Release readiness:** reproducible build, setup guide, verified test matrix, known limitations, final status/handoff and release preparation (publishing only with user approval).
-
-At every phase, build on real working code and verify the result before advancing. Do not substitute decorative mockups for required functionality.
-
----
-
-## 15. Definition of done
-
-The project is not complete until all applicable criteria are met:
-
-- The Android project builds successfully using documented instructions.
-- Core screens adapt to supported screen sizes, orientation, insets, and keyboard behavior without essential clipping.
-- Brand wordmark, login fields, icon, and launch experience follow the approved sci-fi neon visual system.
-- Authentication and profile operations work against the configured Supabase project.
-- Private messaging works between authorized accounts and is protected by verified backend access policies.
-- FCM notifications work with configured infrastructure and respect system/user sound and vibration settings.
-- Voice/video calls work between two authorized devices over real networks, with appropriate signaling and STUN/TURN configuration.
-- Critical error, permission-denied, offline, and cleanup states are handled.
-- Tests and checks have been run and their actual results recorded.
-- No secrets are committed.
-- Project status, handoff, changelog, and this master plan's append-only completion history accurately reflect the verified state.
-
-Do not describe the entire app as finished while any required feature remains unimplemented, unconfigured, or unverified.
-
----
-
-## 16. Append-only master-plan completion history
-
-### 2026-10-16 — Initial baseline established
-
-- Created this master plan in the new private GitHub repository as the baseline specification for a clean, new implementation.
-- Recorded the user's requirements for responsive screen fitting, sci-fi cyan/blue glowing headers and brand wordmark, custom per-letter neon colors for in-app branding, styled login fields, device-default notification sound, vibration where system settings allow, and device-default ringtone for incoming calls.
-- Documented the Android platform limitation that the application cannot reliably force multi-colored individual letters in the operating system's external launcher/install label; the intended custom treatment belongs in app-controlled branding and icon artwork.
-- This entry records the specification only. It does not claim that any Android source code or feature has been implemented or tested.
-
-
-### 2026-10-16 — Initial Android foundation added
-
-- Added the initial Gradle/Kotlin/Jetpack Compose Android application foundation and launcher activity.
-- Added a first sci-fi neon sign-in/registration UI with a spectral wordmark, scrollable form, password visibility toggle, and local input validation.
-- Added a GitHub Actions workflow configured to attempt a debug build.
-- Source and configuration files were re-fetched from GitHub to verify their saved contents.
-- This milestone does not claim a successful build, working Supabase authentication, real messaging, FCM delivery, WebRTC calling, or runtime UI verification. Those remain pending until independently tested.
-
-
-### 2026-10-16 — Supabase Auth source and initial RLS migration committed
-
-- Added Supabase Kotlin Auth dependencies and connected the email sign-in/registration controls to a real Auth client, configured through a publishable key.
-- Added a versioned SQL migration for profile, conversation, membership, and message tables with RLS.
-- Tightened membership/message policies to avoid recursive membership-policy evaluation and arbitrary conversation joining.
-- Hosted Supabase access is blocked in the current connector session: no projects are listed and access to the historical project reference was denied. The migration has not been applied remotely, and live authentication has not been verified.
-- GitHub Actions status queries did not return a run or check result for the latest commits. Build success remains unverified.
-
-
-## 2026-10-16 — Hosted Supabase verification and integration status correction
-
-- Verified that the active Supabase project is reachable and healthy, with the initial private-messaging migration recorded and the `profiles`, `conversations`, `conversation_members`, and `messages` tables present with RLS enabled.
-- Applied and committed a follow-up migration adding indexes for `conversations.created_by` and `messages.sender_id`, addressing the two foreign-key index recommendations observed in the performance advisor.
-- Verified that the security advisor returned no findings at the time of this check and that API roles do not have execute permission on `public.rls_auto_enable()`.
-- Corrected project documentation that had become stale and explicitly recorded Firebase Cloud Messaging as not configured.
-- These checks do not certify production readiness: Android CI success, end-to-end Auth, automated RLS authorization tests, messaging/Realtime, FCM delivery, and WebRTC remain unverified or incomplete.
-
-
-## 2026-10-16 — Migration version alignment correction
-
-- Confirmed the hosted migration history version for `add_foreign_key_indexes` is `20261016134617` and aligned the committed SQL filename to `20261016134617_add_foreign_key_indexes.sql`. The earlier mismatched filename was removed; the live schema and migration history were not changed by this filename correction.
-
-
-### 2026-10-16 — Admin console requirement clarified
-
-- The user confirmed that an admin console is expected. The prior baseline did not explicitly specify an admin console, so this requirement is added rather than retroactively claiming it was already documented.
-- Defined a separate web operations console with server-verified admin authorization, user/report management, operational health, audit history, and least-privilege trusted endpoints.
-- The Android admin navigation currently provides only a locked placeholder; it is not a working or authorized admin console.
-
-
-### 2026-10-16 — Signed-in app screens and secure conversation creation path
-
-- Added the signed-in Compose shell and screens for profile, chat list, conversation history/sending, call controls, and a locked admin entry.
-- Connected profile reads/writes and conversation/message list/send operations to authenticated Supabase REST calls using the active user session.
-- Deployed the `create-conversation` Edge Function with JWT verification. It validates the authenticated caller, resolves the recipient username, and creates the conversation and both membership rows using server-side credentials. The source is committed in `supabase/functions/create-conversation/index.ts`.
-- Added a visible Hang Up / Cancel control, while explicitly retaining WebRTC media/signaling as unfinished.
-- Added the admin console as an explicit requirement. The current mobile entry is only a locked placeholder; the separate web console and backend authorization remain outstanding.
-- These source/deployment changes still require Android build verification, two-account integration tests, and RLS negative tests.
-
-
-### 2026-10-16 — FCM client foundation and admin console shell
-
-- Applied and committed the RLS-protected `device_tokens` schema; live Supabase confirms the table exists with RLS enabled.
-- Added Firebase Messaging client code, conditional Google Services Gradle plugin setup, a default notification channel, Android notification permission request, and best-effort device token registration.
-- Added and deployed JWT-protected `send-message-push` Edge Function. It checks message ownership and sends only to other conversation members' registered devices. Actual delivery remains blocked until the Firebase Android app config and server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret are configured.
-- Added `admin-console/index.html`, a responsive locked operations-console UI shell with no fabricated data. It is not a working admin console until server-verified role checks, privileged endpoints, and audit logging are implemented.
-- Android build verification, FCM delivery tests, and device-level integration tests remain outstanding.
-
-
-### 2026-10-16 — Secure invitation acceptance flow
-
-- Added an RLS-protected `conversation_invites` table and matching committed migration.
-- Changed the deployed `create-conversation` function to create a pending invitation and creator membership only; the recipient receives no conversation membership before accepting.
-- Added and deployed `respond-conversation-invite`, which verifies the authenticated recipient and handles accept/decline. Updated the Android chat UI with pending invitation cards and recipient controls.
-- The flow still requires two-account runtime tests and review of duplicate-invitation/rate-limit behavior before production use.
-
-
-### 2026-10-16 — Invitation flow hardening follow-up
-
-- Added duplicate pending/accepted invite checks to `create-conversation`.
-- Updated `respond-conversation-invite` so the pending invitation is conditionally claimed before membership is added, reducing accept/decline race conditions; a failed membership write attempts to return the invite to pending.
-- Redeployed both Edge Functions with JWT verification still enabled.
-- This is source/deployment verification only; two-account runtime tests and rate-limit/abuse testing remain outstanding.
+- **2026-10-16** — Baseline spec; Compose foundation; Supabase Auth + initial RLS schema; signed-in shell; invitation Edge Functions; FCM client + `device_tokens`; admin UI shell.
+- **2026-10-17/19** — Atomic conversation RPC; presence; profile details; WebRTC signaling + lifecycle guards; dynamic TURN credentials; avatars bucket; floating bubble; chat list RPC.
+- **2026-10-20/22** — Attachments, pinned messages, realtime; media download confirmation + TTL cleanup; RLS/RPC hardening (search_path, grants, soft-delete boundaries, device-token RPC).
+- **2026-10-23** — Message idempotency; admin memberships + audit log + read-only `admin-console` function; stale-call cleanup; service-role least-privilege grants; migration ledger parity; CI: replay, RLS isolation tests, Deno type-check, secret-history scan.
+- **2026-10-24** — Profile save fix; `text/plain` attachments migration; owner added new-feature blueprint (`addedto.txt`).
+- **2026-10-25** — Full audit (frontend vs backend vs docs). Consolidated all records into this unified master plan, merged the new-feature plan, recorded the free-tier decision (leaked-password protection not pursued), and removed the superseded files. No application code was changed in this entry.
