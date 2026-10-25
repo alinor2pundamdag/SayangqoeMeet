@@ -121,12 +121,48 @@ internal class CallForegroundService : Service() {
                 } catch (_: Exception) {
                     null // Keep ringing only until the hard timeout if temporarily offline.
                 }
-                if (call != null && call.status != "ringing") {
-                    stopAlertAndSelf()
-                    return@launch
+                if (call != null) {
+                    val terminal = call.status in setOf("ended", "declined", "cancelled", "missed", "failed")
+                    if ((activeCallMode && terminal) || (!activeCallMode && call.status != "ringing")) {
+                        stopAlertAndSelf()
+                        return@launch
+                    }
                 }
             }
         }
+    }
+
+    private fun activeCallTypeFlags(): Int =
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+            (if (callType == "video") ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA else 0)
+
+    private fun startForegroundWithType(notification: Notification, serviceTypes: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceCompat.startForeground(this, foregroundNotificationId, notification, serviceTypes)
+        } else {
+            startForeground(foregroundNotificationId, notification)
+        }
+    }
+
+    private fun buildActiveCallNotification(callId: String): Notification {
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            action = "com.sayangqoemeet.app.OPEN_ACTIVE_CALL"
+            putExtra("open_calls", true)
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val openPending = android.app.PendingIntent.getActivity(
+            this, callId.hashCode(), openIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.sym_call_incoming)
+            .setContentTitle(if (callType == "video") "SayangqoeMeet video call" else "SayangqoeMeet voice call")
+            .setContentText("Call in progress · Tap to return")
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setContentIntent(openPending)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
     }
 
     private fun buildIncomingCallNotification(callId: String): Notification {
@@ -230,6 +266,7 @@ internal class CallForegroundService : Service() {
     companion object {
         const val ACTION_START = "com.sayangqoemeet.app.action.START_CALL_RING"
         const val ACTION_STOP = "com.sayangqoemeet.app.action.STOP_CALL_RING"
+        private const val ACTION_START_ACTIVE_CALL = "com.sayangqoemeet.app.action.START_ACTIVE_CALL"
         private const val EXTRA_CALL_ID = "call_id"
         private const val EXTRA_CALLER_NAME = "caller_name"
         private const val EXTRA_CALL_TYPE = "call_type"
@@ -249,6 +286,16 @@ internal class CallForegroundService : Service() {
                 context, Intent(context, CallForegroundService::class.java).setAction(ACTION_START)
                     .putExtra(EXTRA_CALL_ID, callId)
                     .putExtra(EXTRA_CALLER_NAME, callerName)
+                    .putExtra(EXTRA_CALL_TYPE, callType)
+            )
+        }
+
+        fun startActiveCall(context: Context, callId: String, callType: String) {
+            require(PushPayloadValidation.isUuid(callId)) { "Invalid call ID." }
+            require(callType == "voice" || callType == "video") { "Invalid call type." }
+            androidx.core.content.ContextCompat.startForegroundService(
+                context, Intent(context, CallForegroundService::class.java).setAction(ACTION_START_ACTIVE_CALL)
+                    .putExtra(EXTRA_CALL_ID, callId)
                     .putExtra(EXTRA_CALL_TYPE, callType)
             )
         }
