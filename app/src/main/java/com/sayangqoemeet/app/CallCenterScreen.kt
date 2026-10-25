@@ -240,8 +240,10 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         if (activeCall == null && incoming.isNotEmpty()) {
             runCatching { CallForegroundService.start(context.applicationContext, incoming.firstOrNull()?.id) }
                 .onFailure { error = "Incoming call alert could not start: ${it.message}" }
-        } else {
-            runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id ?: incoming.firstOrNull()?.id) }
+        } else if (activeCall == null) {
+            // Stop only the incoming-ring service when there is no active call.
+            // An active WebRTC call uses the same service in microphone/camera mode.
+            runCatching { CallForegroundService.stop(context.applicationContext, incoming.firstOrNull()?.id) }
         }
     }
 
