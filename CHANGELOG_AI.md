@@ -175,3 +175,14 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Retired the conflicting `addedto.txt` proposal after incorporating compatible features and explicitly rejecting literal-rainbow branding and impossible screen-recording guarantees.
 - Explicitly deferred Supabase leaked-password protection because the project is constrained to the free tier; it is not an action item.
 - Documentation-only change. No app code, database schema, deployed functions, secrets, or production data were changed. Engineering backlog items remain unimplemented/unverified unless separate evidence says otherwise.
+
+
+## 2026-10-25 — Audit conflict correction and deduplicated fix register
+
+- Added `AUDIT_REPORT_2026-10-25.md` as the single deduplicated findings/evidence register, including frontend/backend integration mapping, owner/action/location fields, PR/CI reconciliation, and acceptance gates.
+- Corrected the active master-plan branding rule: the user's latest approved local infinite-looping rainbow header supersedes earlier text rejecting it. Earlier rejection is marked historical/superseded rather than an active rule.
+- Updated AI handoff, project status, and README to link to the authoritative plan/report and remove competing status/backlog wording.
+- Inspected source shows separate incoming-call notification paths and a foreground service declared as `mediaPlayback` whose inspected code is focused on incoming ringing; active-call FGS compliance remains a fix/verification task, not a claimed fix.
+- Inspected push Edge Functions count successful/failed provider responses but do not yet implement confirmed-invalid-token cleanup. Call/ICE retention requires exact schema and migration-led review.
+- PR #61/#62/#64 remain separate open/unmerged changes at the inspected snapshot; their exact heads and CI must be refreshed before integration.
+- Documentation-only changes in this audit pass. No Android behavior, live schema, deployed functions, secrets, or production data were changed. Findings listed as fixes remain open until implementation and acceptance evidence exist.
