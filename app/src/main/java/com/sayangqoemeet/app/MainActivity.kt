@@ -185,8 +185,8 @@ class MainActivity : ComponentActivity() {
             openChatsOnStart = true
         }
         if (intent?.getBooleanExtra("open_calls", false) == true) {
-            incomingCallId = intent.getStringExtra("incoming_call_id")?.takeIf { it.isNotBlank() }
-            callRecipientId = intent.getStringExtra("call_recipient_id")?.takeIf { it.isNotBlank() }
+            incomingCallId = intent.getStringExtra("incoming_call_id")?.takeIf { PushPayloadValidation.isUuid(it) }
+            callRecipientId = intent.getStringExtra("call_recipient_id")?.takeIf { PushPayloadValidation.isUuid(it) }
             callType = intent.getStringExtra("call_type")?.takeIf { it == "video" } ?: "voice"
         }
     }
