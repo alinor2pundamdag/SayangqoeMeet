@@ -9,7 +9,7 @@
 ## Status
 **Release readiness is not established.** The audit identified source-level incoming-call notification duplication, an active-call foreground-service lifecycle/type gap to resolve, provider-side invalid FCM token cleanup missing from the inspected Edge Functions, call/ICE retention requiring schema-led review, and unverified end-to-end/device and owner-console configuration.
 
-The audit-reported baseline is 32 repository migrations matching 32 live migration versions, 14 public tables with RLS enabled, and 10 active Edge Functions. Recheck these against the exact current commit and live environment before schema/deployment work.
+The previously reported main/live baseline was 32 repository migrations matching 32 live migration versions, 14 public tables with RLS enabled, and 10 active Edge Functions. PR #61's current source branch contains 36 migration files (four additional forward migrations not assumed deployed). Recheck the exact current commit and live migration ledger before schema/deployment work.
 
 ## Open PRs at the inspected snapshot
 - [PR #61](https://github.com/alinor2pundamdag/SayangqoeMeet/pull/61) — media/call UX plus database changes; open/unmerged. Its exact head had reported-success Android CI, Phase 2 database validation, and secret scan.
