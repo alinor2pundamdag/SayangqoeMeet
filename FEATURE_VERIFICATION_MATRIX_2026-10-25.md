@@ -11,10 +11,14 @@ This is an evidence register, not a claim that all features work.
 - **OWNER GATE:** requires owner/provider console or physical devices.
 
 ## Latest validation boundary
-Previously verified head `5b1e96be25092775016f7804fea055f665a95641` passed Android CI #654, Phase 2 Database Validation #299, and Secret History Scan #234. Follow-up head `e99ed575f3d448a3c2a7f7e0ccbdeb16db1f9032` added failed media-cleanup queue counts. At last check, Secret History Scan #236 passed, while Android CI #656 and Phase 2 Database Validation #300 were still running. Latest-head status must be refreshed before relying on it:
-- https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40169736627
-- https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40169736626
-- https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40169736651
+
+Current PR #61 source head at recheck: `bb35e7964a27cd0aaf2e8174a3e6779f41c67a2a`.
+All three automated workflows passed on this exact head:
+- Android CI #657: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40170409614
+- Phase 2 Database Validation #301: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40170409619
+- Secret History Scan #237: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40170409616
+
+These are repository automation results only. They do not prove live Supabase schema/deployment parity, live FCM delivery, real-device behavior, two-account authorization in the hosted project, or two-device WebRTC. PR #61 remains open and draft; main does not yet contain its unmerged source changes.
 
 ## Feature matrix
 
