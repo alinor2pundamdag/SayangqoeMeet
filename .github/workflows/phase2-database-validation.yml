@@ -43,6 +43,32 @@ jobs:
       - name: Type-check push Edge Functions
         run: find supabase/functions -name index.ts -print0 | xargs -0 deno check --no-lock
 
+      - name: Test permanent FCM token error classification
+        run: deno test supabase/functions/_shared/fcm-token-errors_test.ts
+
+      - name: Test cleanup secret comparison
+        run: deno test supabase/functions/_shared/constant-time-equals_test.ts
+
+      - name: Test admin JWT assurance parsing
+        run: deno test supabase/functions/_shared/jwt-assurance_test.ts
+
+      - name: Test safe media cleanup object paths
+        run: deno test supabase/functions/_shared/chat-media-path_test.ts
+
+      - name: Validate admin console JavaScript syntax
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const html = fs.readFileSync("admin-console/index.html", "utf8");
+          const start = html.indexOf("<script>");
+          const end = html.indexOf("</script>", start + 8);
+          if (start < 0 || end < 0 || html.indexOf("<script>", start + 8) !== -1) {
+            throw new Error("Expected exactly one inline admin-console script");
+          }
+          new Function(html.slice(start + 8, end));
+          console.log("Admin console inline JavaScript syntax is valid.");
+          NODE
+
       - name: Set up Supabase CLI
         id: setup-supabase-cli
         uses: supabase/setup-cli@v1
@@ -50,7 +76,7 @@ jobs:
           version: 2.120.0
 
       - name: Start disposable local Supabase stack
-        run: supabase start -x studio,mailpit,edge-runtime,logflare,vector
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,mailpit
 
       - name: Replay the complete migration chain from an empty database
         run: supabase db reset --local --debug

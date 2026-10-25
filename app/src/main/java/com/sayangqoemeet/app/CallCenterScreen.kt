@@ -1,6 +1,10 @@
 package com.sayangqoemeet.app
 
 import android.Manifest
+import android.app.Activity
+import android.app.PictureInPictureParams
+import android.os.Build
+import android.util.Rational
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
@@ -77,6 +83,22 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
     var pendingPermissionIsCaller by remember { mutableStateOf(false) }
     var pendingPermissionRequiresCamera by remember { mutableStateOf(false) }
     val callUiStateStore = remember { CallUiStateStore.shared }
+
+    // Keep the framework PiP action labels and automatic Home/gesture transition
+    // synchronized with the actual call state. PiP is video-call-only.
+    LaunchedEffect(activeCall?.id, activeCall?.type, muted, videoOn) {
+        val activity = context as? Activity ?: return@LaunchedEffect
+        val videoCallActive = activeCall?.type == "video" && CallPipController.isVideoCallActive
+        val params = PictureInPictureParams.Builder()
+        if (videoCallActive) {
+            params.setAspectRatio(Rational(16, 9))
+            params.setActions(CallPipController.createActions(context))
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setAutoEnterEnabled(videoCallActive)
+        }
+        runCatching { activity.setPictureInPictureParams(params.build()) }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -154,6 +176,9 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
             scope.launch {
                 try {
                     error = null
+                    // Runtime microphone/camera permissions have been checked before this block.
+                    // Keep the active WebRTC call alive when the Activity moves to background.
+                    CallForegroundService.startActiveCall(context.applicationContext, call.id, call.type)
                     activeCall = call
                     pendingPermissionCall = null
                     pendingPermissionIsCaller = false
@@ -169,6 +194,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             scope.launch {
                                 manager?.let { endedManager -> runCatching { endedManager.hangUp("ended") } }
                                 activeCall?.id?.let(CallPipController::unregister)
+                                runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id) }
                                 callUiStateStore.clear()
                                 manager = null
                                 activeCall = null
@@ -186,6 +212,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
+                    runCatching { CallForegroundService.stop(context.applicationContext, call.id) }
                     runCatching { CallSignalingRepository.setStatus(call.id, "failed") }
                     error = failure.message ?: "Could not start the call."
                     status = "Call setup failed"
@@ -213,8 +240,10 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
         if (activeCall == null && incoming.isNotEmpty()) {
             runCatching { CallForegroundService.start(context.applicationContext, incoming.firstOrNull()?.id) }
                 .onFailure { error = "Incoming call alert could not start: ${it.message}" }
-        } else {
-            runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id ?: incoming.firstOrNull()?.id) }
+        } else if (activeCall == null) {
+            // Stop only the incoming-ring service when there is no active call.
+            // An active WebRTC call uses the same service in microphone/camera mode.
+            runCatching { CallForegroundService.stop(context.applicationContext, incoming.firstOrNull()?.id) }
         }
     }
 
@@ -302,6 +331,16 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                 Text("Incoming calls are delivered through the system call notification.", color = CallMuted)
             } else {
                 Text(status, color = CallCyan)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    Text(
+                        if (manager?.audioCaptureRestricted == true)
+                            "Call-audio capture restriction is active in Android."
+                        else
+                            "Call-audio capture restriction is not confirmed on this device.",
+                        color = if (manager?.audioCaptureRestricted == true) CallMuted else CallRed,
+                        fontSize = 10.sp
+                    )
+                }
                 if (activeCall?.type == "video") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AndroidView(
@@ -313,6 +352,11 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             factory = { view -> SurfaceViewRenderer(view).also { remoteRenderer = it; manager?.attachRenderers(localRenderer, it) } }
                         )
                     }
+                    Text(
+                        "Privacy notice: Android screen recording may not capture call audio. Recording behavior is controlled by Android and the device manufacturer.",
+                        color = CallMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { muted = !muted; callUiStateStore.setMuted(muted); manager?.setMuted(muted) }) { Text(if (muted) "UNMUTE" else "MUTE") }
@@ -327,6 +371,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             val current = manager
                             scope.launch {
                                 runCatching { current?.hangUp() }
+                                runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id) }
                                 activeCall?.id?.let(CallPipController::unregister)
                                 callUiStateStore.clear()
                                 manager = null

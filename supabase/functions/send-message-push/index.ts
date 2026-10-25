@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isUnregisteredFcmToken } from "../_shared/fcm-token-errors.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -169,9 +170,26 @@ Deno.serve(async (req: Request) => {
           }),
         },
       );
-      return response.ok;
+      const payload = await response.json().catch(() => null);
+      if (response.ok) return { sent: true, removed: false, cleanupFailed: false };
+
+      if (isUnregisteredFcmToken(response.status, payload)) {
+        // Scope deletion to the exact token owner; never delete tokens on transient
+        // network/quota/provider-credential failures or ambiguous INVALID_ARGUMENT.
+        const { error: deleteError } = await adminClient.from("device_tokens")
+          .delete()
+          .eq("user_id", device.user_id)
+          .eq("token", device.token);
+        return { sent: false, removed: !deleteError, cleanupFailed: Boolean(deleteError) };
+      }
+      return { sent: false, removed: false, cleanupFailed: false };
     }));
-    return reply(200, { sent: results.filter(Boolean).length, failed: results.filter((ok) => !ok).length });
+    return reply(200, {
+      sent: results.filter((result) => result.sent).length,
+      failed: results.filter((result) => !result.sent).length,
+      invalidTokensRemoved: results.filter((result) => result.removed).length,
+      invalidTokenCleanupFailures: results.filter((result) => result.cleanupFailed).length,
+    });
   } catch {
     return reply(502, { error: "Push delivery could not be completed" });
   }

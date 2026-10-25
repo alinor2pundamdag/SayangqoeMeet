@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { readJwtAssuranceLevel } from "../_shared/jwt-assurance.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +40,13 @@ Deno.serve(async (req: Request) => {
 
   const { data: auth, error: authError } = await userClient.auth.getUser();
   if (authError || !auth.user) return reply(401, { error: "Session is invalid" });
+
+  // getUser verifies the token with Supabase Auth. Only after that verification
+  // may the assurance claim be read; all admin-console data requires MFA AAL2.
+  const accessToken = authorization.slice("Bearer ".length).trim();
+  if (readJwtAssuranceLevel(accessToken) !== "aal2") {
+    return reply(403, { error: "Multi-factor authentication (AAL2) is required for admin access" });
+  }
 
   const { data: membership, error: membershipError } = await admin
     .from("admin_memberships")

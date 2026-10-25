@@ -1014,6 +1014,183 @@ BEGIN
   END IF;
 END $$;
 
+-- Message reactions are private to live messages in conversations the
+-- current authenticated user belongs to. Exercise both the direct table policy
+-- and the atomic toggle RPC using two separate users.
+DO $reaction_policy_shape$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'message_reactions'
+      AND c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'message_reactions must have RLS enabled';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.message_reactions', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.message_reactions', 'INSERT')
+     OR NOT has_table_privilege('authenticated', 'public.message_reactions', 'DELETE')
+     OR has_table_privilege('authenticated', 'public.message_reactions', 'UPDATE')
+     OR has_table_privilege('anon', 'public.message_reactions', 'SELECT')
+     OR has_table_privilege('anon', 'public.message_reactions', 'INSERT')
+     OR has_table_privilege('anon', 'public.message_reactions', 'DELETE') THEN
+    RAISE EXCEPTION 'message_reactions grants exceed the intended authenticated minimum';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='message_reactions'
+      AND policyname='message_reactions_select_live_member' AND cmd='SELECT'
+      AND qual LIKE '%deleted_at%' AND qual LIKE '%conversation_members%'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='message_reactions'
+      AND policyname='message_reactions_insert_own_live_member' AND cmd='INSERT'
+      AND with_check LIKE '%auth.uid%' AND with_check LIKE '%deleted_at%'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='message_reactions'
+      AND policyname='message_reactions_delete_own_live_member' AND cmd='DELETE'
+      AND qual LIKE '%auth.uid%' AND qual LIKE '%deleted_at%'
+  ) THEN
+    RAISE EXCEPTION 'Message reaction policies must scope reads/writes to own identity, membership, and live messages';
+  END IF;
+  IF has_function_privilege('anon', 'public.toggle_message_reaction(uuid,text)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.toggle_message_reaction(uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Reaction toggle RPC grants are incorrect';
+  END IF;
+END $reaction_policy_shape$;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+INSERT INTO public.message_reactions (message_id, user_id, reaction)
+VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '👍');
+DO $reaction_member_positive$
+DECLARE visible_count integer; toggled_on boolean; toggled_off boolean;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM public.message_reactions
+  WHERE message_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' AND reaction='👍';
+  IF visible_count <> 1 THEN
+    RAISE EXCEPTION 'A conversation member could not read their own live-message reaction';
+  END IF;
+  toggled_on := public.toggle_message_reaction('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '❤️');
+  toggled_off := public.toggle_message_reaction('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '❤️');
+  IF toggled_on IS DISTINCT FROM true OR toggled_off IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'Reaction toggle must atomically add then remove the same reaction';
+  END IF;
+END $reaction_member_positive$;
+
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+DO $reaction_non_member_negative$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count
+  FROM public.message_reactions
+  WHERE message_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'A non-member could read another conversation reaction';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.message_reactions (message_id, user_id, reaction)
+    VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '😂');
+    RAISE EXCEPTION 'A non-member inserted a reaction into another conversation' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  BEGIN
+    PERFORM public.toggle_message_reaction('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '😂');
+    RAISE EXCEPTION 'A non-member bypassed reaction RLS through the toggle RPC' USING ERRCODE = 'P0001';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+END $reaction_non_member_negative$;
+RESET ROLE;
+
+-- Presence/last-active visibility is limited to the signed-in user and
+-- registered users who share a conversation with them.
+INSERT INTO public.conversations (id, created_by, is_group, title)
+VALUES ('88888888-8888-4888-8888-888888888888',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true, 'Presence isolation fixture')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.conversation_members (conversation_id, user_id)
+VALUES ('88888888-8888-4888-8888-888888888888', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+       ('88888888-8888-4888-8888-888888888888', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+ON CONFLICT DO NOTHING;
+INSERT INTO public.user_presence (user_id, last_seen_at)
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', now()),
+       ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', now()),
+       ('77777777-7777-4777-8777-777777777777', now())
+ON CONFLICT (user_id) DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at;
+
+DO $presence_policy_shape$
+BEGIN
+  IF has_function_privilege('anon', 'public.is_conversation_contact(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.is_conversation_contact(uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Presence membership predicate grants are incorrect';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname='public' AND p.proname='is_conversation_contact'
+      AND p.prosecdef AND p.proconfig @> ARRAY['search_path=public, pg_temp']
+  ) THEN
+    RAISE EXCEPTION 'Presence membership predicate must be SECURITY DEFINER with hardened search_path';
+  END IF;
+  IF has_function_privilege('anon', 'public.get_registered_online_user_ids()', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.get_registered_online_user_ids()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Directory online-status RPC grants are incorrect';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='get_registered_online_user_ids'
+      AND p.prosecdef AND p.proconfig @> ARRAY['search_path=public, pg_temp']
+      AND pg_get_function_result(p.oid) = 'TABLE(user_id uuid)'
+  ) THEN
+    RAISE EXCEPTION 'Directory presence RPC must expose only online user IDs with hardened search_path';
+  END IF;
+END $presence_policy_shape$;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+DO $presence_member_positive$
+DECLARE shared_count integer; unrelated_count integer; directory_count integer;
+BEGIN
+  SELECT count(*) INTO shared_count FROM public.user_presence
+  WHERE user_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  SELECT count(*) INTO unrelated_count FROM public.user_presence
+  WHERE user_id='77777777-7777-4777-8777-777777777777';
+  SELECT count(*) INTO directory_count FROM public.get_registered_online_user_ids()
+  WHERE user_id IN (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    '77777777-7777-4777-8777-777777777777'
+  );
+  IF shared_count <> 1 OR unrelated_count <> 0 THEN
+    RAISE EXCEPTION 'Raw presence timestamps must remain hidden from unrelated users';
+  END IF;
+  IF directory_count <> 3 THEN
+    RAISE EXCEPTION 'The directory online indicator must still work for all registered users';
+  END IF;
+END $presence_member_positive$;
+SELECT set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
+DO $presence_non_member_negative$
+DECLARE visible_count integer;
+BEGIN
+  SELECT count(*) INTO visible_count FROM public.user_presence
+  WHERE user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  IF visible_count <> 0 THEN
+    RAISE EXCEPTION 'Unrelated user could inspect another account last-active status';
+  END IF;
+END $presence_non_member_negative$;
+RESET ROLE;
+
 -- Actual Storage RLS behavior: only a live message attachment in a member's
 -- conversation is readable. A known object path is not sufficient by itself.
 RESET ROLE;
@@ -1165,5 +1342,68 @@ BEGIN
     RAISE EXCEPTION 'Anonymous clients must not update call session state';
   END IF;
 END $edge_function_minimal_grants$;
+
+
+-- Call signaling retention must be indexed and ICE candidates must cascade with
+-- their parent session, while the worker's delete predicate is terminal-only.
+DO $call_retention_schema$
+BEGIN
+  IF to_regclass('public.call_sessions_terminal_retention_idx') IS NULL
+     OR to_regclass('public.call_sessions_negotiating_retention_idx') IS NULL THEN
+    RAISE EXCEPTION 'Call retention indexes are missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint fk
+    JOIN pg_class child ON child.oid = fk.conrelid
+    JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+    JOIN pg_class parent ON parent.oid = fk.confrelid
+    JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+    WHERE fk.contype = 'f'
+      AND child_ns.nspname = 'public'
+      AND child.relname = 'call_ice_candidates'
+      AND parent_ns.nspname = 'public'
+      AND parent.relname = 'call_sessions'
+      AND fk.confdeltype = 'c'
+  ) THEN
+    RAISE EXCEPTION 'Deleting a terminal call must cascade to its ICE candidates';
+  END IF;
+END $call_retention_schema$;
+
+
+DO $call_retention_and_token_cleanup_grants$
+BEGIN
+  IF NOT has_table_privilege('service_role', 'public.device_tokens', 'DELETE') THEN
+    RAISE EXCEPTION 'service_role must be able to delete provider-confirmed invalid device tokens';
+  END IF;
+  IF NOT has_table_privilege('service_role', 'public.call_sessions', 'DELETE')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'answered_at', 'SELECT')
+     OR NOT has_column_privilege('service_role', 'public.call_sessions', 'ended_at', 'SELECT') THEN
+    RAISE EXCEPTION 'Call retention worker privileges are incomplete';
+  END IF;
+END $call_retention_and_token_cleanup_grants$;
+
+
+DO $media_cleanup_retry_schema$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.message_media_cleanup_queue'::regclass
+      AND attname = 'attempts' AND NOT attisdropped
+  ) THEN
+    RAISE EXCEPTION 'Media cleanup attempts counter is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.message_media_cleanup_queue'::regclass
+      AND conname = 'message_media_cleanup_queue_status_check'
+      AND position('failed' in pg_get_constraintdef(oid)) > 0
+  ) THEN
+    RAISE EXCEPTION 'Media cleanup queue must support terminal failed jobs';
+  END IF;
+  IF to_regclass('public.message_media_cleanup_retry_idx') IS NULL THEN
+    RAISE EXCEPTION 'Media cleanup retry index is missing';
+  END IF;
+END $media_cleanup_retry_schema$;
 
 ROLLBACK;

@@ -63,6 +63,14 @@ internal data class MessageRecord(
     val attachmentPurgedAt: String? = null
 )
 
+internal data class MessageReactionRecord(
+    val id: String,
+    val messageId: String,
+    val userId: String,
+    val reaction: String,
+    val createdAt: String
+)
+
 internal data class InvitationRecord(
     val id: String,
     val conversationId: String,
@@ -251,10 +259,34 @@ internal object SupabaseDataRepository {
         }
     }
 
-    private suspend fun loadOnlineUserIds(): Set<String> {
-        val cutoff = java.time.Instant.now().minusSeconds(90).toString()
-        val query = "user_presence?select=user_id&last_seen_at=gte.${enc(cutoff)}"
+    suspend fun loadLastSeenAt(targetUserId: String): String? {
+        require(targetUserId.isNotBlank()) { "A contact is required." }
+        val query = "user_presence?select=last_seen_at&user_id=eq.${enc(targetUserId)}&limit=1"
         val rows = JSONArray(runRequest { request("GET", query) })
+        return rows.optJSONObject(0)?.optString("last_seen_at")
+            ?.takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    fun subscribeToUserPresence(
+        targetUserId: String,
+        onChange: () -> Unit,
+        onFailure: (String) -> Unit = {}
+    ): SupabaseRealtime.Subscription? {
+        require(targetUserId.isNotBlank()) { "A contact is required." }
+        return SupabaseRealtime.subscribeChanges(
+            "user_presence",
+            "user_id=eq.$targetUserId",
+            { onChange() },
+            onFailure
+        )
+    }
+
+    private suspend fun loadOnlineUserIds(): Set<String> {
+        // Read only the directory's binary online indicator through the scoped RPC.
+        // Raw last_seen_at timestamps remain restricted to conversation contacts.
+        val rows = JSONArray(runRequest {
+            request("POST", "rpc/get_registered_online_user_ids", JSONObject())
+        })
         return (0 until rows.length()).map { rows.getJSONObject(it).getString("user_id") }.toSet()
     }
 
@@ -265,6 +297,9 @@ internal object SupabaseDataRepository {
         // Distinguish a confirmed offline result from a failed presence request.
         // A transport/RLS error must never be rendered as a definitive offline state.
         val onlineIds = runCatching { loadOnlineUserIds() }.getOrNull()
+        val knownContactIds = runCatching {
+            loadConversations().mapNotNull { it.otherUserId }.toSet()
+        }.getOrNull()
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             val userId = row.getString("id")
@@ -273,7 +308,8 @@ internal object SupabaseDataRepository {
                 username = row.optString("username").takeIf { it.isNotBlank() },
                 displayName = row.optString("display_name"),
                 createdAt = row.optString("created_at"),
-                isOnline = onlineIds?.let { userId in it },
+                isOnline = if (knownContactIds == null || userId !in knownContactIds) null
+                    else onlineIds?.let { userId in it },
                 avatarUrl = row.optString("avatar_url").takeIf { it.isNotBlank() }
             )
         }
@@ -423,6 +459,52 @@ internal object SupabaseDataRepository {
         val rows = JSONArray(runRequest { request("GET", query) })
         return (0 until rows.length()).map { messageFromRow(rows.getJSONObject(it)) }.asReversed()
     }
+
+    suspend fun loadMessageReactions(conversationId: String): List<MessageReactionRecord> {
+        require(conversationId.isNotBlank()) { "Select a valid conversation." }
+        val query = "message_reactions?select=id,message_id,user_id,reaction,created_at,messages!inner(conversation_id,deleted_at)" +
+            "&messages.conversation_id=eq.${enc(conversationId)}&messages.deleted_at=is.null&order=created_at.asc"
+        val rows = JSONArray(runRequest { request("GET", query) })
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            MessageReactionRecord(
+                id = row.getString("id"),
+                messageId = row.getString("message_id"),
+                userId = row.getString("user_id"),
+                reaction = row.getString("reaction"),
+                createdAt = row.getString("created_at")
+            )
+        }
+    }
+
+    /** Atomic, RLS-scoped toggle; returns true when added and false when removed. */
+    suspend fun toggleMessageReaction(messageId: String, reaction: String): Boolean {
+        require(messageId.isNotBlank()) { "A message is required." }
+        require(reaction in setOf("👍", "❤️", "😂", "😮", "😢", "🙏")) { "Unsupported message reaction." }
+        val response = runRequest {
+            request(
+                "POST",
+                "rpc/toggle_message_reaction",
+                JSONObject().put("p_message_id", messageId).put("p_reaction", reaction)
+            )
+        }
+        return when (response.trim()) {
+            "true" -> true
+            "false" -> false
+            else -> error("The server returned an invalid reaction result.")
+        }
+    }
+
+    fun subscribeToMessageReactions(
+        onChange: () -> Unit,
+        onFailure: (String) -> Unit = {}
+    ): SupabaseRealtime.Subscription? =
+        SupabaseRealtime.subscribeChanges(
+            "message_reactions",
+            "",
+            { onChange() },
+            onFailure
+        )
 
     /** Fetches one older page using a stable (created_at, id) cursor. */
     suspend fun loadOlderMessages(conversationId: String, before: MessageRecord, pageSize: Int = 50): List<MessageRecord> {

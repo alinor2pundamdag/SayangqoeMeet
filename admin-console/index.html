@@ -1,121 +1,272 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#080b14">
-<title>SayangqoeMeet — Command Center</title>
+<title>SayangqoeMeet — Secure Admin Console</title>
 <style>
-:root{color-scheme:dark;--bg:#080b14;--surface:#0d1220;--surface2:#111a2b;--surface3:#172238;--line:#24324a;--line2:#344965;--text:#edf4ff;--muted:#8ea0bd;--dim:#5e718f;--cyan:#63f4e5;--blue:#7aa7ff;--violet:#b69aff;--green:#65e5b0;--amber:#ffce79;--red:#ff7e9c;--radius:17px;--shadow:0 20px 60px #0005}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 78% -15%,#17304b 0,transparent 35%),radial-gradient(ellipse at 5% 60%,#10203955 0,transparent 36%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}button,input,select,textarea{font:inherit}button{color:inherit}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
-.shell{display:grid;grid-template-columns:252px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:22px 15px;border-right:1px solid #25334a;background:#080d18eF;backdrop-filter:blur(20px);z-index:5}.brand{display:flex;align-items:center;gap:11px;padding:4px 8px 24px}.brand-mark{width:38px;height:38px;border:1px solid #4a9b9e;border-radius:12px;background:linear-gradient(145deg,#1e5c68,#122238);display:grid;place-items:center;color:var(--cyan);box-shadow:0 0 25px #63f4e51a}.brand-mark svg{width:22px;height:22px}.brand-name{font-size:15px;font-weight:850;letter-spacing:-.4px}.brand-name small{display:block;font-size:9px;letter-spacing:2px;color:var(--muted);font-weight:800;margin-top:2px}.workspace{margin:0 5px 19px;padding:12px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(120deg,#111b2b,#0b1120)}.workspace small{display:block;color:var(--muted);font-size:9px;letter-spacing:1.4px;font-weight:800}.workspace strong{display:block;margin-top:5px;font-size:12px}.workspace .live-dot{float:right;margin-top:4px}.nav-label{padding:9px 12px;color:#61738f;font-size:9px;font-weight:900;letter-spacing:1.8px}.nav{display:grid;gap:4px}.nav-btn{width:100%;display:flex;align-items:center;gap:11px;text-align:left;padding:11px 12px;border:1px solid transparent;border-radius:11px;background:transparent;color:#91a2bd;cursor:pointer;transition:.18s}.nav-btn:hover{background:#131e30;color:var(--text)}.nav-btn[aria-current=page]{color:var(--cyan);background:linear-gradient(100deg,#163a43,#132233);border-color:#28535a;box-shadow:inset 0 0 22px #63f4e507}.nav-btn svg{width:17px;height:17px;opacity:.9;flex-shrink:0}.nav-btn .nav-count{margin-left:auto;min-width:22px;text-align:center;border-radius:7px;padding:2px 5px;background:#1b2940;color:#9bb1d2;font-size:9px}.sidebar-bottom{margin-top:auto}.security-card{margin:12px 4px;padding:13px;border:1px solid #273a4e;border-radius:13px;background:linear-gradient(145deg,#101d2b,#0b111d)}.security-head{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800}.security-card p{color:var(--muted);font-size:10px;margin:8px 0 0}.side-foot{color:#586b87;font-size:10px;padding:12px 8px 0;display:flex;justify-content:space-between}
-.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px #65e5b0aa}.pulse{animation:pulse 2s infinite}@keyframes pulse{50%{box-shadow:0 0 0 5px #65e5b01a}}
-.main{min-width:0}.topbar{position:sticky;top:0;z-index:4;min-height:76px;padding:15px clamp(17px,3vw,38px);display:flex;align-items:center;gap:15px;justify-content:space-between;border-bottom:1px solid #243148;background:#080d18dc;backdrop-filter:blur(20px)}.crumb{color:var(--muted);font-size:11px}.crumb b{color:var(--text);font-weight:750}.top-actions{display:flex;align-items:center;gap:9px}.search-global{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:#0d1524;border-radius:11px;padding:9px 11px;min-width:min(270px,28vw);color:var(--muted)}.search-global svg{width:15px;height:15px}.search-global input{width:100%;min-width:0;background:transparent;border:0;outline:none;color:var(--text);font-size:11px}.search-global input::placeholder{color:#61738f}.keycap{font-size:9px;border:1px solid #2b3a52;border-radius:5px;padding:2px 5px;white-space:nowrap}.icon-btn{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:11px;background:#0d1524;color:#a9bbd6;cursor:pointer}.icon-btn svg{width:16px;height:16px}.profile-chip{display:flex;align-items:center;gap:9px;padding-left:7px}.profile-avatar{width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,#3e6684,#1a2945);border:1px solid #6386a5;display:grid;place-items:center;font-size:11px;font-weight:900;color:#e2f8ff}.profile-chip strong{display:block;font-size:11px}.profile-chip small{display:block;font-size:9px;color:var(--muted)}
-.content{max-width:1540px;margin:auto;padding:clamp(18px,3vw,38px)}.page{display:none;animation:rise .24s ease}.page.active{display:block}@keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}.page-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-bottom:24px}.kicker{color:var(--cyan);font-size:9px;letter-spacing:2.3px;font-weight:900;text-transform:uppercase}.page-title{font-size:clamp(27px,3.2vw,39px);line-height:1.15;letter-spacing:-1.5px;margin:8px 0 7px;font-weight:850}.page-desc{margin:0;color:var(--muted);max-width:680px;font-size:12px}.heading-actions{display:flex;gap:9px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 13px;border-radius:10px;border:1px solid var(--line2);background:#121d30;color:#c8d7ef;font-size:11px;font-weight:800;cursor:pointer;transition:.18s}.btn svg{width:14px;height:14px}.btn:hover:not(:disabled){border-color:#4c8a94;background:#16303a}.btn:disabled{opacity:.42;cursor:not-allowed}.btn-primary{background:linear-gradient(120deg,#a4fff0,#65d9d4);color:#061719;border-color:#6ce6dc}.btn-primary:hover:not(:disabled){background:#b6fff3}.btn-quiet{background:transparent}.btn-danger{border-color:#623346;background:#291725;color:#ffb3c3}.btn-sm{padding:7px 9px;font-size:10px}
-.banner{display:flex;align-items:flex-start;gap:13px;padding:15px 17px;margin-bottom:19px;border:1px solid #695535;border-radius:14px;background:linear-gradient(110deg,#2a2116aa,#171522aa)}.banner-icon{width:34px;height:34px;flex-shrink:0;border:1px solid #735d38;background:#382b1a;border-radius:10px;display:grid;place-items:center;color:var(--amber)}.banner-icon svg{width:17px;height:17px}.banner strong{display:block;font-size:12px;color:#ffe1a6}.banner p{margin:4px 0 0;color:#c8b998;font-size:11px}.banner .banner-tag{margin-left:auto;white-space:nowrap;border:1px solid #705c3b;border-radius:7px;padding:4px 7px;font-size:9px;color:var(--amber);font-weight:900}
-.grid{display:grid;gap:14px}.metrics{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:15px}.metric{position:relative;overflow:hidden;padding:17px;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(145deg,#111a2a,#0c1220 80%);min-width:0}.metric:after{content:"";position:absolute;width:95px;height:95px;right:-35px;top:-45px;border:1px solid #8ab9d51b;border-radius:50%;box-shadow:0 0 0 13px #8ab9d509,0 0 0 27px #8ab9d505;pointer-events:none}.metric-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.metric-label{font-size:9px;letter-spacing:1.25px;font-weight:900;color:#92a4c0}.metric-icon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;border:1px solid #2d475c;background:#132638;color:var(--cyan)}.metric-icon svg{width:15px;height:15px}.metric-value{font-size:30px;font-weight:850;letter-spacing:-1px;margin:13px 0 2px;line-height:1.05}.metric-foot{font-size:10px;color:var(--muted)}.metric-foot em{font-style:normal;color:var(--green)}.metric-foot .pending{color:var(--amber)}
-.cols-main{grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);margin-bottom:15px}.card{min-width:0;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(145deg,#101827,#0c1220 80%);overflow:hidden}.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 19px 13px}.card-title{font-size:13px;font-weight:850;letter-spacing:-.2px}.card-sub{font-size:10px;color:var(--muted);margin-top:4px}.card-body{padding:0 19px 18px}.status-pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:5px 8px;font-size:9px;font-weight:850;border:1px solid #2d4b49;background:#102923;color:#8ef0c7;white-space:nowrap}.status-pill.warn{border-color:#574a30;background:#282217;color:var(--amber)}.status-pill.info{border-color:#2c466c;background:#14233b;color:#a8c6ff}.status-pill.danger{border-color:#633244;background:#2c1722;color:#ffadc0}.status-pill.neutral{border-color:#334158;background:#151e2d;color:#b5c3d9}
-.activity-list{display:grid}.activity{display:flex;align-items:flex-start;gap:11px;padding:13px 0;border-top:1px solid #202c40}.activity:first-child{border-top:0}.activity-symbol{width:31px;height:31px;flex-shrink:0;border-radius:10px;display:grid;place-items:center;background:#16283b;border:1px solid #2b435d;color:var(--blue)}.activity-symbol svg{width:14px;height:14px}.activity-text{flex:1;min-width:0}.activity-text strong{display:block;font-size:11px;font-weight:750}.activity-text p{margin:3px 0 0;color:var(--muted);font-size:10px}.activity-time{font-size:9px;color:#7385a1;white-space:nowrap}
-.signal-box{display:flex;align-items:center;gap:13px;padding:15px;border:1px solid #2d3f58;border-radius:13px;background:radial-gradient(ellipse at 0 50%,#18384a88,transparent 72%),#0d1625}.signal-ring{width:57px;height:57px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;border:1px solid #37767c;box-shadow:inset 0 0 0 6px #63f4e50a,0 0 20px #63f4e510;color:var(--cyan);font-size:15px;font-weight:900}.signal-copy strong{display:block;font-size:12px}.signal-copy p{margin:4px 0 0;font-size:10px;color:var(--muted)}.signal-copy .status-pill{margin-top:8px}
-.mini-stats{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:13px}.mini-stat{padding:12px;border:1px solid #23334b;border-radius:11px;background:#0b1220}.mini-stat span{display:block;color:var(--muted);font-size:9px}.mini-stat b{display:block;font-size:18px;margin-top:5px}
-.table-wrap{overflow:auto;border-top:1px solid #202c40}table{width:100%;border-collapse:collapse;white-space:nowrap;text-align:left}th{font-size:9px;letter-spacing:1px;color:#7487a5;font-weight:900;padding:12px 17px;background:#0b1220}td{padding:13px 17px;border-top:1px solid #1c293c;font-size:11px;color:#cbd8ec}tbody tr:hover{background:#141e2d77}.user-cell{display:flex;align-items:center;gap:9px}.tiny-avatar{width:31px;height:31px;border:1px solid #3b5575;background:linear-gradient(145deg,#294b68,#18243c);border-radius:10px;display:grid;place-items:center;color:#d9efff;font-size:10px;font-weight:900;flex-shrink:0}.user-cell strong{display:block;font-size:11px}.user-cell small{display:block;color:var(--muted);font-size:9px;margin-top:2px}.muted{color:var(--muted)}.table-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 17px;color:var(--muted);font-size:10px}
-.toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:0 19px 14px}.field{min-width:0;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#090f1b;border-radius:10px;padding:9px 11px;color:var(--muted)}.field svg{width:14px;height:14px;flex-shrink:0}.field input{width:100%;min-width:110px;background:transparent;border:0;outline:0;color:var(--text);font-size:11px}.field select{background:transparent;border:0;outline:0;color:var(--text);font-size:11px;min-width:100px}.field select option{background:#101827}.toolbar .field:first-child{flex:1}
-.empty-state{margin:0 19px 18px;padding:28px 18px;border:1px dashed #30415d;border-radius:13px;text-align:center;background:#0a111e77}.empty-icon{width:42px;height:42px;display:grid;place-items:center;margin:0 auto 10px;border:1px solid #314b66;border-radius:13px;background:#132137;color:#82dce5}.empty-icon svg{width:19px;height:19px}.empty-state strong{display:block;font-size:12px}.empty-state p{max-width:430px;margin:6px auto 0;color:var(--muted);font-size:10px}
-.call-layout{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px;padding:0 19px 19px}.call-view{min-width:0}.call-banner{display:flex;align-items:center;gap:8px;padding:10px 12px;margin-bottom:11px;border:1px solid #2d665b;background:#0e2927;border-radius:10px;color:#a9f1d9;font-size:10px;font-weight:850}.call-banner .live-dot{flex-shrink:0}.video-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.video-tile{position:relative;min-height:220px;overflow:hidden;border:1px solid #2e435e;border-radius:14px;background:radial-gradient(ellipse at 50% 25%,#233e61 0,#121f35 47%,#080e19 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px}.video-tile:after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,#a4e9ff05 25%,transparent 25%,transparent 50%,#a4e9ff04 50%,#a4e9ff04 75%,transparent 75%);background-size:26px 26px;pointer-events:none}.tile-label{position:absolute;z-index:1;left:10px;top:10px;padding:4px 7px;border-radius:6px;background:#070c16d9;border:1px solid #344965;color:#b8cbe7;font-size:8px;letter-spacing:.8px;font-weight:900}.tile-state{position:absolute;z-index:1;right:9px;bottom:9px;padding:5px 7px;border-radius:7px;background:#070c16d9;border:1px solid #344965;color:#a7bad6;font-size:8px}.person-orb{width:67px;height:67px;border-radius:22px;display:grid;place-items:center;background:linear-gradient(145deg,#2d5873,#1b2946);border:1px solid #5c94ad;color:#d9faff;font-size:23px;font-weight:900;box-shadow:0 0 30px #63f4e510}.tile-name{font-weight:800;font-size:12px}.tile-caption{color:#93a8c8;font-size:9px}.call-side{border:1px solid #25354d;border-radius:13px;background:#0a111e;padding:14px;min-width:0}.call-side h3{font-size:12px;margin:0 0 10px}.kv{padding:10px 0;border-top:1px solid #202d41}.kv small{display:block;color:#7488a6;font-size:8px;letter-spacing:1px;font-weight:900}.kv b{display:block;font-size:10px;margin-top:4px;overflow-wrap:anywhere}.call-controls{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.call-caption{color:var(--muted);font-size:9px;margin:11px 0 0}.audio-users{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.audio-user{display:flex;align-items:center;gap:10px;padding:16px;border:1px solid #2a3c55;border-radius:13px;background:#0b1423}.audio-user .user-cell{flex:1;min-width:0}.wave{display:flex;align-items:center;gap:3px;height:26px}.wave i{display:block;width:3px;border-radius:5px;height:5px;background:#526783}.wave i:nth-child(2n){height:11px}.wave i:nth-child(3n){height:18px}.wave i:nth-child(4n){height:8px}
-.report-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin:0 19px 17px}.report-type{padding:15px;border:1px solid var(--line);border-radius:13px;background:#0b1321}.report-type .metric-icon{margin-bottom:13px}.report-type strong{display:block;font-size:11px}.report-type p{color:var(--muted);font-size:10px;margin:5px 0 0}
-.audit-note{margin:0 19px 18px;padding:12px 13px;border:1px solid #2b4056;background:#0c1725;border-radius:11px;color:#a9bdd8;font-size:10px}
-.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 19px 19px}.setting{padding:15px;border:1px solid #27374e;border-radius:13px;background:#0b1321}.setting h3{font-size:12px;margin:0}.setting p{color:var(--muted);font-size:10px;margin:6px 0 12px}.setting-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;border-top:1px solid #202d41}.setting-line span{font-size:10px;color:#b8c8de}
-.switch{width:34px;height:19px;border:1px solid #3b4b63;border-radius:99px;background:#202c3d;position:relative;display:inline-block}.switch:after{content:"";position:absolute;width:11px;height:11px;left:3px;top:3px;border-radius:50%;background:#7b8ca7}.switch.on{background:#17493f;border-color:#3d8a76}.switch.on:after{left:17px;background:#75edc5}
-.disclaimer{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #202c40;padding:17px 2px 0;margin-top:23px;color:#657894;font-size:9px}.disclaimer span:last-child{white-space:nowrap}.toast{position:fixed;right:20px;bottom:20px;z-index:20;max-width:340px;padding:13px 16px;border:1px solid #426a72;border-radius:12px;background:#10212a;color:#d4fff4;box-shadow:var(--shadow);font-size:11px;display:none}.toast.show{display:block;animation:rise .2s ease}
-.mobile-menu{display:none}.no-results{display:none;padding:18px;text-align:center;color:var(--muted);font-size:11px}
-@media(max-width:1120px){.shell{grid-template-columns:218px minmax(0,1fr)}.sidebar{padding-inline:10px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.cols-main{grid-template-columns:1fr}.call-layout{grid-template-columns:minmax(0,1fr) 235px}.search-global{min-width:190px}}
-@media(max-width:760px){.shell{display:block}.sidebar{position:fixed;left:0;top:0;bottom:0;width:270px;height:100dvh;transform:translateX(-102%);transition:transform .22s ease;box-shadow:var(--shadow)}.sidebar.open{transform:translateX(0)}.mobile-menu{display:grid}.topbar{min-height:65px;padding:11px 15px}.search-global{min-width:0;flex:1}.keycap{display:none}.profile-chip .profile-text{display:none}.top-actions{gap:6px}.content{padding:20px 14px}.page-heading{align-items:flex-start;flex-direction:column}.heading-actions{width:100%}.metrics{gap:9px}.metric{padding:13px}.metric-value{font-size:25px}.metric-label{font-size:8px}.call-layout{grid-template-columns:1fr;padding:0 12px 13px}.card-head{padding:15px 13px 12px}.card-body{padding:0 13px 14px}.toolbar{padding:0 13px 12px}.empty-state{margin-inline:13px}.report-grid,.settings-grid{padding-inline:13px;grid-template-columns:1fr}.report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.video-grid{gap:8px}.video-tile{min-height:170px}.audio-users{grid-template-columns:1fr}.disclaimer{align-items:flex-start;flex-direction:column}.banner .banner-tag{display:none}}
-@media(max-width:430px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-value{font-size:23px}.video-grid{grid-template-columns:1fr}.video-tile{min-height:180px}.mini-stats{grid-template-columns:1fr}.report-grid{grid-template-columns:1fr}.search-global{padding:8px}.top-actions .icon-btn{width:32px;height:32px}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition:none!important}}
+:root{color-scheme:dark;--bg:#080b14;--panel:#101827;--line:#283750;--text:#edf4ff;--muted:#9aabc5;--cyan:#63f4e5;--green:#65e5b0;--red:#ff7e9c;--amber:#ffce79}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 70% 0,#17304b 0,transparent 38%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1160px;margin:auto;padding:clamp(16px,4vw,42px)}header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-bottom:20px;border-bottom:1px solid var(--line)}.brand{font-weight:850;letter-spacing:-.4px}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:2px;text-transform:uppercase}.badge{border:1px solid #305c58;color:var(--cyan);padding:5px 9px;border-radius:99px;font-size:10px;font-weight:800}
+h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28px 0 8px}p{color:var(--muted)}.sub{max-width:760px;margin:0 0 24px}.panel{background:linear-gradient(145deg,#111a2a,#0c1220);border:1px solid var(--line);border-radius:16px;padding:20px;margin:18px 0}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.field{display:grid;gap:6px;min-width:0}.field.wide{grid-column:1/-1}label{font-size:11px;color:var(--muted);font-weight:750}input{width:100%;min-width:0;background:#080f1b;border:1px solid #344762;border-radius:9px;padding:11px 12px;color:var(--text);font:inherit}input:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}button{border:1px solid #3c536e;background:#152237;color:var(--text);border-radius:9px;padding:10px 14px;font:inherit;font-size:12px;font-weight:800;cursor:pointer}button.primary{background:linear-gradient(120deg,#a4fff0,#65d9d4);color:#061719;border-color:#6ce6dc}button:disabled{opacity:.5;cursor:wait}.notice{display:none;padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin:14px 0;white-space:pre-wrap;overflow-wrap:anywhere}.notice.show{display:block}.notice.error{border-color:#633244;background:#2c1722;color:#ffb7c6}.notice.ok{border-color:#2d4b49;background:#102923;color:#9af2cc}.hidden{display:none!important}.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:20px 0}.metric{padding:15px;border:1px solid var(--line);border-radius:13px;background:var(--panel);min-width:0}.metric span{display:block;color:var(--muted);font-size:9px;letter-spacing:1px;font-weight:850}.metric strong{display:block;font-size:clamp(22px,3vw,30px);margin-top:8px;overflow-wrap:anywhere}.section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.section-head h2{font-size:15px;margin:0}.table-wrap{overflow:auto;margin-top:13px}table{width:100%;border-collapse:collapse;min-width:600px;text-align:left}th,td{padding:11px 10px;border-bottom:1px solid #243148;vertical-align:top}th{color:var(--muted);font-size:9px;letter-spacing:1px}td{font-size:11px;overflow-wrap:anywhere}code{white-space:pre-wrap;overflow-wrap:anywhere;color:#bdd5ef}.foot{font-size:10px;margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}@media(max-width:760px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid{grid-template-columns:1fr}.field.wide{grid-column:auto}header{align-items:flex-start;flex-direction:column}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div class="shell">
-<aside class="sidebar" id="sidebar">
-<div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="m8 9.5 4 2.3 4-2.3M12 12v4.5"/></svg></div><div class="brand-name">SayangqoeMeet<small>COMMAND CENTER</small></div></div>
-<div class="workspace"><span class="live-dot"></span><small>WORKSPACE</small><strong>Trust &amp; Safety Operations</strong></div>
-<div class="nav-label">OPERATIONS</div>
-<nav class="nav" aria-label="Main navigation">
-<button class="nav-btn" data-page="overview" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="8" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>Overview</button>
-<button class="nav-btn" data-page="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Online users<span class="nav-count">—</span></button>
-<button class="nav-btn" data-page="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></svg>Chat sessions<span class="nav-count">—</span></button>
-<button class="nav-btn" data-page="video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>Video calls<span class="nav-count">—</span></button>
-<button class="nav-btn" data-page="voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></svg>Voice calls<span class="nav-count">—</span></button>
-<div class="nav-label">TRUST &amp; CONTROL</div>
-<button class="nav-btn" data-page="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 2.8 20h18.4L12 3z"/><path d="M12 9v4m0 3h.01"/></svg>Safety review<span class="nav-count">—</span></button>
-<button class="nav-btn" data-page="audit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 3v5h5M3.5 15a9 9 0 1 0 2-9L3 8"/><path d="M12 7v5l4 2"/></svg>Audit trail</button>
-<button class="nav-btn" data-page="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.6-1.4-2.4L7.3 15a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.6 1.4 2.4-1.4 1.1a8 8 0 0 1-.1 2z"/></svg>Console settings</button>
-</nav>
-<div class="sidebar-bottom"><div class="security-card"><div class="security-head"><span class="live-dot"></span> Security posture <span class="status-pill warn">SETUP</span></div><p>Administrator verification and live service connections are not configured in this UI build.</p></div><div class="side-foot"><span>SayangqoeMeet UI</span><span>v0.2 · Preview</span></div></div>
-</aside>
-<div class="main">
-<header class="topbar"><div style="display:flex;align-items:center;gap:10px;min-width:0"><button class="icon-btn mobile-menu" id="menuBtn" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><div class="crumb">SayangqoeMeet <span style="color:#516681">/</span> <b id="crumbName">Overview</b></div></div><div class="top-actions"><label class="search-global"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input id="globalSearch" placeholder="Search this view…" aria-label="Search current view"><span class="keycap">/</span></label><button class="icon-btn" id="refreshBtn" aria-label="Refresh status" title="Refresh status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.4-3"/></svg></button><div class="profile-chip"><div class="profile-avatar">AD</div><div class="profile-text"><strong>Administrator</strong><small>Access not verified</small></div></div></div></header>
-<main class="content">
-<section class="page active" id="page-overview" data-title="Overview">
-<div class="page-heading"><div><div class="kicker">Trust &amp; safety intelligence</div><h1 class="page-title">Command center<span style="color:var(--cyan)">.</span></h1><p class="page-desc">A unified view of user presence, conversations, call sessions, and moderation operations.</p></div><div class="heading-actions"><button class="btn btn-quiet" data-go="audit">View audit trail ↗</button><button class="btn btn-primary" data-go="reports">Open safety review ↗</button></div></div>
-<div class="banner"><div class="banner-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4m0 4h.01"/><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div><div><strong>Preview environment · live data not connected</strong><p>This interface intentionally shows unknown values rather than inventing user activity. Secure admin auth, live session feeds, moderation workflows, and audit storage are backend milestones.</p></div><span class="banner-tag">UI PREVIEW</span></div>
-<div class="grid metrics">
-<div class="metric"><div class="metric-top"><span class="metric-label">ONLINE USERS</span><span class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2m2-13a4 4 0 0 1 0 8m2 5v-2a7 7 0 0 0-2-4.9"/></svg></span></div><div class="metric-value">—</div><div class="metric-foot"><span class="pending">Awaiting presence feed</span></div></div>
-<div class="metric"><div class="metric-top"><span class="metric-label">ACTIVE CHATS</span><span class="metric-icon" style="color:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></svg></span></div><div class="metric-value">—</div><div class="metric-foot">Grouped by conversation</div></div>
-<div class="metric"><div class="metric-top"><span class="metric-label">VIDEO SESSIONS</span><span class="metric-icon" style="color:var(--violet)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></span></div><div class="metric-value">—</div><div class="metric-foot">Grouped by call session</div></div>
-<div class="metric"><div class="metric-top"><span class="metric-label">VOICE SESSIONS</span><span class="metric-icon" style="color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/></svg></span></div><div class="metric-value">—</div><div class="metric-foot">Grouped by call session</div></div>
+<main>
+<header><div class="brand">SayangqoeMeet <small>Secure operations console</small></div><span class="badge">SERVER-VERIFIED ACCESS</span></header>
+<section id="loginSection">
+<h1>Administrator sign-in<span style="color:var(--cyan)">.</span></h1>
+<p class="sub">Sign in with an existing Supabase Auth account. The server verifies the account against <code>admin_memberships</code> and requires completed MFA (AAL2); a valid password alone never grants admin access. Credentials and the access token are not stored in browser storage.</p>
+<div class="panel">
+<div class="form-grid">
+<div class="field"><label for="projectUrl">Supabase project URL</label><input id="projectUrl" type="url" autocomplete="url" value="https://phjwzrrsaemgcedwpyyp.supabase.co" required></div>
+<div class="field"><label for="publishableKey">Supabase publishable key</label><input id="publishableKey" type="password" autocomplete="off" value="sb_publishable_-teTl1LKLeN1UX_xrv6PeQ_VkCs5Hco" required></div>
+<div class="field"><label for="email">Administrator email</label><input id="email" type="email" autocomplete="username" required></div>
+<div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required></div>
 </div>
-<div class="grid cols-main">
-<article class="card"><div class="card-head"><div><div class="card-title">Operations pulse</div><div class="card-sub">Service readiness · live checks will appear after integration</div></div><span class="status-pill warn">NOT CONNECTED</span></div><div class="card-body"><div class="signal-box"><div class="signal-ring">SQ</div><div class="signal-copy"><strong>Command systems awaiting activation</strong><p>UI is available. No production activity is being represented here.</p><span class="status-pill neutral">Preview mode</span></div></div><div class="grid mini-stats"><div class="mini-stat"><span>Presence service</span><b>—</b></div><div class="mini-stat"><span>Call signaling</span><b>—</b></div><div class="mini-stat"><span>Audit pipeline</span><b>—</b></div></div></div></article>
-<article class="card"><div class="card-head"><div><div class="card-title">Moderation activity</div><div class="card-sub">Recent authorized admin events</div></div><button class="btn btn-sm btn-quiet" data-go="audit">View all ↗</button></div><div class="card-body"><div class="activity-list"><div class="activity"><div class="activity-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5"/></svg></div><div class="activity-text"><strong>Audit pipeline</strong><p>Waiting for server-side event storage.</p></div><span class="activity-time">PENDING</span></div><div class="activity"><div class="activity-symbol" style="color:var(--violet)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></div><div class="activity-text"><strong>Call review workflow</strong><p>Disclosed moderator access to be integrated.</p></div><span class="activity-time">PENDING</span></div><div class="activity"><div class="activity-symbol" style="color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2.8 20h18.4L12 3z"/><path d="M12 9v4m0 3h.01"/></svg></div><div class="activity-text"><strong>Safety review queue</strong><p>Reports and case evidence storage not connected.</p></div><span class="activity-time">PENDING</span></div></div></div></article>
+<div class="actions"><button id="signIn" class="primary">Sign in and verify admin role</button></div>
+<div id="loginNotice" class="notice" role="status" aria-live="polite"></div>
+<div id="mfaSection" class="hidden panel" style="margin-top:14px">
+  <h2 style="font-size:14px;margin-top:0">Multi-factor verification</h2>
+  <p style="margin-top:0">Enter the six-digit code from your verified authenticator app. The server requires an AAL2 session before returning admin data.</p>
+  <div class="field"><label for="mfaCode">Authenticator code</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="123456"></div>
+  <div class="actions"><button id="verifyMfa" class="primary">Verify MFA code</button></div>
+  <div id="mfaNotice" class="notice" role="status" aria-live="polite"></div>
 </div>
-<article class="card"><div class="card-head"><div><div class="card-title">Session overview</div><div class="card-sub">A session is one conversation or call, not one row per participant.</div></div><span class="status-pill info">GROUPED VIEW</span></div><div class="table-wrap"><table><thead><tr><th>SESSION TYPE</th><th>PARTICIPANTS</th><th>LIVE STATUS</th><th>REVIEW WORKFLOW</th><th></th></tr></thead><tbody><tr><td>Video call</td><td>Grouped together</td><td><span class="status-pill neutral">Unknown</span></td><td>Disclosed review</td><td><button class="btn btn-sm" data-go="video">Open UI ↗</button></td></tr><tr><td>Voice call</td><td>Grouped together</td><td><span class="status-pill neutral">Unknown</span></td><td>Disclosed review</td><td><button class="btn btn-sm" data-go="voice">Open UI ↗</button></td></tr><tr><td>Chat conversation</td><td>Grouped together</td><td><span class="status-pill neutral">Unknown</span></td><td>Authorized case review</td><td><button class="btn btn-sm" data-go="chats">Open UI ↗</button></td></tr></tbody></table></div></article>
+</div>
 </section>
-<section class="page" id="page-users" data-title="Online users">
-<div class="page-heading"><div><div class="kicker">Presence intelligence</div><h1 class="page-title">Online users<span style="color:var(--cyan)">.</span></h1><p class="page-desc">Account-level presence, device/session state, and recent activity freshness.</p></div><div class="heading-actions"><span class="status-pill warn">PRESENCE FEED PENDING</span></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Presence directory</div><div class="card-sub">One row per account · live values will be supplied by the presence service</div></div><span class="status-pill neutral">0 records loaded</span></div><div class="toolbar"><label class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input data-search placeholder="Search username or account ID" aria-label="Search users"></label><label class="field"><select disabled aria-label="Presence filter"><option>All presence states</option><option>Online</option><option>Idle</option></select></label><button class="btn" disabled>Export</button></div><div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2m2-13a4 4 0 0 1 0 8m2 5v-2a7 7 0 0 0-2-4.9"/></svg></div><strong>No live user data</strong><p>This is an empty state, not a claim that nobody is online. Connect authenticated presence events before displaying accounts or device details.</p></div></article>
+<section id="dashboardSection" class="hidden">
+<div class="section-head"><div><h1 style="margin-top:28px">Operations overview<span style="color:var(--cyan)">.</span></h1><p id="sessionInfo" style="margin:5px 0 0">Authenticated administrator</p></div><div class="actions"><button id="refresh">Refresh data</button><button id="signOut">Sign out</button></div></div>
+<div id="dashboardNotice" class="notice" role="status" aria-live="polite"></div>
+<div class="metrics">
+<div class="metric"><span>REGISTERED PROFILES</span><strong id="profiles">—</strong></div>
+<div class="metric"><span>CONVERSATIONS</span><strong id="conversations">—</strong></div>
+<div class="metric"><span>MESSAGES</span><strong id="messages">—</strong></div>
+<div class="metric"><span>ACTIVE CALLS</span><strong id="calls">—</strong></div>
+<div class="metric"><span>ACTIVE USERS · 90S</span><strong id="presence">—</strong></div>
+</div>
+<article class="panel">
+<div class="section-head"><div><h2>Administrative audit history</h2><p style="margin:5px 0 0">Latest 50 events returned by the server.</p></div><button id="reloadAudit">Reload audit log</button></div>
+<div class="table-wrap"><table><thead><tr><th>TIME</th><th>ACTOR</th><th>ACTION</th><th>TARGET</th><th>DETAILS</th></tr></thead><tbody id="auditRows"><tr><td colspan="5">No data loaded.</td></tr></tbody></table></div>
+</article>
+<article class="panel"><h2 style="font-size:14px;margin-top:0">Scope and safety</h2><p style="margin-bottom:0">This console exposes read-only overview and audit-history operations only. User lookup, reports/moderation, suspension, and live call/media review remain disabled until a documented data model, explicit authorization rules, participant notice, retention policy, and acceptance tests are approved. No hidden recording or message-content inspection is performed.</p></article>
 </section>
-<section class="page" id="page-chats" data-title="Chat sessions">
-<div class="page-heading"><div><div class="kicker">Conversation operations</div><h1 class="page-title">Chat sessions<span style="color:var(--cyan)">.</span></h1><p class="page-desc">Conversation-centric listing with participants grouped into a single session record.</p></div><div class="heading-actions"><span class="status-pill warn">CHAT FEED PENDING</span></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Conversation registry</div><div class="card-sub">Session metadata first; private message content is not displayed in this preview.</div></div><span class="status-pill info">ONE ROW / CONVERSATION</span></div><div class="toolbar"><label class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input data-search placeholder="Search conversation ID or participant" aria-label="Search conversations"></label><label class="field"><select disabled aria-label="Chat status filter"><option>All session states</option><option>Active</option><option>Ended</option></select></label></div><div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></svg></div><strong>No live chat sessions</strong><p>Connect conversation membership and session metadata. Access to message content for moderation must be scoped to a documented, authorized case workflow.</p></div></article>
-</section>
-<section class="page" id="page-video" data-title="Video calls">
-<div class="page-heading"><div><div class="kicker">Realtime session observability</div><h1 class="page-title">Video call review<span style="color:var(--cyan)">.</span></h1><p class="page-desc">Two participant tiles, grouped session metadata, and a moderator review control surface.</p></div><div class="heading-actions"><span class="status-pill warn">SIGNALING PENDING</span></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Selected video session</div><div class="card-sub">UI prototype · not connected to cameras or WebRTC media</div></div><span class="status-pill neutral">DEMO ONLY</span></div><div class="call-layout"><div class="call-view"><div class="call-banner"><span class="live-dot"></span> MODERATOR REVIEW · PARTICIPANT NOTICE REQUIRED · PREVIEW ONLY</div><div class="video-grid"><div class="video-tile"><span class="tile-label">PARTICIPANT A</span><div class="person-orb">A</div><div class="tile-name">Participant A</div><div class="tile-caption">Camera preview placeholder</div><span class="tile-state">VIDEO SOURCE · NOT CONNECTED</span></div><div class="video-tile"><span class="tile-label">PARTICIPANT B</span><div class="person-orb">B</div><div class="tile-name">Participant B</div><div class="tile-caption">Camera preview placeholder</div><span class="tile-state">VIDEO SOURCE · NOT CONNECTED</span></div></div><p class="call-caption">These are illustrative panels, not actual users or camera footage. No audio/video is captured or received by this page.</p><div class="call-controls"><button class="btn btn-primary" disabled title="Backend integration required">Request disclosed review</button><button class="btn" disabled>Moderator camera · OFF</button><button class="btn" disabled>Moderator mic · OFF</button></div></div><aside class="call-side"><h3>Session telemetry</h3><div class="kv"><small>SESSION ID</small><b>Awaiting backend</b></div><div class="kv"><small>PARTICIPANTS</small><b>2 slots · grouped call</b></div><div class="kv"><small>CALL TYPE</small><b>Video</b></div><div class="kv"><small>CONNECTION QUALITY</small><b>Unknown</b></div><div class="kv"><small>MODERATOR ACCESS</small><b>Not enabled</b></div><div class="kv"><small>CONSENT / NOTICE</small><b>Workflow required</b></div><div class="kv"><small>AUDIT EVENT</small><b>Backend required</b></div><div class="call-controls"><button class="btn btn-sm" disabled>Open audit event</button></div></aside></div></article>
-</section>
-<section class="page" id="page-voice" data-title="Voice calls">
-<div class="page-heading"><div><div class="kicker">Realtime session observability</div><h1 class="page-title">Voice call review<span style="color:var(--cyan)">.</span></h1><p class="page-desc">Grouped participants, voice-session status, and explicit moderator audio state.</p></div><div class="heading-actions"><span class="status-pill warn">SIGNALING PENDING</span></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Selected voice session</div><div class="card-sub">UI prototype · no live call audio is received or played</div></div><span class="status-pill neutral">DEMO ONLY</span></div><div class="call-layout"><div class="call-view"><div class="call-banner"><span class="live-dot"></span> MODERATOR REVIEW · PARTICIPANT NOTICE REQUIRED · PREVIEW ONLY</div><div class="audio-users"><div class="audio-user"><div class="tiny-avatar">A</div><div class="user-cell"><strong>Participant A</strong><small>Audio state · unknown</small></div><div class="wave" aria-label="No live audio"><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="audio-user"><div class="tiny-avatar">B</div><div class="user-cell"><strong>Participant B</strong><small>Audio state · unknown</small></div><div class="wave" aria-label="No live audio"><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="signal-box" style="margin-top:12px"><div class="signal-ring">MIC</div><div class="signal-copy"><strong>Moderator microphone is OFF</strong><p>Audio controls are visual only until an authorized, disclosed call-review workflow is implemented.</p><span class="status-pill neutral">NO AUDIO ROUTED</span></div></div><div class="call-controls"><button class="btn btn-primary" disabled>Request disclosed review</button><button class="btn" disabled>Moderator mic · OFF</button></div></div><aside class="call-side"><h3>Session telemetry</h3><div class="kv"><small>SESSION ID</small><b>Awaiting backend</b></div><div class="kv"><small>PARTICIPANTS</small><b>2 slots · grouped call</b></div><div class="kv"><small>CALL TYPE</small><b>Voice</b></div><div class="kv"><small>AUDIO QUALITY</small><b>Unknown</b></div><div class="kv"><small>MODERATOR MIC</small><b>OFF by default</b></div><div class="kv"><small>PARTICIPANT NOTICE</small><b>Workflow required</b></div><div class="kv"><small>AUDIT EVENT</small><b>Backend required</b></div></aside></div></article>
-</section>
-<section class="page" id="page-reports" data-title="Safety review">
-<div class="page-heading"><div><div class="kicker">Case management</div><h1 class="page-title">Safety review<span style="color:var(--cyan)">.</span></h1><p class="page-desc">A structured workspace for reports, evidence references, risk signals, and documented moderation decisions.</p></div><div class="heading-actions"><button class="btn" disabled>New case · backend required</button></div></div>
-<div class="grid metrics"><div class="metric"><div class="metric-top"><span class="metric-label">OPEN CASES</span><span class="metric-icon">!</span></div><div class="metric-value">—</div><div class="metric-foot">Case store pending</div></div><div class="metric"><div class="metric-top"><span class="metric-label">HIGH PRIORITY</span><span class="metric-icon" style="color:var(--red)">↗</span></div><div class="metric-value">—</div><div class="metric-foot">No risk data loaded</div></div><div class="metric"><div class="metric-top"><span class="metric-label">IN REVIEW</span><span class="metric-icon" style="color:var(--blue)">◷</span></div><div class="metric-value">—</div><div class="metric-foot">Queue pending</div></div><div class="metric"><div class="metric-top"><span class="metric-label">RESOLVED</span><span class="metric-icon" style="color:var(--green)">✓</span></div><div class="metric-value">—</div><div class="metric-foot">Outcome store pending</div></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Review queue</div><div class="card-sub">Report intake and case evidence must be stored and access-controlled server-side.</div></div><span class="status-pill warn">NOT CONNECTED</span></div><div class="toolbar"><label class="field"><input data-search placeholder="Search case ID or category" aria-label="Search cases"></label><label class="field"><select disabled aria-label="Case priority"><option>All priorities</option><option>High</option><option>Normal</option></select></label><label class="field"><select disabled aria-label="Case state"><option>All statuses</option><option>Open</option><option>Reviewing</option><option>Resolved</option></select></label></div><div class="report-grid grid"><div class="report-type"><div class="metric-icon">!</div><strong>Potential exploitation</strong><p>High-priority escalation category.</p></div><div class="report-type"><div class="metric-icon" style="color:var(--amber)">⌁</div><strong>Scams &amp; prohibited sales</strong><p>Pattern signals and case references.</p></div><div class="report-type"><div class="metric-icon" style="color:var(--violet)">◇</div><strong>Harassment &amp; other abuse</strong><p>Reports, review notes, and outcomes.</p></div></div><div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2.8 20h18.4L12 3z"/><path d="M12 9v4m0 3h.01"/></svg></div><strong>No cases loaded</strong><p>There is no live case data in this UI preview. Future cases should support evidence references, reviewer notes, action history, and retention controls.</p></div><div class="audit-note">Evidence handling principle: record provenance, reviewer identity, access reason, timestamps, and decision history. Do not create hidden call recordings or unauthorized media access.</div></article>
-</section>
-<section class="page" id="page-audit" data-title="Audit trail">
-<div class="page-heading"><div><div class="kicker">Accountability layer</div><h1 class="page-title">Audit trail<span style="color:var(--cyan)">.</span></h1><p class="page-desc">Privileged actions should be traceable, reviewable, and stored outside the browser in a protected service.</p></div><div class="heading-actions"><span class="status-pill warn">AUDIT SERVICE PENDING</span></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Administrative event ledger</div><div class="card-sub">Admin sign-ins, case access, moderation decisions, and configuration changes</div></div><button class="btn" disabled>Export audit log</button></div><div class="toolbar"><label class="field"><input data-search placeholder="Search event, admin, or case ID" aria-label="Search audit events"></label><label class="field"><select disabled aria-label="Audit event type"><option>All event types</option><option>Sign-in</option><option>Case access</option><option>Moderation action</option></select></label></div><div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><strong>No audit events loaded</strong><p>Do not enable privileged moderation actions until server-side audit writes, authorization checks, and retention policies are implemented and tested.</p></div></article>
-</section>
-<section class="page" id="page-settings" data-title="Console settings">
-<div class="page-heading"><div><div class="kicker">System configuration</div><h1 class="page-title">Console settings<span style="color:var(--cyan)">.</span></h1><p class="page-desc">The UI shows intended configuration areas. Security settings must be enforced by the server, not by browser controls.</p></div><div class="heading-actions"><span class="status-pill warn">READ-ONLY PREVIEW</span></div></div>
-<article class="card"><div class="card-head"><div><div class="card-title">Security &amp; service configuration</div><div class="card-sub">Controls below are illustrative and do not change production settings.</div></div></div><div class="settings-grid grid"><div class="setting"><h3>Administrator identity</h3><p>Server-verified admin role, MFA policy, session expiry, and rate limiting.</p><div class="setting-line"><span>Admin authentication</span><span class="status-pill warn">Not configured</span></div></div><div class="setting"><h3>Presence &amp; session feed</h3><p>Authenticated presence and grouped call-session metadata.</p><div class="setting-line"><span>Realtime connection</span><span class="status-pill neutral">Disconnected</span></div></div><div class="setting"><h3>Moderation access policy</h3><p>Reason-bound access, participant notice, least privilege, and auditable review.</p><div class="setting-line"><span>Review workflow</span><span class="status-pill warn">Not configured</span></div></div><div class="setting"><h3>Audit &amp; retention</h3><p>Protected audit storage, retention limits, and periodic access review.</p><div class="setting-line"><span>Audit pipeline</span><span class="status-pill neutral">Disconnected</span></div></div></div></article>
-</section>
-<div class="disclaimer"><span>SayangqoeMeet · Trust &amp; Safety Command Center · UI preview only</span><span>Never place passwords or privileged keys in frontend code.</span></div>
-</main></div></div>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<footer class="foot">Never enter a service-role key, Firebase service-account credential, or other privileged secret. Only a public Supabase publishable key belongs in this browser client.</footer>
+</main>
 <script>
-(function(){
-const pages=[...document.querySelectorAll('.page')], nav=[...document.querySelectorAll('[data-page]')], crumb=document.getElementById('crumbName'), sidebar=document.getElementById('sidebar'), toast=document.getElementById('toast');
-let toastTimer;
-function notify(message){toast.textContent=message;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),3200)}
-function go(name){const target=document.getElementById('page-'+name);if(!target)return;pages.forEach(p=>p.classList.toggle('active',p===target));nav.forEach(b=>{if(b.dataset.page===name)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});crumb.textContent=target.dataset.title||name;sidebar.classList.remove('open');document.getElementById('globalSearch').value='';filterCurrent('');window.scrollTo({top:0,behavior:'smooth'})}
-nav.forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
-document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
-document.getElementById('menuBtn').addEventListener('click',()=>sidebar.classList.toggle('open'));
-document.getElementById('refreshBtn').addEventListener('click',()=>notify('Preview refreshed. Live services are not connected yet.'));
-function filterCurrent(query){const active=document.querySelector('.page.active');if(!active)return;const q=query.trim().toLowerCase();active.querySelectorAll('tbody tr').forEach(row=>row.style.display=(!q||row.textContent.toLowerCase().includes(q))?'':'none');active.querySelectorAll('[data-search]').forEach(input=>{if(input.value!==query)input.value=query});}
-document.getElementById('globalSearch').addEventListener('input',e=>filterCurrent(e.target.value));
-document.querySelectorAll('[data-search]').forEach(input=>input.addEventListener('input',()=>{document.getElementById('globalSearch').value=input.value;filterCurrent(input.value)}));
-document.addEventListener('keydown',e=>{if(e.key==='/'&&!/input|textarea|select/i.test(document.activeElement.tagName)){e.preventDefault();document.getElementById('globalSearch').focus()}if(e.key==='Escape'){sidebar.classList.remove('open');document.getElementById('globalSearch').blur()}});
+(() => {
+  const DEFAULT_URL = "https://phjwzrrsaemgcedwpyyp.supabase.co";
+  let accessToken = null;
+  let projectUrl = "";
+  let publishableKey = "";
+  let pendingMfaFactorId = null;
+  let pendingMfaChallengeId = null;
+  const $ = (id) => document.getElementById(id);
+  function notice(id, message, kind = "error") {
+    const el = $(id); el.textContent = message; el.className = "notice show " + kind;
+  }
+  function clearNotice(id) { const el = $(id); el.textContent = ""; el.className = "notice"; }
+  function validProjectUrl(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && url.hostname === new URL(DEFAULT_URL).hostname &&
+        !url.username && !url.password && !url.search && !url.hash;
+    } catch { return false; }
+  }
+  async function request(path, body, authenticated = false, method = "POST") {
+    const headers = { apikey: publishableKey, "Content-Type": "application/json" };
+    if (authenticated) headers.Authorization = "Bearer " + accessToken;
+    const options = { method, headers };
+    if (body !== undefined && method !== "GET") options.body = JSON.stringify(body);
+    const response = await fetch(projectUrl + path, options);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = typeof payload.msg === "string" ? payload.msg :
+        typeof payload.message === "string" ? payload.message :
+        typeof payload.error_description === "string" ? payload.error_description :
+        typeof payload.error === "string" ? payload.error : "Request failed (HTTP " + response.status + ").";
+      throw new Error(message.slice(0, 200) + " (HTTP " + response.status + ")");
+    }
+    return payload;
+  }
+  function jwtAssuranceLevel(token) {
+    try {
+      const payload = token.split(".")[1];
+      if (!payload) return null;
+      const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+      const decoded = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+      return JSON.parse(decoded).aal || null;
+    } catch { return null; }
+  }
+  async function beginMfaChallenge() {
+    const factorsResponse = await request("/auth/v1/factors", undefined, true, "GET");
+    const factors = Array.isArray(factorsResponse.totp) ? factorsResponse.totp :
+      (Array.isArray(factorsResponse.all) ? factorsResponse.all : []);
+    const factor = factors.find((item) =>
+      item && item.status === "verified" && (item.factor_type === "totp" || item.type === "totp")
+    );
+    if (!factor || typeof factor.id !== "string") {
+      throw new Error("No verified authenticator factor is enrolled. Enroll TOTP MFA in Supabase Auth before using the admin console.");
+    }
+    const challenge = await request("/auth/v1/factors/" + encodeURIComponent(factor.id) + "/challenge", {}, true);
+    if (typeof challenge.id !== "string" || !challenge.id) throw new Error("Supabase did not return an MFA challenge ID.");
+    pendingMfaFactorId = factor.id;
+    pendingMfaChallengeId = challenge.id;
+    $("mfaCode").value = "";
+    $("mfaSection").classList.remove("hidden");
+    notice("mfaNotice", "Password accepted. Complete the authenticator challenge to continue.", "ok");
+  }
+  async function adminAction(action) {
+    return request("/functions/v1/admin-console", { action }, true);
+  }
+  async function refreshData() {
+    clearNotice("dashboardNotice");
+    $("refresh").disabled = true; $("reloadAudit").disabled = true;
+    try {
+      const [overview, audit] = await Promise.all([adminAction("overview"), adminAction("audit_log")]);
+      const values = overview.overview || {};
+      $("profiles").textContent = String(values.registered_profiles ?? "—");
+      $("conversations").textContent = String(values.conversations ?? "—");
+      $("messages").textContent = String(values.messages ?? "—");
+      $("calls").textContent = String(values.active_calls ?? "—");
+      $("presence").textContent = String(values.active_users_last_90_seconds ?? "—");
+      $("sessionInfo").textContent = "Verified role: " + String(overview.role || audit.role || "administrator") +
+        " · Refreshed " + new Date(overview.generated_at || Date.now()).toLocaleString();
+      const rows = $("auditRows"); rows.replaceChildren();
+      const events = Array.isArray(audit.events) ? audit.events : [];
+      if (!events.length) {
+        const tr = document.createElement("tr"), td = document.createElement("td");
+        td.colSpan = 5; td.textContent = "No audit events returned."; tr.append(td); rows.append(tr);
+      } else {
+        for (const event of events) {
+          const tr = document.createElement("tr");
+          const values = [
+            event.created_at ? new Date(event.created_at).toLocaleString() : "—",
+            event.actor_id || "—",
+            event.action || "—",
+            [event.target_type, event.target_id].filter(Boolean).join(" · ") || "—",
+            event.details && typeof event.details === "object" ? JSON.stringify(event.details) : String(event.details || "—")
+          ];
+          for (const value of values) { const td = document.createElement("td"); td.textContent = String(value); tr.append(td); }
+          rows.append(tr);
+        }
+      }
+      $("dashboardSection").classList.remove("hidden");
+      $("loginSection").classList.add("hidden");
+      notice("dashboardNotice", "Server authorization and audit write succeeded. Data is live as of the timestamp shown.", "ok");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load admin data.";
+      if ($("dashboardSection").classList.contains("hidden")) {
+        signOutLocal();
+        notice("loginNotice", message);
+      } else {
+        notice("dashboardNotice", message);
+        if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
+          signOutLocal();
+          notice("loginNotice", message);
+        }
+      }
+    } finally { $("refresh").disabled = false; $("reloadAudit").disabled = false; }
+  }
+  function signOutLocal() {
+    accessToken = null;
+    pendingMfaFactorId = null;
+    pendingMfaChallengeId = null;
+    $("password").value = "";
+    $("mfaCode").value = "";
+    $("mfaSection").classList.add("hidden");
+    clearNotice("mfaNotice");
+    $("dashboardSection").classList.add("hidden");
+    $("loginSection").classList.remove("hidden");
+  }
+  $("signIn").addEventListener("click", async () => {
+    clearNotice("loginNotice");
+    projectUrl = $("projectUrl").value.trim().replace(/\/+$/, "");
+    publishableKey = $("publishableKey").value.trim();
+    const email = $("email").value.trim(), password = $("password").value;
+    if (!validProjectUrl(projectUrl) || !publishableKey || !email || !password) {
+      notice("loginNotice", "Enter a valid HTTPS Supabase URL, publishable key, email, and password."); return;
+    }
+    $("signIn").disabled = true;
+    try {
+      const auth = await request("/auth/v1/token?grant_type=password", { email, password });
+      if (typeof auth.access_token !== "string" || !auth.access_token) throw new Error("Supabase did not return an access token.");
+      accessToken = auth.access_token;
+      $("password").value = "";
+      if (jwtAssuranceLevel(accessToken) !== "aal2") {
+        await beginMfaChallenge();
+        return;
+      }
+      await refreshData();
+    } catch (error) {
+      signOutLocal();
+      notice("loginNotice", error instanceof Error ? error.message : "Sign-in failed.");
+    } finally { $("signIn").disabled = false; }
+  });
+  $("verifyMfa").addEventListener("click", async () => {
+    clearNotice("mfaNotice");
+    const code = $("mfaCode").value.trim();
+    if (!pendingMfaFactorId || !pendingMfaChallengeId || !/^[0-9]{6}$/.test(code)) {
+      notice("mfaNotice", "Enter the six-digit authenticator code."); return;
+    }
+    $("verifyMfa").disabled = true;
+    try {
+      const result = await request(
+        "/auth/v1/factors/" + encodeURIComponent(pendingMfaFactorId) + "/verify",
+        { challenge_id: pendingMfaChallengeId, code },
+        true
+      );
+      if (typeof result.access_token !== "string" || !result.access_token) {
+        throw new Error("Supabase did not return the MFA-verified session.");
+      }
+      accessToken = result.access_token;
+      pendingMfaFactorId = null;
+      pendingMfaChallengeId = null;
+      $("mfaCode").value = "";
+      $("mfaSection").classList.add("hidden");
+      if (jwtAssuranceLevel(accessToken) !== "aal2") {
+        throw new Error("MFA verification did not produce an AAL2 session.");
+      }
+      await refreshData();
+    } catch (error) {
+      notice("mfaNotice", error instanceof Error ? error.message : "MFA verification failed.");
+    } finally { $("verifyMfa").disabled = false; }
+  });
+  $("refresh").addEventListener("click", refreshData);
+  $("reloadAudit").addEventListener("click", async () => {
+    clearNotice("dashboardNotice");
+    try {
+      const audit = await adminAction("audit_log");
+      const rows = $("auditRows"); rows.replaceChildren();
+      const events = Array.isArray(audit.events) ? audit.events : [];
+      if (!events.length) {
+        const tr = document.createElement("tr"), td = document.createElement("td");
+        td.colSpan = 5; td.textContent = "No audit events returned."; tr.append(td); rows.append(tr);
+      } else for (const event of events) {
+        const tr = document.createElement("tr");
+        const values = [event.created_at ? new Date(event.created_at).toLocaleString() : "—", event.actor_id || "—",
+          event.action || "—", [event.target_type,event.target_id].filter(Boolean).join(" · ") || "—",
+          event.details && typeof event.details === "object" ? JSON.stringify(event.details) : String(event.details || "—")];
+        for (const value of values) { const td = document.createElement("td"); td.textContent = String(value); tr.append(td); }
+        rows.append(tr);
+      }
+      notice("dashboardNotice", "Audit history refreshed.", "ok");
+    } catch (error) { notice("dashboardNotice", error instanceof Error ? error.message : "Could not load audit history."); }
+  });
+  $("signOut").addEventListener("click", async () => {
+    try {
+      if (accessToken) {
+        await fetch(projectUrl + "/auth/v1/logout", {
+          method: "POST",
+          headers: { apikey: publishableKey, Authorization: "Bearer " + accessToken }
+        });
+      }
+    } catch { /* Local sign-out still clears the in-memory token. */ }
+    signOutLocal(); clearNotice("dashboardNotice"); notice("loginNotice", "Signed out. No session token was saved in browser storage.", "ok");
+  });
 })();
 </script>
-</body></html>
+</body>
+</html>

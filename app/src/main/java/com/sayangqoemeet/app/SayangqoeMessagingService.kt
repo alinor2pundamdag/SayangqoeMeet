@@ -92,6 +92,25 @@ internal object MessageNotificationChannels {
     }
 }
 
+internal object CallNotificationChannels {
+    const val CHANNEL_ID = "incoming_calls"
+
+    fun ensureCreated(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Incoming voice and video call alerts"
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            )
+        }
+    }
+}
+
 class SayangqoeMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -133,9 +152,31 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         // Ringing is independent of notification permission; Android may suppress
         // the notification while the high-priority FCM data event still arrives.
         if (message.data["type"] == "incoming_call") {
-            val callId = message.data["call_id"]?.takeIf { it.isNotBlank() }
-            runCatching { CallForegroundService.start(this, callId) }
-            showIncomingCallNotification(message)
+            val callId = message.data["call_id"]?.takeIf { PushPayloadValidation.isUuid(it) } ?: return
+            // FCM can be delayed or delivered more than once. Re-check the authenticated
+            // recipient and authoritative call state before starting any local alert.
+            val call = try {
+                CallSignalingRepository.getCall(callId)
+            } catch (networkFailure: java.io.IOException) {
+                // The sender Edge Function already authenticated the caller and checked
+                // the ringing state. If the recipient is temporarily offline, preserve
+                // the short-lived FCM alert; the local ring remains bounded and actions
+                // still require server authorization when connectivity returns.
+                null
+            } catch (_: Exception) {
+                // A confirmed missing/unauthorized call or other server rejection is not
+                // a reason to show a stale alert.
+                return
+            }
+            if (call != null && (call.calleeId != currentUserId || call.status != "ringing")) return
+            val callerName = message.data["caller_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
+            val callType = if (call?.type == "video" || message.data["call_type"] == "video") "video" else "voice"
+            // The foreground service owns the single call notification and the ringtone.
+            // Posting a second notification here caused duplicate visible alerts per call.
+            runCatching { CallForegroundService.start(this, callId, callerName, callType) }
+            // Same channel + notification ID as the foreground service: this updates
+            // one notification and also provides a fallback if FGS startup is rejected.
+            showIncomingCallNotification(callId, callerName, callType)
             return
         }
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -143,7 +184,7 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
         ) return
 
         MessageNotificationChannels.ensureCreated(this)
-        val conversationId = message.data["conversation_id"]?.takeIf { it.matches(Regex("^[0-9a-fA-F-]{36}$")) }
+        val conversationId = message.data["conversation_id"]?.takeIf { PushPayloadValidation.isUuid(it) }
         val senderName = message.data["sender_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet"
         val bubbleIntent = if (conversationId != null) Intent(this, ChatBubbleActivity::class.java).apply {
             putExtra(ChatBubbleActivity.EXTRA_CONVERSATION_ID, conversationId)
@@ -206,43 +247,20 @@ class SayangqoeMessagingService : FirebaseMessagingService() {
     }
 }
 
-internal object CallNotificationChannels {
-    const val CHANNEL_ID = "sayangqoemeet_calls"
-
-    fun ensureCreated(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Incoming calls",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Incoming SayangqoeMeet voice and video calls"
-                enableVibration(true)
-                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE), null)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
-            }
-            manager.createNotificationChannel(channel)
-        }
-    }
-}
-
-private fun SayangqoeMessagingService.showIncomingCallNotification(message: RemoteMessage) {
-    // Lint cannot infer the caller's permission guard across this helper boundary.
+private fun SayangqoeMessagingService.showIncomingCallNotification(
+    callId: String,
+    caller: String,
+    type: String
+) {
     if (Build.VERSION.SDK_INT >= 33 &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
     ) return
-
-    val callId = message.data["call_id"]?.takeIf { it.isNotBlank() } ?: return
-    val caller = message.data["caller_name"]?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
-    val type = message.data["call_type"]?.takeIf { it == "video" } ?: "voice"
     CallNotificationChannels.ensureCreated(this)
-
     val acceptIntent = Intent(this, MainActivity::class.java).apply {
         action = "com.sayangqoemeet.app.OPEN_INCOMING_CALL"
         putExtra("open_calls", true)
         putExtra("incoming_call_id", callId)
+        putExtra("call_type", type)
         flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
     }
     val acceptPending = PendingIntent.getActivity(
@@ -257,27 +275,25 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(message: Remo
         this, callId.hashCode() xor 0x51A, declineIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    val callNotificationBuilder: NotificationCompat.Builder =
-        NotificationCompat.Builder(this, CallNotificationChannels.CHANNEL_ID)
-    callNotificationBuilder.setSmallIcon(android.R.drawable.sym_call_incoming)
-    callNotificationBuilder.setContentTitle("Incoming $type call")
-    callNotificationBuilder.setContentText(caller)
-    callNotificationBuilder.setCategory(NotificationCompat.CATEGORY_CALL)
-    callNotificationBuilder.setPriority(NotificationCompat.PRIORITY_MAX)
-    callNotificationBuilder.setContentIntent(acceptPending)
-    callNotificationBuilder.setOngoing(true)
-    callNotificationBuilder.setAutoCancel(false)
-    callNotificationBuilder.addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
-    callNotificationBuilder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
-    val notification = callNotificationBuilder.build()
+    val notification = NotificationCompat.Builder(this, CallNotificationChannels.CHANNEL_ID)
+        .setSmallIcon(android.R.drawable.sym_call_incoming)
+        .setContentTitle("Incoming $type call")
+        .setContentText(caller)
+        .setCategory(NotificationCompat.CATEGORY_CALL)
+        .setPriority(NotificationCompat.PRIORITY_MAX)
+        .setContentIntent(acceptPending)
+        .setOngoing(true)
+        .setAutoCancel(false)
+        .setOnlyAlertOnce(true)
+        .addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
+        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
+        .build()
     runCatching { NotificationManagerCompat.from(this).notify(callId.hashCode(), notification) }
 }
 
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val callId = intent.getStringExtra("call_id")?.takeIf {
-            it.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"))
-        } ?: return
+        val callId = intent.getStringExtra("call_id")?.takeIf { PushPayloadValidation.isUuid(it) } ?: return
         if (intent.action != ACTION_DECLINE) return
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -286,8 +302,16 @@ class CallActionReceiver : BroadcastReceiver() {
                 runCatching { CallForegroundService.stop(context, callId) }
                 NotificationManagerCompat.from(context).cancel(callId.hashCode())
                 val restored = runCatching { SupabaseAuthRepository.restoreSession() }.getOrDefault(false)
-                if (restored && SupabaseAuthRepository.currentUserId() != null) {
-                    runCatching { CallSignalingRepository.setStatus(callId, "declined") }
+                if (restored) {
+                    val currentUserId = SupabaseAuthRepository.currentUserId()
+                    if (currentUserId != null) {
+                        runCatching {
+                            val call = CallSignalingRepository.getCall(callId)
+                            if (call.calleeId == currentUserId && call.status == "ringing") {
+                                CallSignalingRepository.setStatus(callId, "declined")
+                            }
+                        }
+                    }
                 }
             } finally {
                 pending.finish()
