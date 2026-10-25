@@ -1,9 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { constantTimeEquals } from "../_shared/constant-time-equals.ts";
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json; charset=utf-8"}});
 Deno.serve(async(req:Request)=>{
  if(req.method!=="POST")return json(405,{error:"Method not allowed"});
  const expected=Deno.env.get("MEDIA_CLEANUP_CRON_SECRET"),supplied=req.headers.get("x-cleanup-secret");
- if(!expected||!supplied||supplied.length!==expected.length||supplied!==expected)return json(401,{error:"Unauthorized"});
+ if(!expected||!supplied||!constantTimeEquals(supplied,expected))return json(401,{error:"Unauthorized"});
  const url=Deno.env.get("SUPABASE_URL"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"); if(!url||!service)return json(500,{error:"Server configuration is incomplete"});
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  let body:{dry_run?:unknown};
