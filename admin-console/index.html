@@ -63,7 +63,8 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
   function validProjectUrl(value) {
     try {
       const url = new URL(value);
-      return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash;
+      return url.protocol === "https:" && url.hostname === new URL(DEFAULT_URL).hostname &&
+        !url.username && !url.password && !url.search && !url.hash;
     } catch { return false; }
   }
   async function request(path, body, authenticated = false) {
@@ -78,7 +79,7 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
         typeof payload.message === "string" ? payload.message :
         typeof payload.error_description === "string" ? payload.error_description :
         typeof payload.error === "string" ? payload.error : "Request failed (HTTP " + response.status + ").";
-      throw new Error(message.slice(0, 240));
+      throw new Error(message.slice(0, 200) + " (HTTP " + response.status + ")");
     }
     return payload;
   }
@@ -121,8 +122,13 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
       $("loginSection").classList.add("hidden");
       notice("dashboardNotice", "Server authorization and audit write succeeded. Data is live as of the timestamp shown.", "ok");
     } catch (error) {
-      notice("dashboardNotice", error instanceof Error ? error.message : "Could not load admin data.");
-      if (String(error).includes("401") || String(error).includes("403")) signOutLocal();
+      const message = error instanceof Error ? error.message : "Could not load admin data.";
+      if ($("dashboardSection").classList.contains("hidden")) notice("loginNotice", message);
+      else notice("dashboardNotice", message);
+      if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
+        signOutLocal();
+        notice("loginNotice", message);
+      }
     } finally { $("refresh").disabled = false; $("reloadAudit").disabled = false; }
   }
   function signOutLocal() {
@@ -138,9 +144,6 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
     const email = $("email").value.trim(), password = $("password").value;
     if (!validProjectUrl(projectUrl) || !publishableKey || !email || !password) {
       notice("loginNotice", "Enter a valid HTTPS Supabase URL, publishable key, email, and password."); return;
-    }
-    if (!projectUrl.includes("supabase.co") && projectUrl === DEFAULT_URL) {
-      notice("loginNotice", "Invalid Supabase project URL."); return;
     }
     $("signIn").disabled = true;
     try {
