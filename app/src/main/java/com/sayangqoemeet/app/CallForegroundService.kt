@@ -32,6 +32,9 @@ internal class CallForegroundService : Service() {
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
     private var activeCallId: String? = null
+    private var foregroundNotificationId: Int = NOTIFICATION_ID
+    private var callerName: String = "SayangqoeMeet user"
+    private var callType: String = "voice"
     private val handler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var statusPollJob: Job? = null
@@ -45,15 +48,15 @@ internal class CallForegroundService : Service() {
             stopAlertAndSelf()
             return START_NOT_STICKY
         }
-        activeCallId = intent?.getStringExtra(EXTRA_CALL_ID)?.takeIf { it.isNotBlank() }
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.sym_call_incoming)
-            .setContentTitle("Incoming SayangqoeMeet call")
-            .setContentText("Open SayangqoeMeet to answer or decline.")
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setOngoing(true).build()
-        startForeground(NOTIFICATION_ID, notification)
+        activeCallId = intent?.getStringExtra(EXTRA_CALL_ID)?.takeIf { PushPayloadValidation.isUuid(it) }
+        if (activeCallId == null) {
+            stopAlertAndSelf()
+            return START_NOT_STICKY
+        }
+        callerName = intent?.getStringExtra(EXTRA_CALLER_NAME)?.takeIf { it.isNotBlank() } ?: "SayangqoeMeet user"
+        callType = intent?.getStringExtra(EXTRA_CALL_TYPE)?.takeIf { it == "video" } ?: "voice"
+        foregroundNotificationId = activeCallId.hashCode()
+        startForeground(foregroundNotificationId, buildIncomingCallNotification(activeCallId!!))
         startRinging()
         scheduleBoundedStop()
         startStatusPolling()
@@ -112,6 +115,40 @@ internal class CallForegroundService : Service() {
                 }
             }
         }
+    }
+
+    private fun buildIncomingCallNotification(callId: String): Notification {
+        val acceptIntent = Intent(this, MainActivity::class.java).apply {
+            action = "com.sayangqoemeet.app.OPEN_INCOMING_CALL"
+            putExtra("open_calls", true)
+            putExtra("incoming_call_id", callId)
+            putExtra("call_type", callType)
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val acceptPending = android.app.PendingIntent.getActivity(
+            this, callId.hashCode(), acceptIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val declineIntent = Intent(this, CallActionReceiver::class.java).apply {
+            action = CallActionReceiver.ACTION_DECLINE
+            putExtra(EXTRA_CALL_ID, callId)
+        }
+        val declinePending = android.app.PendingIntent.getBroadcast(
+            this, callId.hashCode() xor 0x51A, declineIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.sym_call_incoming)
+            .setContentTitle("Incoming $callType call")
+            .setContentText(callerName)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setContentIntent(acceptPending)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .addAction(android.R.drawable.sym_action_call, "Accept", acceptPending)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePending)
+            .build()
     }
 
     private fun cancelCallNotification(callId: String) {
@@ -182,14 +219,27 @@ internal class CallForegroundService : Service() {
         const val ACTION_START = "com.sayangqoemeet.app.action.START_CALL_RING"
         const val ACTION_STOP = "com.sayangqoemeet.app.action.STOP_CALL_RING"
         private const val EXTRA_CALL_ID = "call_id"
+        private const val EXTRA_CALLER_NAME = "caller_name"
+        private const val EXTRA_CALL_TYPE = "call_type"
         private const val CHANNEL_ID = "incoming_calls"
         private const val NOTIFICATION_ID = 4207
         private const val MAX_RINGING_MILLIS = 60_000L
         private const val STATUS_POLL_MILLIS = 5_000L
 
-        fun start(context: Context, callId: String? = null) = androidx.core.content.ContextCompat.startForegroundService(
-            context, Intent(context, CallForegroundService::class.java).setAction(ACTION_START)
-                .putExtra(EXTRA_CALL_ID, callId))
+        fun start(
+            context: Context,
+            callId: String?,
+            callerName: String? = null,
+            callType: String? = null
+        ) {
+            if (callId == null || !PushPayloadValidation.isUuid(callId)) return
+            androidx.core.content.ContextCompat.startForegroundService(
+                context, Intent(context, CallForegroundService::class.java).setAction(ACTION_START)
+                    .putExtra(EXTRA_CALL_ID, callId)
+                    .putExtra(EXTRA_CALLER_NAME, callerName)
+                    .putExtra(EXTRA_CALL_TYPE, callType)
+            )
+        }
 
         fun stop(context: Context, callId: String? = null) {
             context.startService(Intent(context, CallForegroundService::class.java).setAction(ACTION_STOP)
