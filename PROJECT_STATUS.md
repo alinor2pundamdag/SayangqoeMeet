@@ -9,7 +9,7 @@
 ## Status
 **Automated source validation passed on PR #61's exact head; release readiness is not established.** Call-notification, active-call service, FCM token cleanup, retention, cleanup-secret, and read-only admin-console changes are implemented in the open source PR. Physical-device, live-provider, retention-approval, and owner-console checks remain.
 
-The previously reported main/live baseline was 32 repository migrations matching 32 live migration versions, 14 public tables with RLS enabled, and 10 active Edge Functions. PR #61's current source branch contains 36 migration files (four additional forward migrations not assumed deployed). Recheck the exact current commit and live migration ledger before schema/deployment work.
+The previously reported main/live baseline was 32 repository migrations matching 32 live migration versions, 14 public tables with RLS enabled, and 10 active Edge Functions. PR #61's current source branch contains 37 migration files (five additional forward migrations not assumed deployed). Recheck the exact current commit and live migration ledger before schema/deployment work.
 
 ## Open PRs at the inspected snapshot
 - [PR #61](https://github.com/alinor2pundamdag/SayangqoeMeet/pull/61) — combined media/call UX, push hardening, retention, and admin-console changes; open, draft, unmerged.
@@ -36,7 +36,7 @@ PR #61's source branch now contains the following changes, not yet merged or rel
 5. Merge the docs-only PR #64 after its latest checks pass; merge PR #61 only after required device and owner-side gates are met.
 
 ## Latest exact-head validation
-For PR #61 source head 0758ea05110fa63ee30329781cca587240199e43, Android CI run 633 passed (lint, unit tests, debug APK assembly/upload), Phase 2 Database Validation run 294 passed (fresh empty-database migration replay, two-user RLS isolation, Deno type-check/unit tests, and admin-console JavaScript syntax validation), and Secret History Scan run 213 passed.
+Prior PR #61 source head 0758ea05110fa63ee30329781cca587240199e43 passed Android CI run 633, Phase 2 Database Validation run 294, and Secret History Scan run 213. Latest source head 5b1e96be25092775016f7804fea055f665a95641 adds media path validation and bounded cleanup retries: Secret History Scan run 234 passed, Android CI run 654 and Phase 2 Database Validation run 299 are in progress. The latest migration has not been declared passed until run 299 completes.
 
 ## Verification limits
 This is not a full re-audit of every source file, deployed function, workflow, console setting, or physical device. See the audit report for the exact inspected scope, evidence boundaries, owner-only actions, and release gates. Do not mark unverified features complete.
