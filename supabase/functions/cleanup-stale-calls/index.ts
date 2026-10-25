@@ -37,6 +37,9 @@ Deno.serve(async (req: Request) => {
   const negotiatingCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const terminalStatuses = ["declined", "cancelled", "ended", "missed", "failed"];
+  // Production deletion remains opt-in until the owner reviews dry-run counts and
+  // explicitly approves the retention window in the function environment.
+  const retentionEnabled = Deno.env.get("CALL_RETENTION_ENABLED") === "true";
 
   if (body.dry_run === true) {
     const { count, error } = await admin
@@ -73,6 +76,7 @@ Deno.serve(async (req: Request) => {
       stale_ringing_calls: count ?? 0,
       abandoned_negotiations: negotiatingCount ?? 0,
       terminal_calls_eligible_for_deletion: retentionCount ?? 0,
+      retention_enabled: retentionEnabled,
       ice_candidates_deleted: 0,
       marked_missed: 0,
       marked_failed: 0,
@@ -103,19 +107,23 @@ Deno.serve(async (req: Request) => {
     return json(500, { error: "Could not reconcile abandoned call negotiations" });
   }
 
-  // call_ice_candidates.call_id references call_sessions(id) ON DELETE CASCADE.
-  // Delete only terminal sessions whose ended_at is older than the retention window;
-  // active/connected sessions are excluded from the delete predicate.
-  const { data: deletedCalls, error: retentionError } = await admin
-    .from("call_sessions")
-    .delete()
-    .in("status", terminalStatuses)
-    .not("ended_at", "is", null)
-    .lt("ended_at", retentionCutoff)
-    .select("id");
-  if (retentionError) {
-    console.error("Terminal call retention failed", JSON.stringify({ code: retentionError.code }));
-    return json(500, { error: "Could not delete expired terminal call sessions" });
+  let deletedCalls: Array<{ id: string }> = [];
+  if (retentionEnabled) {
+    // call_ice_candidates.call_id references call_sessions(id) ON DELETE CASCADE.
+    // Delete only terminal sessions whose ended_at is older than the retention window;
+    // active/connected sessions are excluded from the delete predicate.
+    const { data, error: retentionError } = await admin
+      .from("call_sessions")
+      .delete()
+      .in("status", terminalStatuses)
+      .not("ended_at", "is", null)
+      .lt("ended_at", retentionCutoff)
+      .select("id");
+    if (retentionError) {
+      console.error("Terminal call retention failed", JSON.stringify({ code: retentionError.code }));
+      return json(500, { error: "Could not delete expired terminal call sessions" });
+    }
+    deletedCalls = data ?? [];
   }
 
   return json(200, {
@@ -124,7 +132,8 @@ Deno.serve(async (req: Request) => {
     marked_missed: data?.length ?? 0,
     abandoned_negotiations: failedNegotiations?.length ?? 0,
     marked_failed: failedNegotiations?.length ?? 0,
-    terminal_calls_deleted: deletedCalls?.length ?? 0,
+    terminal_calls_deleted: deletedCalls.length,
+    retention_enabled: retentionEnabled,
     ice_candidate_retention: "ICE rows cascade when their terminal call session is deleted",
     terminal_retention_days: 30,
   });
