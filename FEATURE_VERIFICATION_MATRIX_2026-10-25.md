@@ -10,7 +10,16 @@ This is an evidence register, not a claim that all features work.
 - **NOT VERIFIED:** insufficient evidence.
 - **OWNER GATE:** requires owner/provider console or physical devices.
 
-## Latest validation boundary
+## Latest confirmed CI snapshot (2026-10-25)
+
+At source commit `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22`, all three automated workflows completed successfully:
+- Android CI #659: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156599
+- Phase 2 Database Validation #303: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156598
+- Secret History Scan #239: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156616
+
+This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, admin MFA, or physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
+
+## Historical validation boundary (superseded by latest snapshot above)
 
 Current PR #61 source head at recheck: `bb35e7964a27cd0aaf2e8174a3e6779f41c67a2a`.
 All three automated workflows passed on this exact head:
