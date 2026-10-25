@@ -43,6 +43,9 @@ jobs:
       - name: Type-check push Edge Functions
         run: find supabase/functions -name index.ts -print0 | xargs -0 deno check --no-lock
 
+      - name: Test permanent FCM token error classification
+        run: deno test supabase/functions/_shared/fcm-token-errors_test.ts
+
       - name: Set up Supabase CLI
         id: setup-supabase-cli
         uses: supabase/setup-cli@v1
