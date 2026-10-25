@@ -49,6 +49,9 @@ jobs:
       - name: Test cleanup secret comparison
         run: deno test supabase/functions/_shared/constant-time-equals_test.ts
 
+      - name: Test admin JWT assurance parsing
+        run: deno test supabase/functions/_shared/jwt-assurance_test.ts
+
       - name: Validate admin console JavaScript syntax
         run: |
           node <<'NODE'
