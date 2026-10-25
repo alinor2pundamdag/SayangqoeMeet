@@ -14,7 +14,10 @@ Deno.serve(async(req:Request)=>{
   const {count,error:queueError}=await admin.from("message_media_cleanup_queue")
    .select("message_id",{count:"exact",head:true}).in("status",["pending","claimed"]);
   if(queueError){console.error("Cleanup dry-run queue check failed",JSON.stringify({code:queueError.code}));return json(500,{error:"Could not inspect cleanup queue"})}
-  return json(200,{dry_run:true,queue_rows:count??0,claimed:0,purged:0,failed:0});
+  const {count:failedCount,error:failedError}=await admin.from("message_media_cleanup_queue")
+   .select("message_id",{count:"exact",head:true}).eq("status","failed");
+  if(failedError){console.error("Cleanup failed-queue check failed",JSON.stringify({code:failedError.code}));return json(500,{error:"Could not inspect failed cleanup jobs"})}
+  return json(200,{dry_run:true,queue_rows:count??0,failed_queue_rows:failedCount??0,claimed:0,purged:0,failed:0});
  }
  const {data:jobs,error}=await admin.rpc("claim_chat_media_cleanup",{p_limit:50});
  if(error){console.error("Claim failed",JSON.stringify({code:error.code,message:error.message}));return json(500,{error:"Could not claim cleanup jobs"})}
