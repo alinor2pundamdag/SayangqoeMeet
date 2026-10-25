@@ -91,6 +91,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,6 +115,37 @@ private val ShellBlue = Color(0xFF5D8CFF)
 private val ShellText = Color(0xFFF0F5FF)
 private val ShellMuted = Color(0xFF9BAAC5)
 private val ShellLine = Color(0xFF2A3856)
+
+@Composable
+private fun AnimatedBrandWordmark() {
+    val transition = rememberInfiniteTransition(label = "brand-rainbow")
+    val shift by transition.animateFloat(
+        initialValue = -420f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 6500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "brand-rainbow-shift"
+    )
+    val colors = listOf(
+        Color(0xFF42A5FF), // blue
+        Color(0xFF35D07F), // green
+        Color(0xFFFFD54F), // yellow
+        Color(0xFFFF72C6), // pink
+        Color(0xFFFF5252), // red
+        Color(0xFF42A5FF)
+    )
+    Text(
+        text = "SayangqoeMeet",
+        style = TextStyle(
+            brush = Brush.horizontalGradient(colors = colors, startX = shift, endX = shift + 420f),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraBold
+        ),
+        maxLines = 1
+    )
+}
 
 private val RegistrationDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a")
 private fun formatRegistrationDate(value: String): String = runCatching {
@@ -196,7 +228,7 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("SayangqoeMeet", color = ShellCyan, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                AnimatedBrandWordmark()
                 Text("PRIVATE CONNECTIONS", color = ShellMuted, fontSize = 9.sp, letterSpacing = 1.8.sp)
             }
             var showOverflow by remember { mutableStateOf(false) }
