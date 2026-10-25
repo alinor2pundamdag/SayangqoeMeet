@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
     abandoned_negotiations: failedNegotiations?.length ?? 0,
     marked_failed: failedNegotiations?.length ?? 0,
     terminal_calls_deleted: deletedCalls?.length ?? 0,
-    ice_candidates_deleted_by_cascade: deletedCalls?.length ?? 0,
+    ice_candidate_retention: "ICE rows cascade when their terminal call session is deleted",
     terminal_retention_days: 30,
   });
 });
