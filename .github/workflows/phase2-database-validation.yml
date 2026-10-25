@@ -54,9 +54,12 @@ jobs:
           node <<'NODE'
           const fs = require("node:fs");
           const html = fs.readFileSync("admin-console/index.html", "utf8");
-          const scripts = [...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/gi)];
-          if (scripts.length !== 1) throw new Error("Expected exactly one inline admin-console script");
-          new Function(scripts[0][1]);
+          const start = html.indexOf("<script>");
+          const end = html.indexOf("</script>", start + 8);
+          if (start < 0 || end < 0 || html.indexOf("<script>", start + 8) !== -1) {
+            throw new Error("Expected exactly one inline admin-console script");
+          }
+          new Function(html.slice(start + 8, end));
           console.log("Admin console inline JavaScript syntax is valid.");
           NODE
 
