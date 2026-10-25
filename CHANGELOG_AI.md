@@ -166,3 +166,12 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Restricted enqueue_message_media_cleanup RPC execution to service_role after advisor inspection. Verified attachment columns, RLS enabled/no client policies for cleanup tables, and service-role-only execution grants for cleanup RPCs.
 - Renamed atomic RPC migration file to version 20261017175440 to match the live ledger. Other migration drift remains and must be reconciled before any blanket db push.
 - PR #10 is open; CI run 260 was queued/in progress at last check. Android post-download confirmation integration and physical media/WebRTC tests remain outstanding.
+
+
+\n## 2026-10-25 — Audit consolidation and free-tier scope correction
+
+- Updated `masterplan.md` as the sole source of truth for the latest audit baseline, approved design direction, free-tier constraints, and prioritized engineering backlog.
+- Updated README, project status, and AI handoff to remove stale current-state claims and point to the master plan.
+- Retired the conflicting `addedto.txt` proposal after incorporating compatible features and explicitly rejecting literal-rainbow branding and impossible screen-recording guarantees.
+- Explicitly deferred Supabase leaked-password protection because the project is constrained to the free tier; it is not an action item.
+- Documentation-only change. No app code, database schema, deployed functions, secrets, or production data were changed. Engineering backlog items remain unimplemented/unverified unless separate evidence says otherwise.
