@@ -28,6 +28,13 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
 </div>
 <div class="actions"><button id="signIn" class="primary">Sign in and verify admin role</button></div>
 <div id="loginNotice" class="notice" role="status" aria-live="polite"></div>
+<div id="mfaSection" class="hidden panel" style="margin-top:14px">
+  <h2 style="font-size:14px;margin-top:0">Multi-factor verification</h2>
+  <p style="margin-top:0">Enter the six-digit code from your verified authenticator app. The server requires an AAL2 session before returning admin data.</p>
+  <div class="field"><label for="mfaCode">Authenticator code</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="123456"></div>
+  <div class="actions"><button id="verifyMfa" class="primary">Verify MFA code</button></div>
+  <div id="mfaNotice" class="notice" role="status" aria-live="polite"></div>
+</div>
 </div>
 </section>
 <section id="dashboardSection" class="hidden">
@@ -54,6 +61,8 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
   let accessToken = null;
   let projectUrl = "";
   let publishableKey = "";
+  let pendingMfaFactorId = null;
+  let pendingMfaChallengeId = null;
   const $ = (id) => document.getElementById(id);
   function notice(id, message, kind = "error") {
     const el = $(id); el.textContent = message; el.className = "notice show " + kind;
@@ -66,12 +75,12 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
         !url.username && !url.password && !url.search && !url.hash;
     } catch { return false; }
   }
-  async function request(path, body, authenticated = false) {
+  async function request(path, body, authenticated = false, method = "POST") {
     const headers = { apikey: publishableKey, "Content-Type": "application/json" };
     if (authenticated) headers.Authorization = "Bearer " + accessToken;
-    const response = await fetch(projectUrl + path, {
-      method: "POST", headers, body: JSON.stringify(body)
-    });
+    const options = { method, headers };
+    if (body !== undefined && method !== "GET") options.body = JSON.stringify(body);
+    const response = await fetch(projectUrl + path, options);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message = typeof payload.msg === "string" ? payload.msg :
@@ -81,6 +90,33 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
       throw new Error(message.slice(0, 200) + " (HTTP " + response.status + ")");
     }
     return payload;
+  }
+  function jwtAssuranceLevel(token) {
+    try {
+      const payload = token.split(".")[1];
+      if (!payload) return null;
+      const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+      const decoded = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+      return JSON.parse(decoded).aal || null;
+    } catch { return null; }
+  }
+  async function beginMfaChallenge() {
+    const factorsResponse = await request("/auth/v1/factors", undefined, true, "GET");
+    const factors = Array.isArray(factorsResponse.totp) ? factorsResponse.totp :
+      (Array.isArray(factorsResponse.all) ? factorsResponse.all : []);
+    const factor = factors.find((item) =>
+      item && item.status === "verified" && (item.factor_type === "totp" || item.type === "totp")
+    );
+    if (!factor || typeof factor.id !== "string") {
+      throw new Error("No verified authenticator factor is enrolled. Enroll TOTP MFA in Supabase Auth before using the admin console.");
+    }
+    const challenge = await request("/auth/v1/factors/" + encodeURIComponent(factor.id) + "/challenge", {}, true);
+    if (typeof challenge.id !== "string" || !challenge.id) throw new Error("Supabase did not return an MFA challenge ID.");
+    pendingMfaFactorId = factor.id;
+    pendingMfaChallengeId = challenge.id;
+    $("mfaCode").value = "";
+    $("mfaSection").classList.remove("hidden");
+    notice("mfaNotice", "Password accepted. Complete the authenticator challenge to continue.", "ok");
   }
   async function adminAction(action) {
     return request("/functions/v1/admin-console", { action }, true);
@@ -136,7 +172,12 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
   }
   function signOutLocal() {
     accessToken = null;
+    pendingMfaFactorId = null;
+    pendingMfaChallengeId = null;
     $("password").value = "";
+    $("mfaCode").value = "";
+    $("mfaSection").classList.add("hidden");
+    clearNotice("mfaNotice");
     $("dashboardSection").classList.add("hidden");
     $("loginSection").classList.remove("hidden");
   }
@@ -154,11 +195,44 @@ h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;line-height:1.15;margin:28
       if (typeof auth.access_token !== "string" || !auth.access_token) throw new Error("Supabase did not return an access token.");
       accessToken = auth.access_token;
       $("password").value = "";
+      if (jwtAssuranceLevel(accessToken) !== "aal2") {
+        await beginMfaChallenge();
+        return;
+      }
       await refreshData();
     } catch (error) {
       signOutLocal();
       notice("loginNotice", error instanceof Error ? error.message : "Sign-in failed.");
     } finally { $("signIn").disabled = false; }
+  });
+  $("verifyMfa").addEventListener("click", async () => {
+    clearNotice("mfaNotice");
+    const code = $("mfaCode").value.trim();
+    if (!pendingMfaFactorId || !pendingMfaChallengeId || !/^[0-9]{6}$/.test(code)) {
+      notice("mfaNotice", "Enter the six-digit authenticator code."); return;
+    }
+    $("verifyMfa").disabled = true;
+    try {
+      const result = await request(
+        "/auth/v1/factors/" + encodeURIComponent(pendingMfaFactorId) + "/verify",
+        { challenge_id: pendingMfaChallengeId, code },
+        true
+      );
+      if (typeof result.access_token !== "string" || !result.access_token) {
+        throw new Error("Supabase did not return the MFA-verified session.");
+      }
+      accessToken = result.access_token;
+      pendingMfaFactorId = null;
+      pendingMfaChallengeId = null;
+      $("mfaCode").value = "";
+      $("mfaSection").classList.add("hidden");
+      if (jwtAssuranceLevel(accessToken) !== "aal2") {
+        throw new Error("MFA verification did not produce an AAL2 session.");
+      }
+      await refreshData();
+    } catch (error) {
+      notice("mfaNotice", error instanceof Error ? error.message : "MFA verification failed.");
+    } finally { $("verifyMfa").disabled = false; }
   });
   $("refresh").addEventListener("click", refreshData);
   $("reloadAudit").addEventListener("click", async () => {
