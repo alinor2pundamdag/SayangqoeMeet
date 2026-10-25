@@ -5,7 +5,16 @@
 **Requirements:** repository `masterplan.md`; feature comparison uses public Meta announcements as examples of Messenger functionality, not as a claim that every Messenger account/region has every feature.  
 **Important:** This is a source-evidence comparison, not a live-device or production certification. “Found in source” means a relevant implementation symbol/path exists, not that the feature is complete or works end-to-end.
 
-## Current repository CI evidence
+## Latest confirmed CI snapshot (2026-10-25)
+
+At source commit `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22`, all three automated workflows completed successfully:
+- Android CI #659: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156599
+- Phase 2 Database Validation #303: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156598
+- Secret History Scan #239: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156616
+
+This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, admin MFA, or physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
+
+## Historical repository CI evidence (superseded by latest snapshot above)
 
 Latest PR #61 head inspected: `4bd16829fe7d812e53b47b3c854563dd094e255b`. All three repository workflows passed on that exact SHA:
 - Android CI #658: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40170847936
