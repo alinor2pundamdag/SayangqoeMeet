@@ -176,6 +176,9 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
             scope.launch {
                 try {
                     error = null
+                    // Runtime microphone/camera permissions have been checked before this block.
+                    // Keep the active WebRTC call alive when the Activity moves to background.
+                    CallForegroundService.startActiveCall(context.applicationContext, call.id, call.type)
                     activeCall = call
                     pendingPermissionCall = null
                     pendingPermissionIsCaller = false
@@ -191,6 +194,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             scope.launch {
                                 manager?.let { endedManager -> runCatching { endedManager.hangUp("ended") } }
                                 activeCall?.id?.let(CallPipController::unregister)
+                                runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id) }
                                 callUiStateStore.clear()
                                 manager = null
                                 activeCall = null
@@ -208,6 +212,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
+                    runCatching { CallForegroundService.stop(context.applicationContext, call.id) }
                     runCatching { CallSignalingRepository.setStatus(call.id, "failed") }
                     error = failure.message ?: "Could not start the call."
                     status = "Call setup failed"
@@ -364,6 +369,7 @@ internal fun CallCenterScreen(initialTargetUserId: String? = null, initialCallTy
                             val current = manager
                             scope.launch {
                                 runCatching { current?.hangUp() }
+                                runCatching { CallForegroundService.stop(context.applicationContext, activeCall?.id) }
                                 activeCall?.id?.let(CallPipController::unregister)
                                 callUiStateStore.clear()
                                 manager = null
