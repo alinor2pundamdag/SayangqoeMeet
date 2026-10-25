@@ -10,7 +10,7 @@
 
 **Release readiness: NOT ESTABLISHED.** This audit and follow-up source work address several source-level integration risks and documentation/PR inconsistencies. It does not certify production deployment parity, database security, live push delivery, or two-device calling.
 
-The audit documentation branch is based on `main` and does not contain the application source changes in PR #61. PR #61 is still open/unmerged. PR #62 overlaps UUID-validation changes now incorporated into #61's branch and should be closed as superseded only after the latest combined-head checks pass. CI evidence applies only to the exact tested head, not to main, deployed Supabase functions, or real devices.
+The audit documentation branch is based on `main` and does not contain the application source changes in PR #61. PR #61 is still open/unmerged. PR #62's overlapping UUID-validation changes are incorporated into #61 and PR #62 is now closed as superseded. CI evidence applies only to the exact tested head, not to main, deployed Supabase functions, or real devices.
 
 ### Scope and evidence boundaries
 
@@ -84,7 +84,7 @@ The following code changes have been committed to PR #61's source branch, but th
 | F-14 | Added forward migrations for retention indexes and required least-privilege cleanup privileges. | Latest fresh migration replay, SQL lint, RLS tests and live ledger comparison remain pending. |
 | F-15 | Existing idempotent message request handling and Realtime reconciliation remain in scope. | Execute duplicate-send/lost-response and delayed/out-of-order Realtime tests; do not infer these from source presence alone. |
 
-Current latest-head checks: PR #61 head 0758ea05110fa63ee30329781cca587240199e43; Phase 2 Database Validation run 294 passed (fresh migration replay, two-user RLS isolation, Deno type-check/unit tests, and admin-console JS syntax), Secret History Scan run 213 passed, and Android CI run 633 is still in progress. Do not call the whole source branch successful until Android CI completes.
+Current latest-head checks: PR #61 head 0758ea05110fa63ee30329781cca587240199e43; Android CI run 633 passed (lint, unit tests, debug APK assembly/upload), Phase 2 Database Validation run 294 passed (fresh migration replay, two-user RLS isolation, Deno type-check/unit tests, and admin-console JS syntax), and Secret History Scan run 213 passed. These are automated source checks only; physical-device, live-provider, and owner-side gates remain.
 
 
 ## 4. Cross-layer integration map
