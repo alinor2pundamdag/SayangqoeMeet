@@ -8,12 +8,14 @@ on:
     branches:
       - main
       - fix/phase-2-main-rebased
+      - feat/messenger-inspired-media-call-ux
+      - fix/final-readiness-uiux-audit
     paths:
       - "supabase/**"
       - ".github/workflows/phase2-database-validation.yml"
   pull_request:
-    branches:
-      - main
+    # Validate feature-to-feature and feature-to-main PRs alike; otherwise
+    # the migration/RLS suite silently skips PRs whose base is not main.
     paths:
       - "supabase/**"
       - ".github/workflows/phase2-database-validation.yml"
