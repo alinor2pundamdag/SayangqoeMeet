@@ -87,11 +87,12 @@ The sign-in and registration UI must feel integrated with the sci-fi brand rathe
 
 ### 3.4 Distinctive per-letter app branding — required
 
-The SayangqoeMeet brand should use a custom **sci-fi spectral neon** color treatment for individual letters, not a conventional literal rainbow.
+The SayangqoeMeet brand should use a custom **sci-fi spectral neon** treatment for individual letters, with the approved animated rainbow header treated as a separate, explicit UI requirement.
 
-- Choose a coordinated palette using cyan, ice blue, electric blue, teal, and restrained violet/magenta highlights. The result should feel futuristic and premium, not like a basic rainbow gradient.
-- Apply per-letter colors or a carefully composed multicolor wordmark in the app's splash/welcome/authentication branding and other suitable in-app brand surfaces.
-- Keep the treatment coherent with the cyan/blue luminous shadow and overall design tokens.
+- Use the coordinated cyan, ice blue, electric blue, teal, violet/magenta palette for static wordmark/per-letter branding where appropriate.
+- The header animation must follow the later approved requirement in section 15.4/15.9: local, continuous, smooth neon blue → neon green → neon yellow → neon pink → neon red. This supersedes any earlier prohibition on literal rainbow animation.
+- Keep the treatment coherent with the dark sci-fi surfaces, readable contrast, reduced-motion accessibility, and centralized design tokens.
+- Do not infer that every screen or every wordmark must animate; apply the looping sweep to the approved header component(s).
 - Ensure sufficient contrast and provide a readable static fallback.
 
 **Android platform limitation:** The OS-controlled app label shown under the launcher icon or in system installation/settings screens is normally plain text styled by Android, the launcher, or the device manufacturer. An app cannot reliably force each letter of that external system label to have its own color. Do not promise or attempt to override system UI. Instead, apply the custom per-letter neon treatment to the app icon artwork where supported and to the in-app splash/welcome/brand wordmark. Keep the actual package/application label correct and recognizable.
@@ -476,7 +477,7 @@ For each engineering task:
 ### 15.8 Change record — 2026-10-25
 
 - Consolidated the latest audit findings and current priorities into the master plan.
-- Retired the conflicting `addedto.txt` proposal; canonical cyan/electric-blue branding remains authoritative, and literal rainbow branding is not approved.
+- Historical note (superseded by the user's later explicit approval in section 15.9): this entry previously said literal rainbow branding was not approved. That prohibition is no longer operative for the header animation. Keep the remaining cyan/electric-blue sci-fi brand system for other surfaces.
 - Recorded free-tier scope: leaked-password protection is intentionally deferred and must not be pursued as a task.
 - Replaced stale current-state claims in summary documents with a single-source-of-truth policy.
 - This is a documentation/governance change only. It does not claim that the listed engineering backlog has been implemented or that unverified device behavior now passes.
@@ -489,3 +490,17 @@ For each engineering task:
 - Treat incoming-call notification deduplication/actions, correct foreground-service lifecycle and types, invalid/stale FCM token cleanup, and call-session/ICE retention as implementation work to complete—not merely backlog bullets. Make focused changes, test, and report actual results; do not mark complete without verification.
 - Free-tier constraint remains binding. Supabase leaked-password protection remains intentionally excluded.
 - This latest decision supersedes the prior 15.4 statement that rejected literal rainbow branding. The prior wording is corrected by this addendum; the latest requirement is operative.
+
+
+## 15.10 Deduplicated audit register and execution ownership — 2026-10-25
+
+The evidence register and consolidated fix list are maintained in [AUDIT_REPORT_2026-10-25.md](AUDIT_REPORT_2026-10-25.md). It is a findings/evidence register, not a second product roadmap. This master plan remains the requirements authority.
+
+- Duplicate symptom reports must map to one canonical finding ID, with one accountable owner, one implementation location, explicit dependencies, and one acceptance-test set.
+- The current open PRs #61, #62, and #64 are separate unmerged proposals. Compare overlapping files and dependency order before merge; green CI on one PR does not validate another PR's head or prove live service/device behavior.
+- The audited notification code has two distinct incoming-call notification paths: the foreground service's persistent notification and the messaging service's call notification. Consolidate into one user-facing notification identity/action path, while keeping ringtone/service lifecycle separate if needed.
+- The inspected call foreground service is currently declared as `mediaPlayback` and is used for incoming ringing; the call setup path stops it before WebRTC setup. Do not assume this is a correctly running active-call foreground service. Validate the actual Android API-level foreground service type/permission requirements before changing the manifest.
+- Both inspected push Edge Functions return provider success/failure counts but do not currently distinguish FCM's permanent unregistered-token response from transient provider errors and delete only confirmed-invalid tokens. Implement this in a reviewed, idempotent way.
+- The call/ICE retention task must begin with exact schema, RLS/grants, foreign keys, active-call states, and migration-ledger verification. No destructive migration or cleanup deployment until dry-run evidence and rollback are reviewed.
+- The free-tier exclusion for Supabase leaked-password protection remains unchanged; do not include it in fixes, blockers, or owner action lists.
+- The latest user-approved rainbow header requirement is operative. Earlier prohibition text is explicitly superseded, not a competing current rule.
