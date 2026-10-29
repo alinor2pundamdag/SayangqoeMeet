@@ -85,12 +85,13 @@ The sign-in and registration UI must feel integrated with the sci-fi brand rathe
 
 ### 3.4 Distinctive per-letter app branding — required
 
-The SayangqoeMeet brand should use a custom **sci-fi spectral neon** color treatment for individual letters, not a conventional literal rainbow.
+The approved SayangqoeMeet in-app header wordmark uses a **smooth, continuously animated local rainbow gradient** in this order: blue → green → yellow → pink → red.
 
-- Choose a coordinated palette using cyan, ice blue, electric blue, teal, and restrained violet/magenta highlights. The result should feel futuristic and premium, not like a basic rainbow gradient.
-- Apply per-letter colors or a carefully composed multicolor wordmark in the app's splash/welcome/authentication branding and other suitable in-app brand surfaces.
-- Keep the treatment coherent with the cyan/blue luminous shadow and overall design tokens.
-- Ensure sufficient contrast and provide a readable static fallback.
+- The animation must be rendered locally by the app; it must not call a network service, backend, or external image.
+- Use the same approved rainbow identity consistently on the primary in-app brand header and any welcome/authentication wordmark where that brand is shown.
+- Keep the wordmark readable against both dark and light surfaces; avoid glow effects that reduce text contrast.
+- Keep the animation lightweight and avoid making layout dimensions change as colors move. Provide a stable readable fallback when animation is disabled or unavailable.
+- Do not replace this explicit requirement with the older cyan/blue/violet-only spectral palette.
 
 **Android platform limitation:** The OS-controlled app label shown under the launcher icon or in system installation/settings screens is normally plain text styled by Android, the launcher, or the device manufacturer. An app cannot reliably force each letter of that external system label to have its own color. Do not promise or attempt to override system UI. Instead, apply the custom per-letter neon treatment to the app icon artwork where supported and to the in-app splash/welcome/brand wordmark. Keep the actual package/application label correct and recognizable.
 
@@ -227,25 +228,9 @@ For each table or backend endpoint:
 
 ---
 
-## 11. Admin console — required operations capability
+## 11. Product scope — no admin console
 
-The product requires a separate, access-controlled admin console for authorized operations and safety work. This console is distinct from the public Android user experience; an Android navigation item or hidden button is not an admin security boundary.
-
-### Required capabilities
-- Server-verified administrator authentication and role checks; never trust a client-side boolean or user-editable profile field as proof of admin status.
-- User/account lookup and account-state overview with least-privilege access to personal data.
-- User reports and moderation queue, with reasoned actions and an auditable action history.
-- Operational health view for Supabase, messaging, notification delivery, and call infrastructure without exposing secrets.
-- Clear permission-denied, loading, empty, and failure states; pagination and safeguards for destructive actions.
-- Admin actions must run through trusted server-side endpoints/Edge Functions with explicit authorization checks. Never ship the service-role key to Android or a browser.
-- Audit log records who performed an action, what was changed, when, and the reason, while minimizing sensitive content retention.
-- Admin role assignment must be restricted to a trusted owner/operator workflow, not self-service registration.
-
-### Verification and rollout
-- Define admin-role storage/claims and least-privilege policies before exposing real admin data.
-- Test both authorized and unauthorized access to every privileged endpoint.
-- Keep admin console deployment separate from the Android app; do not show demo data as real operational data.
-- The current Android admin entry is only a locked navigation placeholder, not a production admin console. A separate web console and its secure backend remain to be implemented.
+The Android product is a user-facing communication app. A separate admin dashboard, admin roles, moderation console, and admin-specific release approval workflow are out of scope for the current product. Keep ordinary user authentication, row-level security, least-privilege backend permissions, and secret protection enabled; removing the admin console must not weaken user-data isolation.
 
 ## 12. Repository, secrets, and release workflow
 
@@ -283,7 +268,6 @@ Work in dependency order, adapting only when source/build evidence requires it.
 4. **Notifications:** FCM registration and delivery path, notification channels, default notification sound and vibration, privacy-aware tap routing.
 5. **Calls:** WebRTC media, secure signaling, default system ringtone behavior, permissions, cleanup and failure recovery.
 6. **Quality and security:** unit/UI/integration tests, RLS authorization tests, responsive-layout checks, dependency review and secret scanning.
-7. **Admin console:** separate web operations console, server-verified administrator roles, user/report management, operational health, audit history, and authorization tests.
 8. **Release readiness:** reproducible build, setup guide, verified test matrix, known limitations, final status/handoff and release preparation (publishing only with user approval).
 
 At every phase, build on real working code and verify the result before advancing. Do not substitute decorative mockups for required functionality.
@@ -392,3 +376,10 @@ Do not describe the entire app as finished while any required feature remains un
 - Updated `respond-conversation-invite` so the pending invitation is conditionally claimed before membership is added, reducing accept/decline race conditions; a failed membership write attempts to return the invite to pending.
 - Redeployed both Edge Functions with JWT verification still enabled.
 - This is source/deployment verification only; two-account runtime tests and rate-limit/abuse testing remain outstanding.
+
+
+### 2026-10-29 — Admin console scope removed
+
+- Removed the separate admin console, admin-specific role/dashboard workflow, and admin-specific approval gates from the current product scope.
+- This does not remove Supabase Auth, RLS, ownership checks, backend authorization, or secret protections needed by ordinary users.
+- Any legacy admin-only database objects must be reviewed and retired through a separate, verified migration; never delete production data or run a destructive migration blindly.

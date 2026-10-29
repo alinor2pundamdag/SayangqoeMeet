@@ -2,7 +2,7 @@
 >
 > PR #61 (`feat/messenger-inspired-media-call-ux`) is OPEN and DRAFT; it is not merged into `main`. The source snapshot `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22` passed Android CI #659, Phase 2 Database Validation #303, and Secret History Scan #239. Two audit-document corrections followed; CI was restarted for those documentation commits and must be checked against the final branch head before calling the latest head green.
 >
-> **Do not treat older status/handoff statements below as current evidence when they conflict with this addendum.** Automated migration replay/SQL tests are not proof of hosted Supabase parity. Still requires owner/device/provider evidence: live migration/function parity, two-account RLS/Realtime/media checks, live FCM, Android notification/foreground-service behavior, two-device WebRTC, admin MFA/AAL2 and Firebase console restrictions. No production migration/deployment/data deletion has been performed by this audit. Do not enable call-retention deletion until dry-run and owner approval. Keep Supabase leaked-password protection excluded.
+> **Do not treat older status/handoff statements below as current evidence when they conflict with this addendum.** Automated migration replay/SQL tests are not proof of hosted Supabase parity. Still requires owner/device/provider evidence: live migration/function parity, two-account RLS/Realtime/media checks, live FCM, Android notification/foreground-service behavior, two-device WebRTC and Firebase console restrictions. No production migration/deployment/data deletion has been performed by this audit. Do not enable call-retention deletion until dry-run and owner approval. Keep Supabase leaked-password protection excluded.
 
 ---
 
@@ -19,13 +19,13 @@
 - **Phase 2 — migration parity:** PRs #16, #34, #37, #39, #52, and #55 are merged. The repository and live Supabase ledger each contain **31 ordered migration versions**, with exact version parity (31/31; no missing or unrecorded versions). The original pre-apply grant migration filename is preserved in `docs/legacy-migrations/`; the two idempotent grant entries match the two versions recorded in the live ledger.
 - **Fresh validation:** PR #55 exact head `8ef223de7bc1538042ac13403941c9c87948448b` passed Android CI, full migration replay from an empty database, SQL lint, two-user RLS isolation tests, Deno Edge Function type-check, and full-history secret scan. Post-merge main checks are tracked on the [main Actions page](https://github.com/alinor2pundamdag/SayangqoeMeet/actions?query=branch%3Amain).
 - **Live database:** all **14/14** public tables have RLS enabled and at least one policy; **25/25** foreign-key constraints have valid leading indexes. `chat-attachments` remains private; `profile-avatars` remains public as intended. No existing indexes were dropped.
-- **Edge Function privileges:** PR #52 added narrowly scoped `service_role` column grants for the fields used by conversation creation/invites, push notifications, incoming-call/TURN flows, media verification, admin overview, and stale-call cleanup. Existing client grants and RLS policies were preserved. Live catalog checks confirm private profile fields, message body, and call SDP remain ungranted to `service_role`; anonymous clients cannot update call end state.
+- **Edge Function privileges:** PR #52 added narrowly scoped `service_role` column grants for the fields used by conversation creation/invites, push notifications, incoming-call/TURN flows, media verification, stale-call cleanup. Existing client grants and RLS policies were preserved. Live catalog checks confirm private profile fields, message body, and call SDP remain ungranted to `service_role`; anonymous clients cannot update call end state.
 - **Live maintenance verification:** after the additive grant migration was applied, the scheduled maintenance dry-run passed for both `cleanup-chat-media` and `cleanup-stale-calls`. The response reported `queue_rows: 0`, `failed: 0`, `stale_ringing_calls: 0`, and `marked_missed: 0`. This was dry-run-only; no media deletion or call-state mutation occurred.
-- **RLS/RPC hardening:** all **9** public SECURITY DEFINER functions have pinned `search_path`; none is executable by `anon`. The three authenticated-callable profile/conversation/device-token RPCs derive identity from `auth.uid()` and remain intentionally callable for app functionality. The SQL suite covers cross-user isolation, sensitive profile grants, message server-owned fields, call lifecycle, storage policies, device-token account switching, pinned-message isolation, admin-table access, idempotency, and stale-call worker execution.
+- **RLS/RPC hardening:** all **9** public SECURITY DEFINER functions have pinned `search_path`; none is executable by `anon`. The three authenticated-callable profile/conversation/device-token RPCs derive identity from `auth.uid()` and remain intentionally callable for app functionality. The SQL suite covers cross-user isolation, sensitive profile grants, message server-owned fields, call lifecycle, storage policies, device-token account switching, pinned-message isolation, idempotency, and stale-call worker execution.
 - **Edge Function deployment parity:** all **10** active deployed Edge Functions have source that matches the corresponding `main` `index.ts` byte-for-byte. Runtime push delivery still requires a two-device test; source parity alone does not prove Firebase/FCM provider configuration.
-- **Performance:** representative plans use the call-session polling index, recipient/status invite index, admin audit created-at index, and media-cleanup queue index. The message table is currently small, so the planner's sequential scan for a dummy-ID query is reasonable despite the existing conversation/created index. The advisor reports **13 unused-index notices**. Preserve these until representative workload/query statistics prove a specific index redundant; do not drop an index solely because `idx_scan = 0`.
+- **Performance:** representative plans use the call-session polling index, recipient/status invite index, and media-cleanup queue index. The message table is currently small, so the planner's sequential scan for a dummy-ID query is reasonable despite the existing conversation/created index. The advisor reports **13 unused-index notices**. Preserve these until representative workload/query statistics prove a specific index redundant; do not drop an index solely because `idx_scan = 0`.
 - **CI/security:** full-history secret scan passed on PR #55 exact head. This detects supported secret patterns but does not prove provider settings or credential history are risk-free. No service-account/private key value was exposed in this audit.
-- **Owner-only release gates:** Firebase Android API-key restrictions; confirmation of `FIREBASE_SERVICE_ACCOUNT_JSON` and TURN secret configuration; assignment of the intended admin Auth UUID if admin access is needed; and physical-device tests for auth, invitations, messages, FCM delivery, voice/video/TURN, attachment access, PiP/overlay/notification permissions, and Android 13–16 behavior.
+- **Owner-only release gates:** Firebase Android API-key restrictions; confirmation of `FIREBASE_SERVICE_ACCOUNT_JSON` and TURN secret configuration; physical-device tests for auth, invitations, messages, FCM delivery, voice/video/TURN, attachment access, PiP/overlay/notification permissions, and Android 13–16 behavior.
 - **Explicit scope exclusion:** leaked-password protection was not changed.
 
 ## Current readiness decision
@@ -53,9 +53,6 @@
 - [x] All three live migrations—initial messaging schema, foreign-key indexes, device tokens, and conversation invitations—are recorded in Supabase and matched by repository filenames.
 - [x] Supabase security advisor returned no findings at the latest check. This is not a substitute for RLS integration tests.
 - [x] README, handoff, and changelog are being aligned with current implementation status.
-- [x] Added an explicit admin-console requirement to `masterplan.md`.
-- [x] Expanded `admin-console/index.html` into a responsive sci-fi command-center UI with overview metrics, online-user directory, grouped chat sessions, video/voice review layouts, safety case queue, audit trail, settings, responsive navigation, and working UI-level search/navigation. All live values remain explicitly unconnected; no fabricated user activity.
-- [x] Added a mobile admin-access UI with a three-dot overflow menu, password field, locked verification button, and module cards. It does not check or store an admin password locally.
 
 ## Historical incomplete / unverified list (superseded by the current status above)
 
@@ -65,7 +62,6 @@
 - **Invitations:** The deployed Edge Functions create a pending invitation and allow only the recipient to accept/decline; the recipient receives conversation membership only after acceptance. This still needs end-to-end two-account testing and abuse/rate-limit review before production use.
 - **Firebase/FCM:** Client/token code and server sender function are present, but no `app/google-services.json` or Firebase service-account secret has been configured. Google Services plugin application is conditional on the app config file existing, so it does not block the clean-start build. The sender function cannot deliver push until `FIREBASE_SERVICE_ACCOUNT_JSON` is set in Supabase Edge Function secrets. No push delivery test has passed.
 - **Calls:** The Hang Up / Cancel UI exists, but WebRTC signaling/media, STUN/TURN, call invitations, and two-device tests are not implemented.
-- **Admin console UI:** The web command-center and Android access-entry UIs are implemented as static UI. No secure login or live operations are active yet; server-verified admin roles, presence/call feeds, moderation workflows, audit storage, and privileged endpoints remain to be built.
 - **Security tests:** Automated RLS allowed/denied tests have not been run. Do not call the full app production-ready.
 - **Responsive verification:** Build, emulator screenshots, compact/large layout, orientation, and keyboard test matrix are still pending.
 
@@ -76,7 +72,7 @@
 3. Add Supabase Realtime and resilient message state handling.
 4. Configure Firebase/FCM and verify push delivery on devices.
 5. Implement WebRTC and test calls between two authorized devices.
-6. Implement secure admin authentication, role-checked endpoints, live presence/call-session feeds, authorized moderation workflows, and server-side audit history behind the completed UI.
+6. Complete remaining user-facing messaging, media, notification, and call verification without adding an admin console.
 
 ## Accuracy and security
 
@@ -111,3 +107,9 @@ Never claim a successful build, live Auth test, push delivery, or call unless ev
 - Edge Function confirm-message-media-download is ACTIVE v1 with JWT verification enabled. cleanup-chat-media is ACTIVE v1 with platform JWT verification disabled because it validates x-cleanup-secret; it will not run until MEDIA_CLEANUP_CRON_SECRET is configured and a trusted scheduler is installed.
 - Migration history still has older filename/version drift. The atomic RPC migration filename is aligned to live version 20261017175440, but do not run blanket supabase db push until all remaining entries are reconciled.
 - Not yet release-ready: Android must call confirmation only after a full successful download; cleanup secret/scheduler, controlled worker test, two-account media test, and two-device WebRTC/TURN matrix remain pending.
+
+
+## Scope update — 2026-10-29
+
+- The separate admin console, Android admin entry, admin Edge Function, and admin-specific release-approval requirement are being removed in branch `remove/admin-console-scope`.
+- Ordinary user security controls remain required. Legacy admin-only database objects and grants still need inventory before any retirement migration; no production migration or data deletion has been performed.

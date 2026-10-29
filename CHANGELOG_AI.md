@@ -2,7 +2,7 @@
 >
 > PR #61 (`feat/messenger-inspired-media-call-ux`) is OPEN and DRAFT; it is not merged into `main`. The source snapshot `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22` passed Android CI #659, Phase 2 Database Validation #303, and Secret History Scan #239. Two audit-document corrections followed; CI was restarted for those documentation commits and must be checked against the final branch head before calling the latest head green.
 >
-> **Do not treat older status/handoff statements below as current evidence when they conflict with this addendum.** Automated migration replay/SQL tests are not proof of hosted Supabase parity. Still requires owner/device/provider evidence: live migration/function parity, two-account RLS/Realtime/media checks, live FCM, Android notification/foreground-service behavior, two-device WebRTC, admin MFA/AAL2 and Firebase console restrictions. No production migration/deployment/data deletion has been performed by this audit. Do not enable call-retention deletion until dry-run and owner approval. Keep Supabase leaked-password protection excluded.
+> **Do not treat older status/handoff statements below as current evidence when they conflict with this addendum.** Automated migration replay/SQL tests are not proof of hosted Supabase parity. Still requires owner/device/provider evidence: live migration/function parity, two-account RLS/Realtime/media checks, live FCM, Android notification/foreground-service behavior, two-device WebRTC and Firebase console restrictions. No production migration/deployment/data deletion has been performed by this audit. Do not enable call-retention deletion until dry-run and owner approval. Keep Supabase leaked-password protection excluded.
 
 ---
 
@@ -174,3 +174,10 @@ Inspect the GitHub Actions run, resolve any build errors based on logs, and veri
 - Restricted enqueue_message_media_cleanup RPC execution to service_role after advisor inspection. Verified attachment columns, RLS enabled/no client policies for cleanup tables, and service-role-only execution grants for cleanup RPCs.
 - Renamed atomic RPC migration file to version 20261017175440 to match the live ledger. Other migration drift remains and must be reconciled before any blanket db push.
 - PR #10 is open; CI run 260 was queued/in progress at last check. Android post-download confirmation integration and physical media/WebRTC tests remain outstanding.
+
+
+## 2026-10-29 — Admin console scope removal
+
+- Removed the Android admin navigation and screen, admin repository calls/models, web admin console, and admin-console Edge Function in branch `remove/admin-console-scope`.
+- Updated the master plan and verification matrix to remove admin-console requirements and admin-specific approval gates.
+- Ordinary user authentication, RLS, backend authorization, and secret protections remain in scope. Legacy admin-only database objects have not been retired or deployed; inspect migration/live-schema dependencies before considering any destructive cleanup.

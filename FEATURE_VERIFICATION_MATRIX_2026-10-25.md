@@ -17,7 +17,7 @@ At source commit `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22`, all three automated
 - Phase 2 Database Validation #303: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156598
 - Secret History Scan #239: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156616
 
-This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, admin MFA, or physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
+This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
 
 ## Historical validation boundary (superseded by latest snapshot above)
 
@@ -29,6 +29,14 @@ All three automated workflows passed on this exact head:
 
 These are repository automation results only. They do not prove live Supabase schema/deployment parity, live FCM delivery, real-device behavior, two-account authorization in the hosted project, or two-device WebRTC. PR #61 remains open and draft; main does not yet contain its unmerged source changes.
 
+## UI/UX correction pass — 2026-10-25
+
+- Corrected the masterplan's conflicting brand specification to the user's approved continuous local rainbow gradient order: blue → green → yellow → pink → red.
+- Added AnimatedBrandWordmark() to the signed-in shell header. This is a source-level correction only; it is not yet a visual/device pass.
+- Remaining UI acceptance checks are explicit and must not be silently marked complete: authentication/welcome brand consistency; static/reduced-motion fallback; contrast; screen sizes/insets/keyboard/font scale/orientation; tap-target/accessibility audit; screenshots of each primary screen on a running APK.
+- The repository does not contain sufficient current device screenshot evidence to claim a full UI/UX pass. Automated CI can compile/test code but cannot prove visual correctness on the user's device.
+- Readiness rule: mark a UI item PASS only after a named automated test or a recorded manual screenshot/device result exists.
+
 ## Feature matrix
 
 | ID | Required feature (masterplan) | Evidence inspected | Current status | Required closure evidence |
@@ -36,7 +44,7 @@ These are repository automation results only. They do not prove live Supabase sc
 | V-01 | Android project identity, reproducible build, package | Android manifest; Android CI workflow | PARTIAL | Current-head CI passes; install APK and launch on real supported device. |
 | V-02 | Responsive layouts, insets, keyboard, font scaling, orientation | MainActivity and Compose call screen inspected; no full UI matrix | NOT VERIFIED | Compact/standard/large screens, landscape, keyboard, cutouts, gesture nav and large font screenshots/tests. |
 | V-03 | Branded login/register, accessible fields, validation and error/loading states | Masterplan §§3–4; complete auth UI inventory not yet verified | NOT VERIFIED | Verify labels, password toggle, focus/error/disabled/loading states, autofill, IME, contrast and reduced-motion. |
-| V-04 | Continuous local rainbow header: blue→green→yellow→pink→red | Approved requirement in masterplan; all header instances not yet inventoried | NOT VERIFIED | Trace target components; verify continuous local animation, no network dependency, static reduced-motion fallback and contrast. |
+| V-04 | Continuous local rainbow header: blue→green→yellow→pink→red | AnimatedBrandWordmark() added to the signed-in shell header in AppScreens.kt; gradient is rendered locally | PARTIAL — source change made, build/device rendering pending | Confirm latest-head CI; inspect all brand surfaces including auth/welcome; verify contrast, reduced-motion behavior and screenshots on device. |
 | V-05 | Supabase registration, login, logout, session restore, profiles | MainActivity and auth repository references | PARTIAL | Run lifecycle tests against configured project using test accounts; verify token expiry, profile access and logout. |
 | V-06 | Backend validation, privacy, no privileged client secrets | Auth/backend code and secret-scan workflow | PARTIAL | Inspect client assets/history; verify no service-role or FCM private credential; test denied access and privacy-safe logs. |
 | V-07 | Secure conversations and membership authorization | Repositories, migrations, two-user RLS test | PARTIAL | Compare live schema/ledger; test two unrelated users and anon across select/insert/update/delete. |
@@ -51,7 +59,6 @@ These are repository automation results only. They do not prove live Supabase sc
 | V-16 | FCM token rotation and invalid-token cleanup | Push functions and shared FCM error classifier | PARTIAL | Test UNREGISTERED vs quota/auth/5xx/timeouts; delete only confirmed invalid token; verify live provider and deployed function parity. |
 | V-17 | Message notification default sound, vibration, channels and tap routing | FCM service/channel source; device matrix absent | NOT VERIFIED | Grant/deny permission, channel settings, sound/vibration/DND, privacy preview and correct deep links on device. |
 | V-18 | Stale call/ICE retention cleanup | cleanup-stale-calls, call migrations and SQL assertions | PARTIAL | Review live ledger, FK/RLS/grants, dry-run counts and rollback; prove active calls survive; owner approves before destructive enablement. |
-| V-19 | Secure web admin console, MFA, operations/reporting/audit | admin console and server assurance code/tests | PARTIAL | Browser smoke test with admin MFA AAL2; prove anon/non-admin denied; verify audit actions and no service key in browser. |
 | V-20 | Database integrity, RLS, RPC grants and migration parity | ordered migrations, phase2 SQL test/workflow | PARTIAL | Fresh replay and configured two-user test passed on earlier head; compare live ledger/schema and test every exposed table/RPC/Storage path. No blind db push. |
 | V-21 | Firebase package/signing/API restrictions and server secrets | Source config cannot prove console state | OWNER GATE | Owner checks package `com.sayangqoemeet.app`, signing fingerprints, API restrictions, FCM project and server-only secrets. Never share secret values. |
 | V-22 | CI, dependency review, secret scanning and release discipline | Android, Phase 2 and Secret Scan workflows | PARTIAL | All relevant workflows must pass on current exact SHA; green CI is not live/provider/device proof. |
@@ -64,7 +71,7 @@ These are repository automation results only. They do not prove live Supabase sc
 2. Tie every CI result to the exact commit SHA. Any source change requires checking the new head.
 3. Record source review, automated tests, hosted-provider checks and physical-device tests separately.
 4. No destructive production migration or cleanup until live ledger/schema, dry-run counts, retention policy and rollback plan are reviewed.
-5. Do not claim live FCM, hosted Supabase parity, two-device calls or admin MFA without actual evidence.
+5. Do not claim live FCM, hosted Supabase parity, or two-device calls without actual evidence.
 6. Do not include Supabase leaked-password protection in the action list.
 7. Keep PR #61 draft until critical device/provider/owner gates are evidenced.
 
@@ -73,5 +80,10 @@ These are repository automation results only. They do not prove live Supabase sc
 2. Complete the source inventory against every masterplan requirement and add any missing subfeatures to this matrix.
 3. Compare all migrations against the hosted Supabase ledger/schema; no blind production push.
 4. Run two-account RLS/Realtime/media tests and two-device notifications/Accept/Decline/WebRTC.
-5. Complete owner-side Firebase, secret, cleanup scheduler/retention and admin MFA checks without exposing secret values.
+5. Complete owner-side Firebase, secret, cleanup scheduler/retention checks without exposing secret values.
 6. Update PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG_AI.md with exact evidence; merge/release only after all required gates pass.
+
+
+## Scope update — 2026-10-29
+
+The separate admin console, admin dashboard, admin MFA checks, and admin-specific release approval gate have been removed from product scope. Continue to enforce ordinary user authentication, RLS, least-privilege access, and secret protection. This scope change does not imply that the remaining user-facing features are device-tested or release-ready.

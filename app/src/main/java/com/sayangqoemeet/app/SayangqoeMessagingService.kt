@@ -281,6 +281,15 @@ private fun SayangqoeMessagingService.showIncomingCallNotification(
         .setContentText(caller)
         .setCategory(NotificationCompat.CATEGORY_CALL)
         .setPriority(NotificationCompat.PRIORITY_MAX)
+        // Use Android's native call-style template (Answer/Decline affordances)
+        // instead of a generic notification with ordinary action buttons.
+        .setStyle(
+            NotificationCompat.CallStyle.forIncomingCall(
+                androidx.core.app.Person.Builder().setName(caller).build(),
+                declinePending,
+                acceptPending
+            )
+        )
         .setContentIntent(acceptPending)
         .setOngoing(true)
         .setAutoCancel(false)

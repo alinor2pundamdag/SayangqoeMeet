@@ -143,9 +143,8 @@ internal fun AuthGateScreen(onAuthenticated: () -> Unit) {
                         ) {
                             Text(
                                 text = "SayangqoeMeet",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = AuthCyan
+                                style = MaterialTheme.typography.headlineMedium.copy(brush = rainbowBrush),
+                                fontWeight = FontWeight.ExtraBold
                             )
                             Text(
                                 text = "PRIVATE MESSAGING · REAL-TIME CONNECTION",

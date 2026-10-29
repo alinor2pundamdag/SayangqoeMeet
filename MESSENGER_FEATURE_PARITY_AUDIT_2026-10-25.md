@@ -12,7 +12,7 @@ At source commit `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22`, all three automated
 - Phase 2 Database Validation #303: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156598
 - Secret History Scan #239: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156616
 
-This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, admin MFA, or physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
+This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
 
 ## Historical repository CI evidence (superseded by latest snapshot above)
 
@@ -62,7 +62,6 @@ This only establishes those automated checks passed. PR #61 is still open/draft;
 | App lock / private chat controls | No full biometric/app-lock flow confirmed in inspected source | Gap / not found in inspected source | Decide if required; implement platform biometric/device credential gate and secure task-switcher previews if approved. |
 | Themes and per-chat customization | Local theme/branding code exists; complete per-conversation themes/reactions not verified | Partial | Separate global brand theme from per-chat theme customization; test persistence and accessibility. |
 | Search messages, archive, mute, pin | Pinned-message schema/code references exist; full search/archive/mute feature parity not established | Partial / not verified | Verify each action independently; implement indexed search, archive state, mute notification policy and pin permissions if in scope. |
-| Admin moderation and operational console | Admin console Edge Function and audit records exist | Partial | Test MFA/AAL2, role provisioning, least privilege, audit events, moderation flows and non-admin denial in browser. |
 | Responsive UI and accessibility | Compose UI uses flexible layouts in places; no full device/accessibility matrix recorded | NOT VERIFIED | Test compact/large screens, landscape, keyboard, font scaling, TalkBack, touch targets, contrast and reduced motion. |
 | Default sound, vibration, notification channels | Notification and manifest code exists | PARTIAL | Physical-device matrix across OS versions, permission states, DND, channel settings, lock screen and duplicate notification cases. |
 
@@ -89,3 +88,8 @@ Meta's official feature announcements provide examples of Messenger capabilities
 - Do not implement proprietary branding/assets or copy Messenger's exact UI; use familiar interaction patterns with SayangqoeMeet's own design.
 - No destructive production migration/cleanup without live-schema review, dry-run and rollback plan.
 - Free-tier-only constraint remains. Supabase leaked-password protection is intentionally excluded from action items.
+
+
+## Scope update — 2026-10-29
+
+The admin/moderation console is no longer part of the planned product. Do not count it as a Messenger parity requirement. User-facing security and privacy controls remain required.
