@@ -12,7 +12,7 @@ At source commit `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22`, all three automated
 - Phase 2 Database Validation #303: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156598
 - Secret History Scan #239: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156616
 
-This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, admin MFA, or physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
+This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
 
 ## Historical repository CI evidence (superseded by latest snapshot above)
 
@@ -89,3 +89,8 @@ Meta's official feature announcements provide examples of Messenger capabilities
 - Do not implement proprietary branding/assets or copy Messenger's exact UI; use familiar interaction patterns with SayangqoeMeet's own design.
 - No destructive production migration/cleanup without live-schema review, dry-run and rollback plan.
 - Free-tier-only constraint remains. Supabase leaked-password protection is intentionally excluded from action items.
+
+
+## Scope update — 2026-10-29
+
+The admin/moderation console is no longer part of the planned product. Do not count it as a Messenger parity requirement. User-facing security and privacy controls remain required.
