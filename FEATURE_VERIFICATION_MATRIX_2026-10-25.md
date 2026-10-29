@@ -59,7 +59,6 @@ These are repository automation results only. They do not prove live Supabase sc
 | V-16 | FCM token rotation and invalid-token cleanup | Push functions and shared FCM error classifier | PARTIAL | Test UNREGISTERED vs quota/auth/5xx/timeouts; delete only confirmed invalid token; verify live provider and deployed function parity. |
 | V-17 | Message notification default sound, vibration, channels and tap routing | FCM service/channel source; device matrix absent | NOT VERIFIED | Grant/deny permission, channel settings, sound/vibration/DND, privacy preview and correct deep links on device. |
 | V-18 | Stale call/ICE retention cleanup | cleanup-stale-calls, call migrations and SQL assertions | PARTIAL | Review live ledger, FK/RLS/grants, dry-run counts and rollback; prove active calls survive; owner approves before destructive enablement. |
-| V-19 | Secure web admin console, MFA, operations/reporting/audit | admin console and server assurance code/tests | PARTIAL | Browser smoke test with admin MFA AAL2; prove anon/non-admin denied; verify audit actions and no service key in browser. |
 | V-20 | Database integrity, RLS, RPC grants and migration parity | ordered migrations, phase2 SQL test/workflow | PARTIAL | Fresh replay and configured two-user test passed on earlier head; compare live ledger/schema and test every exposed table/RPC/Storage path. No blind db push. |
 | V-21 | Firebase package/signing/API restrictions and server secrets | Source config cannot prove console state | OWNER GATE | Owner checks package `com.sayangqoemeet.app`, signing fingerprints, API restrictions, FCM project and server-only secrets. Never share secret values. |
 | V-22 | CI, dependency review, secret scanning and release discipline | Android, Phase 2 and Secret Scan workflows | PARTIAL | All relevant workflows must pass on current exact SHA; green CI is not live/provider/device proof. |
@@ -72,7 +71,7 @@ These are repository automation results only. They do not prove live Supabase sc
 2. Tie every CI result to the exact commit SHA. Any source change requires checking the new head.
 3. Record source review, automated tests, hosted-provider checks and physical-device tests separately.
 4. No destructive production migration or cleanup until live ledger/schema, dry-run counts, retention policy and rollback plan are reviewed.
-5. Do not claim live FCM, hosted Supabase parity, two-device calls or admin-console checks without actual evidence.
+5. Do not claim live FCM, hosted Supabase parity, or two-device calls without actual evidence.
 6. Do not include Supabase leaked-password protection in the action list.
 7. Keep PR #61 draft until critical device/provider/owner gates are evidenced.
 
