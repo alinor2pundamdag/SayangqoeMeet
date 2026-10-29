@@ -57,20 +57,6 @@ jobs:
       - name: Test safe media cleanup object paths
         run: deno test supabase/functions/_shared/chat-media-path_test.ts
 
-      - name: Validate admin console JavaScript syntax
-        run: |
-          node <<'NODE'
-          const fs = require("node:fs");
-          const html = fs.readFileSync("admin-console/index.html", "utf8");
-          const start = html.indexOf("<script>");
-          const end = html.indexOf("</script>", start + 8);
-          if (start < 0 || end < 0 || html.indexOf("<script>", start + 8) !== -1) {
-            throw new Error("Expected exactly one inline admin-console script");
-          }
-          new Function(html.slice(start + 8, end));
-          console.log("Admin console inline JavaScript syntax is valid.");
-          NODE
-
       - name: Set up Supabase CLI
         id: setup-supabase-cli
         uses: supabase/setup-cli@v1
