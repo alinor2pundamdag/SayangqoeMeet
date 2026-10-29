@@ -170,7 +170,7 @@ private val ReligionOptions = listOf(
     "Prefer not to say", "Christianity", "Islam", "Buddhism", "Hinduism", "Judaism", "Other", "None"
 )
 
-internal enum class AppDestination { HOME, PROFILE, SETTINGS, CHATS, CHAT, CALL, ADMIN, USERS }
+internal enum class AppDestination { HOME, PROFILE, SETTINGS, CHATS, CHAT, CALL, USERS }
 
 @Composable
 internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversationId: String? = null, initialCallId: String? = null, initialCallRecipientId: String? = null, initialCallType: String = "voice", onIncomingCallHandled: (String) -> Unit = {}, isDarkTheme: Boolean = true, onThemeChanged: (Boolean) -> Unit = {}, onSignOut: () -> Unit) {
@@ -239,7 +239,6 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onTap = { showOverflow = true },
-                                onLongPress = { destination = AppDestination.ADMIN }
                             )
                         }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -308,7 +307,6 @@ internal fun SignedInShell(openChatsOnStart: Boolean = false, initialConversatio
                     onCall = { id, type -> selectedCallRecipient = id; selectedCallType = type; destination = AppDestination.CALL }
                 )
                 AppDestination.CALL -> CallCenterScreen(initialTargetUserId = selectedCallRecipient, initialCallType = selectedCallType, initialCallId = initialCallId, onInitialCallHandled = onIncomingCallHandled, onBack = { destination = AppDestination.HOME })
-                AppDestination.ADMIN -> AdminConsoleScreen(onBack = { destination = AppDestination.HOME })
                 AppDestination.USERS -> RegisteredUsersScreen(
                     onBack = { destination = AppDestination.HOME },
                     onOpenConversation = { id -> selectedConversation = id; destination = AppDestination.CHAT },
@@ -1680,131 +1678,6 @@ private fun android.content.ContentResolver.getDisplayName(uri: Uri): String? {
         cursor = query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
         if (cursor?.moveToFirst() == true) cursor.getString(0) else null
     } catch (_: Exception) { null } finally { cursor?.close() }
-}
-
-@Composable
-private fun AdminConsoleScreen(onBack: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var overview by remember { mutableStateOf<AdminDashboardOverview?>(null) }
-    var auditEvents by remember { mutableStateOf<List<AdminAuditEvent>>(emptyList()) }
-    var status by remember { mutableStateOf("Checking server-side admin authorization…") }
-    var loading by remember { mutableStateOf(false) }
-
-    suspend fun refresh() {
-        loading = true
-        try {
-            val verifiedOverview = SupabaseDataRepository.loadAdminDashboardOverview()
-            val verifiedAudit = SupabaseDataRepository.loadAdminAuditLog()
-            overview = verifiedOverview
-            auditEvents = verifiedAudit
-            status = ""
-        } catch (error: Exception) {
-            overview = null
-            auditEvents = emptyList()
-            status = error.message ?: "Admin service could not be reached."
-        } finally {
-            loading = false
-        }
-    }
-
-    LaunchedEffect(Unit) { refresh() }
-
-    Column(
-        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp)
-    ) {
-        BackHeader("SECURE ADMIN ACCESS", onBack)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Command access", color = ShellText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Server-verified, read-only operational overview.", color = ShellMuted, fontSize = 12.sp)
-            }
-            TextButton(onClick = { scope.launch { refresh() } }, enabled = !loading) {
-                Text(if (loading) "CHECKING…" else "REFRESH", color = ShellCyan, fontSize = 10.sp)
-            }
-        }
-
-        if (status.isNotBlank()) {
-            val checking = status.startsWith("Checking")
-            val notProvisioned = status.contains("403") || status.contains("not provisioned", ignoreCase = true)
-            EmptyState(
-                when {
-                    checking -> "CHECKING ADMIN ACCESS"
-                    notProvisioned -> "ADMIN ACCESS NOT PROVISIONED"
-                    else -> "ADMIN SERVICE UNAVAILABLE"
-                },
-                when {
-                    checking -> "Waiting for the authenticated backend to verify this account. No admin data is shown until the server confirms access."
-                    notProvisioned -> "The backend denied admin access for this account. The project owner must explicitly provision the correct Supabase Auth user in admin_memberships. A password typed into the app cannot grant admin privileges.\n\n$status"
-                    else -> "No live admin data is shown because server verification or the audit write failed. Retry after checking the backend.\n\n$status"
-                }
-            )
-        }
-
-        overview?.let { data ->
-            Box(
-                Modifier.fillMaxWidth().border(
-                    1.dp,
-                    Brush.linearGradient(listOf(Color(0x9955F4FF), Color(0x554F6FFF))),
-                    RoundedCornerShape(20.dp)
-                ).background(
-                    Brush.verticalGradient(listOf(Color(0xFF14243B), Color(0xFF0C1323))),
-                    RoundedCornerShape(20.dp)
-                ).padding(18.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("VERIFIED ADMIN SESSION", color = Color(0xFF65E5B0), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                    Text("Role: ${data.role}", color = ShellText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("Snapshot: ${data.generatedAt}", color = ShellMuted, fontSize = 10.sp)
-                    Text("Read-only mode · privileged writes disabled", color = ShellMuted, fontSize = 11.sp)
-                }
-            }
-
-            Text("LIVE BACKEND OVERVIEW", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
-            listOf(
-                "Registered profiles" to data.registeredProfiles,
-                "Conversations" to data.conversations,
-                "Messages" to data.messages,
-                "Active calls" to data.activeCalls,
-                "Users active in last 90 seconds" to data.activeUsersLast90Seconds
-            ).forEach { (label, count) ->
-                Row(
-                    Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(14.dp))
-                        .background(ShellPanel, RoundedCornerShape(14.dp)).padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(label, color = ShellMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Text(count.toString(), color = ShellCyan, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-        }
-
-        Text("PRIVILEGED OPERATIONS", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
-        EmptyState(
-            "MODERATION AND ACCOUNT WRITES ARE DISABLED",
-            "No ban, suspension, message inspection, or destructive operation is exposed. These controls remain unavailable until the owner approves the admin scope, authorization rules, audit fields, and retention policy."
-        )
-
-        Text("ADMIN AUDIT HISTORY", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
-        if (auditEvents.isEmpty()) {
-            EmptyState("NO VERIFIED AUDIT EVENTS", "Audit entries appear here only after the backend authorizes this account and records the access event.")
-        } else {
-            auditEvents.take(20).forEach { event ->
-                Column(
-                    Modifier.fillMaxWidth().border(1.dp, ShellLine, RoundedCornerShape(14.dp))
-                        .background(ShellPanel, RoundedCornerShape(14.dp)).padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(event.action, color = ShellCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("Actor: ${event.actorId}", color = ShellMuted, fontSize = 10.sp)
-                    Text("Time: ${event.createdAt}", color = ShellMuted, fontSize = 10.sp)
-                    if (event.targetType != null || event.targetId != null) {
-                        Text("Target: ${event.targetType.orEmpty()} ${event.targetId.orEmpty()}", color = ShellMuted, fontSize = 10.sp)
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
