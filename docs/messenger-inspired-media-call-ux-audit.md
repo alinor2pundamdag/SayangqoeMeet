@@ -47,4 +47,4 @@ Audit baseline: `main` at `c4823c263c12f99f339ff1ab733272fa2e0a2162` (2026-10-24
 2. Deno type-check of every Edge Function and fresh migration replay / RLS tests remain green.
 3. Tests for MIME allow-list, unsupported types, empty/oversized files, album query edge cases and voice playback lifecycle.
 4. Real-device verification of camera permission denial/grant, album selection, audio recording/playback, call PiP and overlay bounds.
-5. No production migration, Edge Function deployment, PR merge, or admin-console implementation is included in this feature branch.
+5. No production migration, Edge Function deployment, or PR merge is included in this feature branch. The separate admin console has been removed from product scope.
