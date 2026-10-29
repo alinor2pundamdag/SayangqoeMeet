@@ -17,7 +17,7 @@ At source commit `8ea556b9f0174f952d5ae6e11a9b5dd48d86ed22`, all three automated
 - Phase 2 Database Validation #303: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156598
 - Secret History Scan #239: https://github.com/alinor2pundamdag/SayangqoeMeet/actions/runs/40171156616
 
-This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, admin MFA, or physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
+This snapshot predates the documentation corrections in this commit. These results cover repository automation only; they do not establish live Supabase/Edge Function parity, real FCM delivery, physical-device/two-device acceptance. PR #61 remains open and draft; do not merge or release on CI alone.
 
 ## Historical validation boundary (superseded by latest snapshot above)
 
@@ -72,7 +72,7 @@ These are repository automation results only. They do not prove live Supabase sc
 2. Tie every CI result to the exact commit SHA. Any source change requires checking the new head.
 3. Record source review, automated tests, hosted-provider checks and physical-device tests separately.
 4. No destructive production migration or cleanup until live ledger/schema, dry-run counts, retention policy and rollback plan are reviewed.
-5. Do not claim live FCM, hosted Supabase parity, two-device calls or admin MFA without actual evidence.
+5. Do not claim live FCM, hosted Supabase parity, two-device calls or admin-console checks without actual evidence.
 6. Do not include Supabase leaked-password protection in the action list.
 7. Keep PR #61 draft until critical device/provider/owner gates are evidenced.
 
@@ -81,5 +81,10 @@ These are repository automation results only. They do not prove live Supabase sc
 2. Complete the source inventory against every masterplan requirement and add any missing subfeatures to this matrix.
 3. Compare all migrations against the hosted Supabase ledger/schema; no blind production push.
 4. Run two-account RLS/Realtime/media tests and two-device notifications/Accept/Decline/WebRTC.
-5. Complete owner-side Firebase, secret, cleanup scheduler/retention and admin MFA checks without exposing secret values.
+5. Complete owner-side Firebase, secret, cleanup scheduler/retention checks without exposing secret values.
 6. Update PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG_AI.md with exact evidence; merge/release only after all required gates pass.
+
+
+## Scope update — 2026-10-29
+
+The separate admin console, admin dashboard, admin MFA checks, and admin-specific release approval gate have been removed from product scope. Continue to enforce ordinary user authentication, RLS, least-privilege access, and secret protection. This scope change does not imply that the remaining user-facing features are device-tested or release-ready.
